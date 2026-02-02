@@ -275,17 +275,40 @@ async def trigger_supplier_scan(
         env.setdefault("CHROMEDRIVER_PATH", "/usr/bin/chromedriver")
         
         # Run the scraper as a subprocess
+        script_path = scraper_script
         result = await asyncio.to_thread(
             subprocess.run,
-            ["python", scraper_script, str(request.website_id)],
+            ["python", script_path, str(request.website_id)],
             capture_output=True,
             text=True,
             env=env,
-            timeout=30 * 60  # 30 minute timeout
+            timeout=30 * 60,  # 30 minute timeout
+            cwd=None  # Use current working directory
         )
         
         completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
+        
+        # Check if script failed
+        if result.returncode != 0:
+            error_msg = result.stderr or "Script failed with no error output"
+            scan_log = SupplierScanLog(
+                website_id=request.website_id,
+                status="failed",
+                total_products=0,
+                output=result.stdout[:5000] if result.stdout else None,
+                error_message=error_msg[:1000],
+                started_at=started_at,
+                completed_at=completed_at,
+                duration_seconds=duration
+            )
+            db.add(scan_log)
+            db.commit()
+            
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Scan failed: {error_msg[:200]}"
+            )
         
         # Parse output for statistics
         output_lines = result.stdout.split('\n') if result.stdout else []
