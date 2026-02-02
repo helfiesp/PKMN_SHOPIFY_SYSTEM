@@ -620,3 +620,166 @@ class SnkrdunkScanLog(Base):
     __table_args__ = (
         Index('idx_snkrdunk_scan_log_date', 'created_at'),
     )
+
+
+# ============================================================================
+# SUPPLIER TRACKING MODELS - Monitor supplier websites for availability
+# ============================================================================
+
+class SupplierWebsite(Base):
+    """Supplier website configuration."""
+    __tablename__ = "supplier_websites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True, index=True)
+    url = Column(String(500), nullable=False)
+    
+    # Scraper settings
+    scraper_type = Column(String(100), default="generic")  # generic, custom_X
+    is_active = Column(Boolean, default=True)
+    scan_interval_hours = Column(Integer, default=6)
+    
+    # Notification settings
+    notify_on_new_products = Column(Boolean, default=True)
+    notify_on_restock = Column(Boolean, default=True)
+    notification_webhook = Column(String(500))  # Discord/Slack webhook URL
+    
+    # Metadata
+    last_scan_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    products = relationship("SupplierProduct", back_populates="website", cascade="all, delete-orphan")
+    scan_logs = relationship("SupplierScanLog", back_populates="website", cascade="all, delete-orphan")
+
+
+class SupplierProduct(Base):
+    """Product from a supplier website."""
+    __tablename__ = "supplier_products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    supplier_website_id = Column(Integer, ForeignKey("supplier_websites.id"), nullable=False)
+    
+    # Product identification
+    external_id = Column(String(255))  # Supplier's product ID if available
+    product_url = Column(String(1000), nullable=False, index=True)
+    
+    # Product details
+    name = Column(String(1000), nullable=False)
+    sku = Column(String(255))
+    price = Column(Float)
+    currency = Column(String(10), default="NOK")
+    
+    # Availability
+    in_stock = Column(Boolean, default=False, index=True)
+    stock_quantity = Column(Integer)
+    last_seen_in_stock = Column(DateTime(timezone=True))
+    
+    # Detection
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_scraped_at = Column(DateTime(timezone=True))
+    
+    # Metadata
+    category = Column(String(100))
+    image_url = Column(String(1000))
+    description = Column(Text)
+    
+    # Change tracking
+    is_new = Column(Boolean, default=True)  # True until user acknowledges
+    stock_alert_sent = Column(Boolean, default=False)
+    is_hidden = Column(Boolean, default=False, index=True)  # Hide irrelevant products
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    website = relationship("SupplierWebsite", back_populates="products")
+    availability_history = relationship("SupplierAvailabilityHistory", back_populates="product", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_supplier_product_url', 'supplier_website_id', 'product_url', unique=True),
+        Index('idx_supplier_product_stock', 'supplier_website_id', 'in_stock'),
+    )
+
+
+class SupplierAvailabilityHistory(Base):
+    """Historical tracking of supplier product availability."""
+    __tablename__ = "supplier_availability_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    supplier_product_id = Column(Integer, ForeignKey("supplier_products.id"), nullable=False)
+    
+    # Snapshot data
+    in_stock = Column(Boolean, nullable=False)
+    stock_quantity = Column(Integer)
+    price = Column(Float)
+    
+    # Detect changes
+    stock_changed = Column(Boolean, default=False)  # Stock status changed from previous
+    price_changed = Column(Boolean, default=False)  # Price changed from previous
+    
+    recorded_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    # Relationship
+    product = relationship("SupplierProduct", back_populates="availability_history")
+    
+    __table_args__ = (
+        Index('idx_supplier_avail_product_date', 'supplier_product_id', 'recorded_at'),
+    )
+
+
+class SupplierScanLog(Base):
+    """Log of supplier website scan runs."""
+    __tablename__ = "supplier_scan_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    supplier_website_id = Column(Integer, ForeignKey("supplier_websites.id"), nullable=False)
+    
+    status = Column(String(50), nullable=False)  # success, failed, partial
+    
+    # Scan results
+    products_found = Column(Integer, default=0)
+    new_products = Column(Integer, default=0)
+    restocked_products = Column(Integer, default=0)
+    
+    # Error details
+    error_message = Column(Text)
+    
+    # Timing
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    completed_at = Column(DateTime(timezone=True))
+    duration_seconds = Column(Float)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationship
+    website = relationship("SupplierWebsite", back_populates="scan_logs")
+    
+    __table_args__ = (
+        Index('idx_supplier_scan_website_date', 'supplier_website_id', 'created_at'),
+    )
+
+
+class SupplierAlert(Base):
+    """Alert/notification for supplier changes."""
+    __tablename__ = "supplier_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    supplier_product_id = Column(Integer, ForeignKey("supplier_products.id"), nullable=False)
+    
+    alert_type = Column(String(50), nullable=False, index=True)  # new_product, restock, price_drop
+    message = Column(Text)
+    
+    # Notification status
+    is_read = Column(Boolean, default=False, index=True)
+    notified_at = Column(DateTime(timezone=True))  # When webhook was sent
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationship
+    product = relationship("SupplierProduct")
+    
+    __table_args__ = (
+        Index('idx_supplier_alert_type_read', 'alert_type', 'is_read'),
+    )

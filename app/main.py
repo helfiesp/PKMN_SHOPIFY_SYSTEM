@@ -20,6 +20,7 @@ from app.routers import (
     health,
     translations,
     competitors,
+    suppliers,
     history,
 )
 from app.routers import settings as settings_router
@@ -52,6 +53,7 @@ app.include_router(health.router, prefix="/api/v1", tags=["Health"])
 app.include_router(settings_router.router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(translations.router, prefix="/api/v1/translations", tags=["Translations"])
 app.include_router(competitors.router, prefix="/api/v1/competitors", tags=["Competitors"])
+app.include_router(suppliers.router, prefix="/api/v1", tags=["Suppliers"])
 app.include_router(shopify.router, prefix="/api/v1/shopify", tags=["Shopify"])
 app.include_router(snkrdunk.router, prefix="/api/v1/snkrdunk", tags=["SNKRDUNK"])
 app.include_router(price_plans.router, prefix="/api/v1/price-plans", tags=["Price Plans"])

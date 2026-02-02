@@ -1,0 +1,26 @@
+# Set timezone to Norway (Europe/Oslo)
+TZ=Europe/Oslo
+
+# SNKRDUNK scan every 6 hours at 0, 6, 12, 18
+# Logs viewable at: http://localhost:8000 → SNKRDUNK section
+0 6,12,18,0 * * * curl -s -X POST "http://localhost:8000/api/v1/snkrdunk/fetch" -H "Content-Type: application/json" -d '{"pages":[1,2,3],"force_refresh":false}' >> ~/logs/snkrdunk_api.log 2>&1
+
+# Competitor scans every 6 hours at 0, 6, 12, 18
+# Logs viewable at: http://localhost:8000 → Competitors → Scan Logs
+0 6,12,18,0 * * * curl -s -X POST "http://localhost:8000/api/v1/competitors/scrape-all" >> ~/logs/competitor_api.log 2>&1
+
+# Lekekassen supplier scan every 6 hours at :15
+# Logs viewable at: http://localhost:8000 → Suppliers → Scan Logs
+15 6,12,18,0 * * * curl -s -X POST "http://localhost:8000/api/v1/suppliers/scan" -H "Content-Type: application/json" -d '{"website_id":1}' >> ~/logs/lekekassen_api.log 2>&1
+
+# Extra Leker supplier scan every 6 hours at :30
+# Logs viewable at: http://localhost:8000 → Suppliers → Scan Logs
+30 6,12,18,0 * * * curl -s -X POST "http://localhost:8000/api/v1/suppliers/scan" -H "Content-Type: application/json" -d '{"website_id":2}' >> ~/logs/extra_leker_api.log 2>&1
+
+# Shopify collection sync - daily at 7:00 AM
+# Syncs Pokemon collection from Shopify to local database
+# Logs viewable at: http://localhost:8000 → Shopify section
+0 7 * * * curl -s -X POST "http://localhost:8000/api/v1/shopify/sync-collection/444175384827" >> ~/logs/shopify_sync_api.log 2>&1
+
+# Daily cleanup: Remove old log files (older than 30 days)
+0 3 * * * find ~/logs -name "*.log" -type f -mtime +30 -delete
