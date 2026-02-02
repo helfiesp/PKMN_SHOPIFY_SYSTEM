@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import subprocess
 import asyncio
 import os
@@ -253,20 +254,20 @@ async def trigger_supplier_scan(
     if not website:
         raise HTTPException(status_code=404, detail="Supplier website not found")
     
-    # Map website IDs to scraper modules
+    # Map website IDs to scraper scripts
     scraper_map = {
-        1: "suppliers.lekekassen",
-        2: "suppliers.extra_leker"
+        1: "suppliers/lekekassen.py",
+        2: "suppliers/extra_leker.py"
     }
     
-    scraper_module = scraper_map.get(request.website_id)
-    if not scraper_module:
+    scraper_script = scraper_map.get(request.website_id)
+    if not scraper_script:
         raise HTTPException(
             status_code=400,
             detail=f"No scraper configured for website ID {request.website_id}"
         )
     
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(ZoneInfo("Europe/Oslo"))
     
     try:
         # Set up environment with Chrome paths
@@ -276,14 +277,14 @@ async def trigger_supplier_scan(
         # Run the scraper as a subprocess
         result = await asyncio.to_thread(
             subprocess.run,
-            ["python", "-m", scraper_module, str(request.website_id)],
+            ["python", scraper_script, str(request.website_id)],
             capture_output=True,
             text=True,
             env=env,
             timeout=30 * 60  # 30 minute timeout
         )
         
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
         
         # Parse output for statistics
@@ -323,7 +324,7 @@ async def trigger_supplier_scan(
         }
         
     except subprocess.TimeoutExpired:
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
         
         scan_log = SupplierScanLog(
@@ -340,7 +341,7 @@ async def trigger_supplier_scan(
         raise HTTPException(status_code=408, detail="Scan timed out after 30 minutes")
     
     except Exception as e:
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
         
         scan_log = SupplierScanLog(

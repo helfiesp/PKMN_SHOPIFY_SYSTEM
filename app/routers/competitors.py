@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import asyncio
 import subprocess
 import os
@@ -220,7 +221,7 @@ async def run_scraper(scraper_name: str, db: Session = Depends(get_db)):
             detail=f"Unsupported scraper. Allowed: {', '.join(allowed_scrapers)}"
         )
     
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(ZoneInfo("Europe/Oslo"))
     print(f"\n[SCAN LOG] Starting scan: {scraper_name} at {started_at}", file=sys.stderr)
     
     try:
@@ -241,7 +242,7 @@ async def run_scraper(scraper_name: str, db: Session = Depends(get_db)):
             timeout=30 * 60  # 30 minute timeout
         )
         
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
         
         print(f"[SCAN LOG] Completed in {duration:.2f}s. Return code: {result.returncode}", file=sys.stderr)
@@ -291,7 +292,7 @@ async def run_scraper(scraper_name: str, db: Session = Depends(get_db)):
             "log_id": log.id
         }
     except subprocess.TimeoutExpired:
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
         log = ScanLog(
             scraper_name=scraper_name,
@@ -305,7 +306,7 @@ async def run_scraper(scraper_name: str, db: Session = Depends(get_db)):
         db.commit()
         raise HTTPException(status_code=504, detail="Scraper timed out")
     except Exception as e:
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
         print(f"[SCAN LOG] Exception occurred: {str(e)}", file=sys.stderr)
         log = ScanLog(
@@ -340,7 +341,7 @@ async def run_all_scrapers(db: Session = Depends(get_db)):
     )
 
     for scraper_name in scrapers:
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(ZoneInfo("Europe/Oslo"))
         try:
             script_path = f"competition/{scraper_name}.py"
             result = await asyncio.to_thread(
@@ -352,7 +353,7 @@ async def run_all_scrapers(db: Session = Depends(get_db)):
                 timeout=20 * 60
             )
             
-            completed_at = datetime.now(timezone.utc)
+            completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
             duration = (completed_at - started_at).total_seconds()
             status = "success" if result.returncode == 0 else "failed"
             
@@ -375,7 +376,7 @@ async def run_all_scrapers(db: Session = Depends(get_db)):
             db.add(scan_log)
             
         except Exception as e:
-            completed_at = datetime.now(timezone.utc)
+            completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
             duration = (completed_at - started_at).total_seconds()
             
             results[scraper_name] = {
@@ -398,7 +399,7 @@ async def run_all_scrapers(db: Session = Depends(get_db)):
     db.commit()
     
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(ZoneInfo("Europe/Oslo")).isoformat(),
         "results": results
     }
 

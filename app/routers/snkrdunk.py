@@ -1,6 +1,7 @@
 """SNKRDUNK operations router."""
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -24,7 +25,7 @@ async def fetch_snkrdunk_data(
     Caches results in database for efficiency.
     Creates a SnkrdunkScanLog entry to track when prices were fetched.
     """
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(ZoneInfo("Europe/Oslo"))
     log_id = None
     
     try:
@@ -36,7 +37,7 @@ async def fetch_snkrdunk_data(
         
         print(f"[SNKRDUNK FETCH] Service returned: total_items={result.get('total_items')}")
         
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
         total_items = result.get('total_items', 0)
         
@@ -65,7 +66,7 @@ async def fetch_snkrdunk_data(
                 snkrdunk_key=str(item.get('id')),
                 price_jpy=item.get('minPrice'),  # Use minPrice instead of minPriceJpy
                 price_usd=None,  # Not available in fresh response
-                recorded_at=datetime.now(timezone.utc)
+                recorded_at=datetime.now(ZoneInfo("Europe/Oslo"))
             )
             db.add(price_record)
         
@@ -80,7 +81,7 @@ async def fetch_snkrdunk_data(
         import traceback
         traceback.print_exc()
         
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(ZoneInfo("Europe/Oslo"))
         duration = (completed_at - started_at).total_seconds()
         
         try:
