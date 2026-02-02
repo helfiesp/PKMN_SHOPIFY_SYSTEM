@@ -1,0 +1,50 @@
+{
+  "generated_at_utc": "2026-01-28T18:26:36.517759+00:00",
+  "api_version": "2026-01",
+  "rules": {
+    "select": "title endswith 'Booster Box' and not containing 'Deluxe'",
+    "packs_default": 30,
+    "special_packs": [
+      [
+        "terastal festival",
+        10
+      ],
+      [
+        "mega dream",
+        10
+      ],
+      [
+        "vstar universe",
+        10
+      ],
+      [
+        "shiny treasure ex",
+        10
+      ],
+      [
+        "shiny treasure",
+        10
+      ],
+      [
+        "pokemon 151",
+        20
+      ],
+      [
+        "black bolt",
+        20
+      ],
+      [
+        "white flare",
+        20
+      ]
+    ],
+    "pack_markup": 1.2,
+    "rounding": "ceil; xx00..xx09 -> ...99; else keep 5/9; else move up to 5/9"
+  },
+  "counts": {
+    "planned": 0,
+    "skipped": 0
+  },
+  "items": [],
+  "skipped": []
+}

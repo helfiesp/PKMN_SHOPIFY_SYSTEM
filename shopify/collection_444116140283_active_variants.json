@@ -1,0 +1,953 @@
+{
+  "shop": "ipvqw7-yh.myshopify.com",
+  "api_version": "2026-01",
+  "collection": {
+    "id": "gid://shopify/Collection/444116140283",
+    "numeric_id": "444116140283",
+    "title": "Japansk Pokemon"
+  },
+  "preorder_detection": {
+    "collection_query": "title:preorder OR handle:preorder",
+    "template_suffix": "preorder",
+    "preorder_product_ids_count": 0
+  },
+  "generated_at": "2026-01-29T05:52:11.277809+00:00",
+  "products": [
+    {
+      "product_id": "gid://shopify/Product/9111584571643",
+      "title": "Inferno X",
+      "handle": "inferno-x-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47537582014715",
+          "variant_title": "Booster Box",
+          "price": "1375.00",
+          "compare_at_price": "1425.00",
+          "inventory_quantity": 16,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903025103099",
+          "variant_title": "Booster Pack",
+          "price": "59.00",
+          "compare_at_price": null,
+          "inventory_quantity": 28,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104269574395",
+      "title": "Terastal Festival ex",
+      "handle": "terastal-festival-ex-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515915878651",
+          "variant_title": "Booster Box",
+          "price": "1625.00",
+          "compare_at_price": "1675.00",
+          "inventory_quantity": 14,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903025135867",
+          "variant_title": "Booster Pack",
+          "price": "199.00",
+          "compare_at_price": null,
+          "inventory_quantity": 10,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104264855803",
+      "title": "Black Bolt",
+      "handle": "black-bolt-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515907096827",
+          "variant_title": "Booster Box",
+          "price": "1475.00",
+          "compare_at_price": null,
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903025201403",
+          "variant_title": "Booster Pack",
+          "price": "89.00",
+          "compare_at_price": null,
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104263348475",
+      "title": "White Flare",
+      "handle": "white-flare-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515903459579",
+          "variant_title": "Booster Box",
+          "price": "1275.00",
+          "compare_at_price": "1325.00",
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903025332475",
+          "variant_title": "Booster Pack",
+          "price": "85.00",
+          "compare_at_price": null,
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9103948153083",
+      "title": "The Glory of Team Rocket",
+      "handle": "the-glory-of-team-rocket",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515173191931",
+          "variant_title": "Booster Box",
+          "price": "1625.00",
+          "compare_at_price": "1675.00",
+          "inventory_quantity": 3,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903025430779",
+          "variant_title": "Booster Pack",
+          "price": "65.00",
+          "compare_at_price": "1675.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104247030011",
+      "title": "Mega Symphonia",
+      "handle": "mega-symphonia",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515868168443",
+          "variant_title": "Booster Box",
+          "price": "925.00",
+          "compare_at_price": null,
+          "inventory_quantity": 11,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903025496315",
+          "variant_title": "Booster Pack",
+          "price": "35.00",
+          "compare_at_price": "925.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104256925947",
+      "title": "Mega Brave",
+      "handle": "mega-brave",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515891728635",
+          "variant_title": "Booster Box",
+          "price": "1025.00",
+          "compare_at_price": "1075.01",
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026217211",
+          "variant_title": "Booster Pack",
+          "price": "45.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105041752315",
+      "title": "Raging Surf",
+      "handle": "raging-surf-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517593764091",
+          "variant_title": "Booster Box",
+          "price": "1175.00",
+          "compare_at_price": null,
+          "inventory_quantity": 5,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026282747",
+          "variant_title": "Booster Pack",
+          "price": "45.00",
+          "compare_at_price": "1175.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105025171707",
+      "title": "Cyber Judge",
+      "handle": "cyber-judge-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517544972539",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": null,
+          "inventory_quantity": 6,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026348283",
+          "variant_title": "Booster Pack",
+          "price": "39.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105027727611",
+      "title": "Lost Abyss",
+      "handle": "lost-abyss-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517551919355",
+          "variant_title": "Booster Box",
+          "price": "2999.00",
+          "compare_at_price": null,
+          "inventory_quantity": 32,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026413819",
+          "variant_title": "Booster Pack",
+          "price": "125.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105028546811",
+      "title": "VSTAR Universe",
+      "handle": "vstar-universe-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517554016507",
+          "variant_title": "Booster Box",
+          "price": "1899.00",
+          "compare_at_price": null,
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026479355",
+          "variant_title": "Booster Pack",
+          "price": "229.00",
+          "compare_at_price": null,
+          "inventory_quantity": 7,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105029726459",
+      "title": "Pokemon 151",
+      "handle": "pokemon-151-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517556310267",
+          "variant_title": "Booster Box",
+          "price": "3875.01",
+          "compare_at_price": null,
+          "inventory_quantity": 6,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026544891",
+          "variant_title": "Booster Pack",
+          "price": "235.00",
+          "compare_at_price": null,
+          "inventory_quantity": 20,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105030807803",
+      "title": "Future Flash",
+      "handle": "future-flash-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517558243579",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": null,
+          "inventory_quantity": 7,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026610427",
+          "variant_title": "Booster Pack",
+          "price": "35.00",
+          "compare_at_price": "925.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105032511739",
+      "title": "Ancient Roar",
+      "handle": "ancient-roar-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517562863867",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": null,
+          "inventory_quantity": 4,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026643195",
+          "variant_title": "Booster Pack",
+          "price": "39.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105033953531",
+      "title": "Time Gazer",
+      "handle": "time-gazer-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517567942907",
+          "variant_title": "Booster Box",
+          "price": "1399.00",
+          "compare_at_price": null,
+          "inventory_quantity": 6,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026708731",
+          "variant_title": "Booster Pack",
+          "price": "59.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105036214523",
+      "title": "Space Juggler",
+      "handle": "space-juggler-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517576331515",
+          "variant_title": "Booster Box",
+          "price": "1249.00",
+          "compare_at_price": null,
+          "inventory_quantity": 8,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026741499",
+          "variant_title": "Booster Pack",
+          "price": "55.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105038770427",
+      "title": "Paradigm Trigger",
+      "handle": "paradigm-trigger-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517586227451",
+          "variant_title": "Booster Box",
+          "price": "1775.00",
+          "compare_at_price": null,
+          "inventory_quantity": 14,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026807035",
+          "variant_title": "Booster Pack",
+          "price": "75.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105024286971",
+      "title": "Wild Force",
+      "handle": "wild-force-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517543465211",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": "1025.00",
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026905339",
+          "variant_title": "Booster Pack",
+          "price": "39.00",
+          "compare_at_price": "1025.00",
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105043456251",
+      "title": "Scarlet ex",
+      "handle": "scarlet-ex-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517598089467",
+          "variant_title": "Booster Box",
+          "price": "1075.00",
+          "compare_at_price": "1125.00",
+          "inventory_quantity": 2,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903026938107",
+          "variant_title": "Booster Pack",
+          "price": "45.00",
+          "compare_at_price": "1125.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105044406523",
+      "title": "Snow Hazard",
+      "handle": "snow-hazard-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517599465723",
+          "variant_title": "Booster Box",
+          "price": "1025.00",
+          "compare_at_price": null,
+          "inventory_quantity": 3,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027003643",
+          "variant_title": "Booster Pack",
+          "price": "45.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105280270587",
+      "title": "Triplet Beat",
+      "handle": "triplet-beat-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47518029775099",
+          "variant_title": "Booster Box",
+          "price": "1675.00",
+          "compare_at_price": "1725.00",
+          "inventory_quantity": 2,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027200251",
+          "variant_title": "Booster Pack",
+          "price": "69.00",
+          "compare_at_price": "1725.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105281843451",
+      "title": "Violet ex",
+      "handle": "violet-ex-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47518051434747",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": "1025.00",
+          "inventory_quantity": 10,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027265787",
+          "variant_title": "Booster Pack",
+          "price": "39.00",
+          "compare_at_price": "1025.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105283154171",
+      "title": "Clay Burst",
+      "handle": "clay-burst-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47518064083195",
+          "variant_title": "Booster Box",
+          "price": "1175.00",
+          "compare_at_price": "1399.00",
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027331323",
+          "variant_title": "Booster Pack",
+          "price": "49.00",
+          "compare_at_price": "1399.00",
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9110899589371",
+      "title": "Ruler of the Black Flame",
+      "handle": "ruler-of-the-black-flame",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47535773843707",
+          "variant_title": "Booster Box",
+          "price": "1575.00",
+          "compare_at_price": "1675.00",
+          "inventory_quantity": 3,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027396859",
+          "variant_title": "Booster Pack",
+          "price": "65.00",
+          "compare_at_price": "1675.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9110909157627",
+      "title": "Shiny Treasure",
+      "handle": "shiny-treasure-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47535791014139",
+          "variant_title": "Booster Box",
+          "price": "1325.00",
+          "compare_at_price": "1375.00",
+          "inventory_quantity": 27,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027462395",
+          "variant_title": "Booster Pack",
+          "price": "165.00",
+          "compare_at_price": null,
+          "inventory_quantity": 10,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104268034299",
+      "title": "Battle Partners",
+      "handle": "battle-partners-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515912995067",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": "1025.00",
+          "inventory_quantity": 1,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027527931",
+          "variant_title": "Booster Pack",
+          "price": "39.00",
+          "compare_at_price": "1025.00",
+          "inventory_quantity": 0,
+          "available_for_sale": false
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104266100987",
+      "title": "Heat Wave Arena",
+      "handle": "the-glory-of-team-rocket-copy",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515909325051",
+          "variant_title": "Booster Box",
+          "price": "1425.00",
+          "compare_at_price": "1475.00",
+          "inventory_quantity": 1,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027822843",
+          "variant_title": "Booster Pack",
+          "price": "59.00",
+          "compare_at_price": "1575.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104271966459",
+      "title": "Supercharged Breaker",
+      "handle": "supercharged-breaker-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515920564475",
+          "variant_title": "Booster Box",
+          "price": "2525.00",
+          "compare_at_price": null,
+          "inventory_quantity": 4,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903027986683",
+          "variant_title": "Booster Pack",
+          "price": "99.00",
+          "compare_at_price": "2525.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104273015035",
+      "title": "Paradise Dragona",
+      "handle": "paradise-dragona-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47515924234491",
+          "variant_title": "Booster Box",
+          "price": "1575.00",
+          "compare_at_price": null,
+          "inventory_quantity": 5,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903028052219",
+          "variant_title": "Booster Pack",
+          "price": "65.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104394191099",
+      "title": "Incandescent Arcana",
+      "handle": "paradise-dragona-booster-box-copy",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47516197519611",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": null,
+          "inventory_quantity": 9,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903028117755",
+          "variant_title": "Booster Pack",
+          "price": "39.00",
+          "compare_at_price": null,
+          "inventory_quantity": 20,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104396091643",
+      "title": "Stellar Miracle",
+      "handle": "stellar-miracle-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47516201713915",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": null,
+          "inventory_quantity": 4,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903028281595",
+          "variant_title": "Booster Pack",
+          "price": "39.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104397664507",
+      "title": "Night Wanderer",
+      "handle": "night-wanderer-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47516204990715",
+          "variant_title": "Booster Box",
+          "price": "975.00",
+          "compare_at_price": null,
+          "inventory_quantity": 8,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903028838651",
+          "variant_title": "Booster Pack",
+          "price": "39.00",
+          "compare_at_price": "1025.00",
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9104400285947",
+      "title": "Mask of Change",
+      "handle": "mask-of-change-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47516213412091",
+          "variant_title": "Booster Box",
+          "price": "1175.00",
+          "compare_at_price": null,
+          "inventory_quantity": 4,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903028936955",
+          "variant_title": "Booster Pack",
+          "price": "49.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9105023533307",
+      "title": "Crimson Haze",
+      "handle": "crimson-haze-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47517542220027",
+          "variant_title": "Booster Box",
+          "price": "1425.00",
+          "compare_at_price": null,
+          "inventory_quantity": 1,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903029002491",
+          "variant_title": "Booster Pack",
+          "price": "59.00",
+          "compare_at_price": null,
+          "inventory_quantity": 30,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9176584356091",
+      "title": "Mega Dream ex",
+      "handle": "mega-dream-ex-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "pokemon-jp-bb",
+      "is_preorder": false,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47713374109947",
+          "variant_title": "Booster Box",
+          "price": "1025.00",
+          "compare_at_price": "1075.00",
+          "inventory_quantity": 44,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903029133563",
+          "variant_title": "Booster Pack",
+          "price": "129.00",
+          "compare_at_price": null,
+          "inventory_quantity": 10,
+          "available_for_sale": true
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9222616023291",
+      "title": "Nullifying Zero",
+      "handle": "nullifying-zero-booster-box",
+      "status": "ACTIVE",
+      "template_suffix": "preorder",
+      "is_preorder": true,
+      "variants": [
+        {
+          "variant_id": "gid://shopify/ProductVariant/47876438098171",
+          "variant_title": "Booster Box",
+          "price": "849.00",
+          "compare_at_price": null,
+          "inventory_quantity": 2,
+          "available_for_sale": true
+        },
+        {
+          "variant_id": "gid://shopify/ProductVariant/47903029199099",
+          "variant_title": "Booster Pack",
+          "price": "35.00",
+          "compare_at_price": null,
+          "inventory_quantity": 25,
+          "available_for_sale": true
+        }
+      ]
+    }
+  ]
+}

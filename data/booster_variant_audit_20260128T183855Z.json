@@ -1,0 +1,208 @@
+{
+  "applied_at_utc": "2026-01-28T18:41:51.057232+00:00",
+  "shop": "ipvqw7-yh.myshopify.com",
+  "api_version": "2026-01",
+  "plan_file": "C:\\Users\\cmhag\\Documents\\Projects\\Shopify\\data\\booster_variant_plan_latest.json",
+  "summary": {
+    "applied": 39,
+    "failed": 0,
+    "skipped": 0
+  },
+  "details": [
+    {
+      "product_id": 9111584571643,
+      "status": "applied",
+      "base_title": "Inferno X"
+    },
+    {
+      "product_id": 9104269574395,
+      "status": "applied",
+      "base_title": "Terastal Festival ex"
+    },
+    {
+      "product_id": 9104264855803,
+      "status": "applied",
+      "base_title": "Black Bolt"
+    },
+    {
+      "product_id": 9104263348475,
+      "status": "applied",
+      "base_title": "White Flare"
+    },
+    {
+      "product_id": 9103948153083,
+      "status": "applied",
+      "base_title": "The Glory of Team Rocket"
+    },
+    {
+      "product_id": 9104247030011,
+      "status": "applied",
+      "base_title": "Mega Symphonia"
+    },
+    {
+      "product_id": 9104256925947,
+      "status": "applied",
+      "base_title": "Mega Brave"
+    },
+    {
+      "product_id": 9105041752315,
+      "status": "applied",
+      "base_title": "Raging Surf"
+    },
+    {
+      "product_id": 9105025171707,
+      "status": "applied",
+      "base_title": "Cyber Judge"
+    },
+    {
+      "product_id": 9105027727611,
+      "status": "applied",
+      "base_title": "Lost Abyss"
+    },
+    {
+      "product_id": 9105028546811,
+      "status": "applied",
+      "base_title": "VSTAR Universe"
+    },
+    {
+      "product_id": 9105029726459,
+      "status": "applied",
+      "base_title": "Pokemon 151"
+    },
+    {
+      "product_id": 9105030807803,
+      "status": "applied",
+      "base_title": "Future Flash"
+    },
+    {
+      "product_id": 9105032511739,
+      "status": "applied",
+      "base_title": "Ancient Roar"
+    },
+    {
+      "product_id": 9105033953531,
+      "status": "applied",
+      "base_title": "Time Gazer"
+    },
+    {
+      "product_id": 9105036214523,
+      "status": "applied",
+      "base_title": "Space Juggler"
+    },
+    {
+      "product_id": 9105038770427,
+      "status": "applied",
+      "base_title": "Paradigm Trigger"
+    },
+    {
+      "product_id": 9105024286971,
+      "status": "applied",
+      "base_title": "Wild Force"
+    },
+    {
+      "product_id": 9105043456251,
+      "status": "applied",
+      "base_title": "Scarlet ex"
+    },
+    {
+      "product_id": 9105044406523,
+      "status": "applied",
+      "base_title": "Snow Hazard"
+    },
+    {
+      "product_id": 9105280270587,
+      "status": "applied",
+      "base_title": "Triplet Beat"
+    },
+    {
+      "product_id": 9105281843451,
+      "status": "applied",
+      "base_title": "Violet ex"
+    },
+    {
+      "product_id": 9105283154171,
+      "status": "applied",
+      "base_title": "Clay Burst"
+    },
+    {
+      "product_id": 9110899589371,
+      "status": "applied",
+      "base_title": "Ruler of the Black Flame"
+    },
+    {
+      "product_id": 9110909157627,
+      "status": "applied",
+      "base_title": "Shiny Treasure"
+    },
+    {
+      "product_id": 9104268034299,
+      "status": "applied",
+      "base_title": "Battle Partners"
+    },
+    {
+      "product_id": 9104258957563,
+      "status": "applied",
+      "base_title": "White Flare Deluxe Booster Box"
+    },
+    {
+      "product_id": 9104262332667,
+      "status": "applied",
+      "base_title": "Black Bolt Deluxe Booster Box"
+    },
+    {
+      "product_id": 9104266100987,
+      "status": "applied",
+      "base_title": "Heat Wave Arena"
+    },
+    {
+      "product_id": 9105026089211,
+      "status": "applied",
+      "base_title": "Star Birth"
+    },
+    {
+      "product_id": 9104271966459,
+      "status": "applied",
+      "base_title": "Supercharged Breaker"
+    },
+    {
+      "product_id": 9104273015035,
+      "status": "applied",
+      "base_title": "Paradise Dragona"
+    },
+    {
+      "product_id": 9104394191099,
+      "status": "applied",
+      "base_title": "Incandescent Arcana"
+    },
+    {
+      "product_id": 9104396091643,
+      "status": "applied",
+      "base_title": "Stellar Miracle"
+    },
+    {
+      "product_id": 9104397664507,
+      "status": "applied",
+      "base_title": "Night Wanderer"
+    },
+    {
+      "product_id": 9104400285947,
+      "status": "applied",
+      "base_title": "Mask of Change"
+    },
+    {
+      "product_id": 9105023533307,
+      "status": "applied",
+      "base_title": "Crimson Haze"
+    },
+    {
+      "product_id": 9176584356091,
+      "status": "applied",
+      "base_title": "Mega Dream ex"
+    },
+    {
+      "product_id": 9222616023291,
+      "status": "applied",
+      "base_title": "Nullifying Zero"
+    }
+  ]
+}

@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopify Price Manager</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <h1>Shopify Price Manager</h1>
+        </div>
+        <div class="header-right">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>API: <strong id="api-status">Checking...</strong></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Alerts Container -->
+    <div id="alerts-container" style="position: fixed; top: 1rem; right: 1rem; z-index: 1001; max-width: 400px;"></div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Navigation Tabs -->
+        <nav class="navbar">
+            <div class="nav-primary">
+                <button class="nav-item active" data-tab="dashboard">Dashboard</button>
+                <button class="nav-item" data-tab="products">Products</button>
+                <button class="nav-item" data-tab="price-plans">Price Plans</button>
+                <button class="nav-item" data-tab="booster-variants">Booster Variants</button>
+                <button class="nav-item" data-tab="booster-inventory">Booster Inventory</button>
+                <button class="nav-item" data-tab="competitors">Competitors</button>
+            </div>
+            <div class="nav-secondary">
+                <button class="nav-item" data-tab="mappings">Mappings</button>
+                <button class="nav-item" data-tab="competitor-mappings">Competitor Maps</button>
+                <button class="nav-item" data-tab="reports">Reports</button>
+                <button class="nav-item" data-tab="price-monitoring">Price Monitoring</button>
+                <button class="nav-item" data-tab="settings">Settings</button>
+            </div>
+        </nav>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard-tab" class="tab-content active">
+            <!-- Hero Stats -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div class="stat-label" style="color: rgba(255,255,255,0.9);">Total Products</div>
+                    <div class="stat-value" id="stat-products" style="color: white;">-</div>
+                    <div style="font-size: 0.8rem; color: rgba(255,255,255,0.8); margin-top: 0.5rem;">
+                        <span id="stat-active-products">-</span> active
+                    </div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                    <div class="stat-label" style="color: rgba(255,255,255,0.9);">Total Variants</div>
+                    <div class="stat-value" id="stat-variants" style="color: white;">-</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                    <div class="stat-label" style="color: rgba(255,255,255,0.9);">SNKRDUNK Mappings</div>
+                    <div class="stat-value" id="stat-snkrdunk-mappings" style="color: white;">-</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;">
+                    <div class="stat-label" style="color: rgba(255,255,255,0.9);">Competitors</div>
+                    <div class="stat-value" id="stat-competitor-products" style="color: white;">-</div>
+                    <div style="font-size: 0.8rem; color: rgba(255,255,255,0.8); margin-top: 0.5rem;">
+                        <span id="stat-mapped-competitors">-</span> mapped
+                    </div>
+                </div>
+            </div>
+
+            <!-- Price Plans Summary -->
+            <div class="card" style="margin-bottom: 2rem; background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+                <div style="padding: 1.5rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; color: #7c2d12; font-size: 1.1rem;">Price Plans</h3>
+                        <button class="btn btn-sm btn-primary" onclick="switchTab('price-plans')" style="background: #7c2d12; border-color: #7c2d12;">Manage Plans</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        <div>
+                            <div style="font-size: 0.85rem; color: #7c2d12; margin-bottom: 0.5rem;">Pending Plans</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: #ea580c;" id="stat-pending-plans">-</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; color: #7c2d12; margin-bottom: 0.5rem;">Applied Plans</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: #15803d;" id="stat-applied-plans">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Dashboard Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                <!-- Sync Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">📊 Synchronization Status</h3>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div>
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; font-weight: 600;">🛒 Last Competitor Scrape</div>
+                            <div id="last-scrape-card"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; font-weight: 600;">🏷️ Last SNKRDUNK Fetch</div>
+                            <div id="last-snkrdunk-card"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; font-weight: 600;">💰 Last Price Plan Applied</div>
+                            <div id="last-plan-card"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Price Changes -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">📈 Recent Price Changes</h3>
+                        <button class="btn btn-sm btn-secondary" onclick="switchTab('price-plans'); setTimeout(() => document.querySelector('.price-tab-btn[data-subtab=\\'history\\']')?.click(), 100)">View All</button>
+                    </div>
+                    <div id="recent-price-changes" style="max-height: 320px; overflow-y: auto;">
+                        <div style="padding: 2rem; text-align: center; color: #999;">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions Grid -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                <!-- Main Operations -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🚀 Main Operations</h3>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <button class="btn btn-primary" onclick="switchTab('products')" style="justify-content: flex-start; padding: 0.75rem 1rem;">
+                            <span style="margin-right: 0.5rem;">📦</span> Sync Products
+                        </button>
+                        <button class="btn btn-primary" onclick="fetchSnkrdunk()" style="justify-content: flex-start; padding: 0.75rem 1rem;">
+                            <span style="margin-right: 0.5rem;">🏷️</span> Fetch SNKRDUNK
+                        </button>
+                        <button class="btn btn-primary" onclick="switchTab('price-plans')" style="justify-content: flex-start; padding: 0.75rem 1rem;">
+                            <span style="margin-right: 0.5rem;">💰</span> Generate Price Plan
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Navigation -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🧭 Navigate</h3>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <button class="btn btn-secondary" onclick="switchTab('competitors')" style="justify-content: flex-start; padding: 0.75rem 1rem;">
+                            <span style="margin-right: 0.5rem;">🏪</span> View Competitors
+                        </button>
+                        <button class="btn btn-secondary" onclick="switchTab('competitor-mappings')" style="justify-content: flex-start; padding: 0.75rem 1rem;">
+                            <span style="margin-right: 0.5rem;">🔗</span> Competitor Maps
+                        </button>
+                        <button class="btn btn-secondary" onclick="switchTab('mappings')" style="justify-content: flex-start; padding: 0.75rem 1rem;">
+                            <span style="margin-right: 0.5rem;">🗺️</span> SNKRDUNK Maps
+                        </button>
+                        <button class="btn btn-secondary" onclick="showScanLogs()" style="justify-content: flex-start; padding: 0.75rem 1rem;">
+                            <span style="margin-right: 0.5rem;">📋</span> View Scan Logs
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Scans -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">⚡ Quick Scans</h3>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <button class="btn btn-secondary" onclick="runCompetitorScraper('boosterpakker')" style="justify-content: flex-start; padding: 0.75rem 1rem; font-size: 0.9rem;">Booster Pakker</button>
+                        <button class="btn btn-secondary" onclick="runCompetitorScraper('hatamontcg')" style="justify-content: flex-start; padding: 0.75rem 1rem; font-size: 0.9rem;">HataMontCG</button>
+                        <button class="btn btn-secondary" onclick="runCompetitorScraper('laboge')" style="justify-content: flex-start; padding: 0.75rem 1rem; font-size: 0.9rem;">Laboge</button>
+                        <button class="btn btn-secondary" onclick="runCompetitorScraper('lcg_cards')" style="justify-content: flex-start; padding: 0.75rem 1rem; font-size: 0.9rem;">LCG Cards</button>
+                        <button class="btn btn-secondary" onclick="runCompetitorScraper('pokemadness')" style="justify-content: flex-start; padding: 0.75rem 1rem; font-size: 0.9rem;">Pokemadness</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">⚙️ Configuration</h3>
+                    <button class="btn btn-sm btn-secondary" onclick="switchTab('settings')">Edit Settings</button>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <div class="form-label">Shopify Shop</div>
+                        <div id="config-shop" style="font-weight: 500; color: #111;">-</div>
+                    </div>
+                    <div>
+                        <div class="form-label">Default Collection ID</div>
+                        <div id="config-collection" style="font-weight: 500; color: #111;">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Tab -->
+        <div id="products-tab" class="tab-content is-hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Sync Shopify Collection</h3>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Collection ID</label>
+                        <input type="text" id="sync-collection-id" class="form-input" placeholder="444175384827" value="444175384827">
+                        <div class="form-hint">Numeric collection ID from Shopify</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Exclude Titles Containing</label>
+                        <input type="text" id="sync-exclude-title" class="form-input" placeholder="one piece, deluxe">
+                        <div class="form-hint">Comma-separated keywords to exclude</div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="syncCollection()">Sync Collection</button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Products</h3>
+                    <button class="btn btn-sm btn-secondary" onclick="loadProducts()">Refresh</button>
+                </div>
+                <div id="products-table" class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Handle</th>
+                                <th>Status</th>
+                                <th>Variants</th>
+                                <th>Collection</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Price Plans Tab -->
+        <div id="price-plans-tab" class="tab-content is-hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Generate Price Plan</h3>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Variant Type to Update</label>
+                        <select id="plan-variant-type" class="form-input" onchange="toggleVariantFields()">                            <option value="box">Booster Box</option>
+                            <option value="pack">Booster Pack</option>
+                        </select>
+                        <small style="color: var(--text-secondary);">Choose which variant to update prices for</small>
+                    </div>
+                </div>
+                
+                <!-- Fields for Booster Box -->
+                <div id="box-fields" class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Exchange Rate (NOK per 1 JPY)</label>
+                        <input type="number" step="0.00001" id="plan-exchange-rate" class="form-input" 
+                               placeholder="Auto-fetch from Frankfurter API">
+                        <small style="color: var(--text-secondary);">Leave empty to auto-fetch daily rate</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Shipping Cost (JPY per item)</label>
+                        <input type="number" id="plan-shipping-cost" class="form-input" value="500">
+                        <small style="color: var(--text-secondary);">Default: 500 JPY</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Minimum Margin (%)</label>
+                        <input type="number" step="0.1" id="plan-margin" class="form-input" value="20">
+                        <small style="color: var(--text-secondary);">Default: 20%</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">VAT Rate (%)</label>
+                        <input type="number" step="0.1" id="plan-vat" class="form-input" value="25">
+                        <small style="color: var(--text-secondary);">Default: 25%</small>
+                    </div>
+                </div>
+                
+                <!-- Fields for Booster Pack -->
+                <div id="pack-fields" class="grid-2" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Pack Markup (%)</label>
+                        <input type="number" step="1" id="plan-pack-markup" class="form-input" value="20" min="0" max="100">
+                        <small style="color: var(--text-secondary);">Markup percentage for pack pricing (10-20% typical)</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Minimum Price Change (NOK)</label>
+                        <input type="number" step="1" id="plan-min-threshold" class="form-input" value="5" min="1">
+                        <small style="color: var(--text-secondary);">Only update if price change is at least this amount</small>
+                    </div>
+                </div>
+                
+                <div class="grid-2">
+                    <button class="btn btn-primary" onclick="generatePricePlan()">Generate Plan</button>
+                </div>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 1rem;">To match competitor prices, use the "Match Price" button on the <a href="#competitor-mappings" style="color: #2563eb; text-decoration: underline; cursor: pointer;" onclick="switchTab('competitor-mappings')">Competitor Maps</a> tab.</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Price Plans</h3>
+                    <button class="btn btn-sm btn-secondary" onclick="loadPricePlans()">Refresh</button>
+                </div>
+                
+                <!-- Price Plans Tabs -->
+                <div style="display: flex; gap: 0; border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem;">
+                    <button class="btn btn-sm" id="tab-pending-plans" onclick="switchPricePlanTab('pending')" style="flex: 1; background: transparent; border: none; border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; padding: 0.75rem;">
+                        Pending
+                    </button>
+                    <button class="btn btn-sm" id="tab-applied-plans" onclick="switchPricePlanTab('applied')" style="flex: 1; background: transparent; border: none; border-bottom: 2px solid transparent; color: #666; padding: 0.75rem;">
+                        Applied
+                    </button>
+                    <button class="btn btn-sm" id="tab-failed-plans" onclick="switchPricePlanTab('failed')" style="flex: 1; background: transparent; border: none; border-bottom: 2px solid transparent; color: #666; padding: 0.75rem; display: none;">
+                        Failed
+                    </button>
+                    <button class="btn btn-sm" id="tab-price-history" onclick="switchPricePlanTab('history')" style="flex: 1; background: transparent; border: none; border-bottom: 2px solid transparent; color: #666; padding: 0.75rem;">
+                        Price History
+                    </button>
+                </div>
+                
+                <!-- Pending Plans Table -->
+                <div id="pending-plans-container" class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Plan ID</th>
+                                <th>Generated</th>
+                                <th>Status</th>
+                                <th>Total Items</th>
+                                <th>Applied</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pending-plans-tbody"></tbody>
+                    </table>
+                </div>
+                
+                <!-- Applied Plans Table -->
+                <div id="applied-plans-container" class="table-container" style="display: none;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Plan ID</th>
+                                <th>Generated</th>
+                                <th>Applied At</th>
+                                <th>Total Items</th>
+                                <th>Applied</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="applied-plans-tbody"></tbody>
+                    </table>
+                </div>
+                
+                <!-- Failed Plans Table -->
+                <div id="failed-plans-container" class="table-container" style="display: none;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Plan ID</th>
+                                <th>Generated</th>
+                                <th>Status</th>
+                                <th>Total Items</th>
+                                <th>Failed</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="failed-plans-tbody"></tbody>
+                    </table>
+                </div>
+                
+                <!-- Price Change History Table -->
+                <div id="price-history-container" class="table-container" style="display: none;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date/Time</th>
+                                <th>Product</th>
+                                <th>Old Price</th>
+                                <th>New Price</th>
+                                <th>Change</th>
+                                <th>Type</th>
+                                <th>Competitor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="price-history-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Price Monitoring Tab -->
+        <div id="price-monitoring-tab" class="tab-content is-hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📊 Price Monitoring Dashboard</h3>
+                    <button class="btn btn-sm btn-secondary" onclick="loadPriceMonitoring()">🔄 Refresh</button>
+                </div>
+                
+                <!-- Tab Navigation -->
+                <div style="border-bottom: 1px solid #e5e7eb; margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 0.5rem; padding: 0 1rem;">
+                        <button class="price-monitor-tab-btn" data-monitor-tab="my-changes" style="padding: 0.75rem 1.5rem; border: none; background: none; cursor: pointer; border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600;">My Price Changes</button>
+                        <button class="price-monitor-tab-btn" data-monitor-tab="competitor-changes" style="padding: 0.75rem 1.5rem; border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; color: #666; font-weight: 600;">Competitor Changes</button>
+                    </div>
+                </div>
+                
+                <!-- My Price Changes View -->
+                <div id="my-changes-view" style="display: block;">
+                    <div style="margin-bottom: 1.5rem; padding: 0 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                            <div style="text-align: center; padding: 1rem; background: #f0f9ff; border-radius: 8px;">
+                                <div style="font-size: 0.85rem; color: #0369a1; margin-bottom: 0.5rem;">Total Changes</div>
+                                <div style="font-size: 2rem; font-weight: 700; color: #0284c7;" id="total-my-changes">-</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: #f0fdf4; border-radius: 8px;">
+                                <div style="font-size: 0.85rem; color: #15803d; margin-bottom: 0.5rem;">Price Decreases</div>
+                                <div style="font-size: 2rem; font-weight: 700; color: #22c55e;" id="total-price-decreases">-</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: #fef2f2; border-radius: 8px;">
+                                <div style="font-size: 0.85rem; color: #991b1b; margin-bottom: 0.5rem;">Price Increases</div>
+                                <div style="font-size: 2rem; font-weight: 700; color: #ef4444;" id="total-price-increases">-</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: #fefce8; border-radius: 8px;">
+                                <div style="font-size: 0.85rem; color: #854d0e; margin-bottom: 0.5rem;">Today</div>
+                                <div style="font-size: 2rem; font-weight: 700; color: #eab308;" id="today-changes">-</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Filters -->
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                            <select id="my-changes-filter" class="form-input" style="max-width: 200px;">
+                                <option value="">All Changes</option>
+                                <option value="manual_competitor_match">Competitor Match</option>
+                                <option value="manual_in_stock_match">In Stock Match</option>
+                                <option value="price_plan">Price Plan</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="my-changes-list" class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Variant</th>
+                                    <th>Old Price</th>
+                                    <th>New Price</th>
+                                    <th>Change</th>
+                                    <th>Type</th>
+                                    <th>Competitor</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="my-changes-tbody">
+                                <tr><td colspan="8" style="text-align: center; padding: 2rem; color: #999;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Competitor Price Changes View -->
+                <div id="competitor-changes-view" style="display: none;">
+                    <div style="margin-bottom: 1.5rem; padding: 0 1rem;">
+                        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
+                            <div style="font-weight: 600; color: #92400e; margin-bottom: 0.5rem;">🔔 Competitor Price Alerts</div>
+                            <div style="font-size: 0.9rem; color: #78350f;">Track when competitors change their prices. Compare daily snapshots to identify price movements.</div>
+                        </div>
+                        
+                        <!-- Filters -->
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+                            <select id="competitor-filter" class="form-input" style="max-width: 200px;">
+                                <option value="">All Competitors</option>
+                                <option value="boosterpakker">Booster Pakker</option>
+                                <option value="hatamontcg">HataMontCG</option>
+                                <option value="laboge">Laboge</option>
+                                <option value="lcg_cards">LCG Cards</option>
+                                <option value="pokemadness">Pokemadness</option>
+                            </select>
+                            <select id="change-type-filter" class="form-input" style="max-width: 180px;">
+                                <option value="all">All Changes</option>
+                                <option value="price">Price Changes Only</option>
+                                <option value="stock">Stock Changes Only</option>
+                            </select>
+                            <select id="days-back-filter" class="form-input" style="max-width: 150px;">
+                                <option value="7">Last 7 days</option>
+                                <option value="14">Last 14 days</option>
+                                <option value="30" selected>Last 30 days</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="loadCompetitorPriceChanges()">Apply Filters</button>
+                        </div>
+                    </div>
+                    
+                    <div id="competitor-changes-list" class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Competitor</th>
+                                    <th>Change Type</th>
+                                    <th>Previous</th>
+                                    <th>Current</th>
+                                    <th>Delta</th>
+                                    <th>Stock</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="competitor-changes-tbody">
+                                <tr><td colspan="8" style="text-align: center; padding: 2rem; color: #999;">Click "Apply Filters" to load competitor changes</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Tab (used for all non-working tabs) -->
+        <div id="dynamic-tab" class="tab-content is-hidden"></div>
+
+        <!-- Scan Logs Panel -->
+        <div id="scan-logs-panel" class="card" style="display: none; margin-top: 2rem;">
+            <div class="card-header">
+                <h3 class="card-title">Scan Logs</h3>
+                <button class="btn btn-sm btn-secondary" onclick="hideScanLogs()">Close</button>
+            </div>
+            <div id="scan-logs-table" class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Scraper</th>
+                            <th>Status</th>
+                            <th>Started</th>
+                            <th>Completed</th>
+                            <th>Duration</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scan-logs-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Competitor Mapping Panel (Hidden, shows when Map clicked) -->
+    <div id="competitor-mapping-container" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: white; border: 2px solid #333; border-radius: 8px; padding: 2rem; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 600px; width: 90%; color: #333;">
+        <button onclick="closeMappingPanel()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">&times;</button>
+        
+        <div id="competitor-mapping-empty" style="text-align: center; padding: 2rem; color: #666;">
+            <p>Click "Map" on a competitor product to start mapping</p>
+        </div>
+        
+        <div id="competitor-mapping-panel" style="display: none; color: #333;">
+            <h3 style="margin-top: 0; color: #333;">Map Competitor Product</h3>
+            
+            <div style="background: #f5f5f5; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem; color: #333;">Selected Competitor Product:</div>
+                <div id="competitor-selected-summary" style="color: #666;">—</div>
+                <div id="competitor-selected-price" style="color: #2563eb; font-weight: 600; margin-top: 0.25rem;">—</div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label" style="color: #333; font-weight: 600; display: block; margin-bottom: 0.5rem;">Map to Shopify Product</label>
+                <select id="competitor-shopify-select" class="form-input" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: white; color: #333;">
+                    <option value="">-- Select Shopify Product --</option>
+                </select>
+                <div id="competitor-price-compare" style="margin-top: 0.5rem; font-size: 0.875rem; color: #666;"></div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label" style="color: #333; font-weight: 600; display: block; margin-bottom: 0.5rem;">Or Map to SNKRDUNK Product</label>
+                <select id="competitor-snkrdunk-select" class="form-input" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: white; color: #333;">
+                    <option value="">-- Select SNKRDUNK Product --</option>
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="closeMappingPanel()">Cancel</button>
+                <button class="btn btn-primary" onclick="mapSelectedCompetitorToShopify()">Map to Shopify</button>
+                <button class="btn btn-primary" onclick="mapSelectedCompetitorToSnkrdunk()">Map to SNKRDUNK</button>
+            </div>
+        </div>
+    </div>
+    <div id="competitor-mapping-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999;" onclick="closeMappingPanel()"></div>
+
+    <!-- Modal for Price Plan Details -->
+    <div id="price-plan-detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Price Plan Details</h3>
+                <button class="modal-close" onclick="closeModal('price-plan-detail-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="plan-detail-content"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('price-plan-detail-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Scan Log Details -->
+    <div id="scan-log-detail-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="scan-log-modal-title">Scan Log Details</h3>
+                <button class="modal-close" onclick="closeModal('scan-log-detail-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="scan-log-detail-content"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('scan-log-detail-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load JavaScript -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

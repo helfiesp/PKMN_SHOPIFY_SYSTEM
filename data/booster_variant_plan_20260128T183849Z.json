@@ -1,0 +1,447 @@
+{
+  "generated_at_utc": "2026-01-28T18:38:50.433907+00:00",
+  "api_version": "2026-01",
+  "rules": {
+    "select": "in collection 444116140283 AND title does NOT contain 'One Piece'",
+    "plan_only_if": "not already split AND exactly 1 variant",
+    "packs_default": 30,
+    "special_packs": [
+      [
+        "terastal festival",
+        10
+      ],
+      [
+        "mega dream",
+        10
+      ],
+      [
+        "vstar universe",
+        10
+      ],
+      [
+        "shiny treasure ex",
+        10
+      ],
+      [
+        "shiny treasure",
+        10
+      ],
+      [
+        "pokemon 151",
+        20
+      ],
+      [
+        "black bolt",
+        20
+      ],
+      [
+        "white flare",
+        20
+      ]
+    ],
+    "pack_markup": 1.2,
+    "rounding": "ceil; xx00..xx09 -> ...99; else keep 5/9; else move up to 5/9"
+  },
+  "counts": {
+    "planned": 39,
+    "skipped": 1
+  },
+  "items": [
+    {
+      "product_id": 9111584571643,
+      "product_gid": "gid://shopify/Product/9111584571643",
+      "old_title": "Inferno X",
+      "base_title": "Inferno X",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47537582014715",
+      "booster_box_price": 1425.0,
+      "booster_pack_price": 59
+    },
+    {
+      "product_id": 9104269574395,
+      "product_gid": "gid://shopify/Product/9104269574395",
+      "old_title": "Terastal Festival ex",
+      "base_title": "Terastal Festival ex",
+      "packs_per_box": 10,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515915878651",
+      "booster_box_price": 1675.0,
+      "booster_pack_price": 199
+    },
+    {
+      "product_id": 9104264855803,
+      "product_gid": "gid://shopify/Product/9104264855803",
+      "old_title": "Black Bolt",
+      "base_title": "Black Bolt",
+      "packs_per_box": 20,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515907096827",
+      "booster_box_price": 1475.0,
+      "booster_pack_price": 89
+    },
+    {
+      "product_id": 9104263348475,
+      "product_gid": "gid://shopify/Product/9104263348475",
+      "old_title": "White Flare",
+      "base_title": "White Flare",
+      "packs_per_box": 20,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515903459579",
+      "booster_box_price": 1325.0,
+      "booster_pack_price": 85
+    },
+    {
+      "product_id": 9103948153083,
+      "product_gid": "gid://shopify/Product/9103948153083",
+      "old_title": "The Glory of Team Rocket",
+      "base_title": "The Glory of Team Rocket",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515173191931",
+      "booster_box_price": 1625.0,
+      "booster_pack_price": 65
+    },
+    {
+      "product_id": 9104247030011,
+      "product_gid": "gid://shopify/Product/9104247030011",
+      "old_title": "Mega Symphonia",
+      "base_title": "Mega Symphonia",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515868168443",
+      "booster_box_price": 875.0,
+      "booster_pack_price": 35
+    },
+    {
+      "product_id": 9104256925947,
+      "product_gid": "gid://shopify/Product/9104256925947",
+      "old_title": "Mega Brave",
+      "base_title": "Mega Brave",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515891728635",
+      "booster_box_price": 1075.0,
+      "booster_pack_price": 45
+    },
+    {
+      "product_id": 9105041752315,
+      "product_gid": "gid://shopify/Product/9105041752315",
+      "old_title": "Raging Surf",
+      "base_title": "Raging Surf",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517593764091",
+      "booster_box_price": 1125.0,
+      "booster_pack_price": 45
+    },
+    {
+      "product_id": 9105025171707,
+      "product_gid": "gid://shopify/Product/9105025171707",
+      "old_title": "Cyber Judge",
+      "base_title": "Cyber Judge",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517544972539",
+      "booster_box_price": 925.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9105027727611,
+      "product_gid": "gid://shopify/Product/9105027727611",
+      "old_title": "Lost Abyss",
+      "base_title": "Lost Abyss",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517551919355",
+      "booster_box_price": 2999.0,
+      "booster_pack_price": 125
+    },
+    {
+      "product_id": 9105028546811,
+      "product_gid": "gid://shopify/Product/9105028546811",
+      "old_title": "VSTAR Universe",
+      "base_title": "VSTAR Universe",
+      "packs_per_box": 10,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517554016507",
+      "booster_box_price": 1899.0,
+      "booster_pack_price": 229
+    },
+    {
+      "product_id": 9105029726459,
+      "product_gid": "gid://shopify/Product/9105029726459",
+      "old_title": "Pokemon 151",
+      "base_title": "Pokemon 151",
+      "packs_per_box": 20,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517556310267",
+      "booster_box_price": 3875.0,
+      "booster_pack_price": 235
+    },
+    {
+      "product_id": 9105030807803,
+      "product_gid": "gid://shopify/Product/9105030807803",
+      "old_title": "Future Flash",
+      "base_title": "Future Flash",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517558243579",
+      "booster_box_price": 875.0,
+      "booster_pack_price": 35
+    },
+    {
+      "product_id": 9105032511739,
+      "product_gid": "gid://shopify/Product/9105032511739",
+      "old_title": "Ancient Roar",
+      "base_title": "Ancient Roar",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517562863867",
+      "booster_box_price": 975.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9105033953531,
+      "product_gid": "gid://shopify/Product/9105033953531",
+      "old_title": "Time Gazer",
+      "base_title": "Time Gazer",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517567942907",
+      "booster_box_price": 1399.0,
+      "booster_pack_price": 59
+    },
+    {
+      "product_id": 9105036214523,
+      "product_gid": "gid://shopify/Product/9105036214523",
+      "old_title": "Space Juggler",
+      "base_title": "Space Juggler",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517576331515",
+      "booster_box_price": 1249.0,
+      "booster_pack_price": 55
+    },
+    {
+      "product_id": 9105038770427,
+      "product_gid": "gid://shopify/Product/9105038770427",
+      "old_title": "Paradigm Trigger",
+      "base_title": "Paradigm Trigger",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517586227451",
+      "booster_box_price": 1775.0,
+      "booster_pack_price": 75
+    },
+    {
+      "product_id": 9105024286971,
+      "product_gid": "gid://shopify/Product/9105024286971",
+      "old_title": "Wild Force",
+      "base_title": "Wild Force",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517543465211",
+      "booster_box_price": 975.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9105043456251,
+      "product_gid": "gid://shopify/Product/9105043456251",
+      "old_title": "Scarlet ex",
+      "base_title": "Scarlet ex",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517598089467",
+      "booster_box_price": 1075.0,
+      "booster_pack_price": 45
+    },
+    {
+      "product_id": 9105044406523,
+      "product_gid": "gid://shopify/Product/9105044406523",
+      "old_title": "Snow Hazard",
+      "base_title": "Snow Hazard",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517599465723",
+      "booster_box_price": 1025.0,
+      "booster_pack_price": 45
+    },
+    {
+      "product_id": 9105280270587,
+      "product_gid": "gid://shopify/Product/9105280270587",
+      "old_title": "Triplet Beat",
+      "base_title": "Triplet Beat",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47518029775099",
+      "booster_box_price": 1675.0,
+      "booster_pack_price": 69
+    },
+    {
+      "product_id": 9105281843451,
+      "product_gid": "gid://shopify/Product/9105281843451",
+      "old_title": "Violet ex",
+      "base_title": "Violet ex",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47518051434747",
+      "booster_box_price": 975.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9105283154171,
+      "product_gid": "gid://shopify/Product/9105283154171",
+      "old_title": "Clay Burst",
+      "base_title": "Clay Burst",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47518064083195",
+      "booster_box_price": 1175.0,
+      "booster_pack_price": 49
+    },
+    {
+      "product_id": 9110899589371,
+      "product_gid": "gid://shopify/Product/9110899589371",
+      "old_title": "Ruler of the Black Flame",
+      "base_title": "Ruler of the Black Flame",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47535773843707",
+      "booster_box_price": 1575.0,
+      "booster_pack_price": 65
+    },
+    {
+      "product_id": 9110909157627,
+      "product_gid": "gid://shopify/Product/9110909157627",
+      "old_title": "Shiny Treasure",
+      "base_title": "Shiny Treasure",
+      "packs_per_box": 10,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47535791014139",
+      "booster_box_price": 1375.0,
+      "booster_pack_price": 165
+    },
+    {
+      "product_id": 9104268034299,
+      "product_gid": "gid://shopify/Product/9104268034299",
+      "old_title": "Battle Partners",
+      "base_title": "Battle Partners",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515912995067",
+      "booster_box_price": 975.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9104258957563,
+      "product_gid": "gid://shopify/Product/9104258957563",
+      "old_title": "White Flare Deluxe Booster Box",
+      "base_title": "White Flare Deluxe Booster Box",
+      "packs_per_box": 20,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515895202043",
+      "booster_box_price": 2025.0,
+      "booster_pack_price": 125
+    },
+    {
+      "product_id": 9104262332667,
+      "product_gid": "gid://shopify/Product/9104262332667",
+      "old_title": "Black Bolt Deluxe Booster Box",
+      "base_title": "Black Bolt Deluxe Booster Box",
+      "packs_per_box": 20,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515901755643",
+      "booster_box_price": 2375.0,
+      "booster_pack_price": 145
+    },
+    {
+      "product_id": 9104266100987,
+      "product_gid": "gid://shopify/Product/9104266100987",
+      "old_title": "Heat Wave Arena",
+      "base_title": "Heat Wave Arena",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515909325051",
+      "booster_box_price": 1475.0,
+      "booster_pack_price": 59
+    },
+    {
+      "product_id": 9105026089211,
+      "product_gid": "gid://shopify/Product/9105026089211",
+      "old_title": "Star Birth",
+      "base_title": "Star Birth",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517547004155",
+      "booster_box_price": 1099.0,
+      "booster_pack_price": 45
+    },
+    {
+      "product_id": 9104271966459,
+      "product_gid": "gid://shopify/Product/9104271966459",
+      "old_title": "Supercharged Breaker",
+      "base_title": "Supercharged Breaker",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515920564475",
+      "booster_box_price": 2475.0,
+      "booster_pack_price": 99
+    },
+    {
+      "product_id": 9104273015035,
+      "product_gid": "gid://shopify/Product/9104273015035",
+      "old_title": "Paradise Dragona",
+      "base_title": "Paradise Dragona",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47515924234491",
+      "booster_box_price": 1575.0,
+      "booster_pack_price": 65
+    },
+    {
+      "product_id": 9104394191099,
+      "product_gid": "gid://shopify/Product/9104394191099",
+      "old_title": "Incandescent Arcana",
+      "base_title": "Incandescent Arcana",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47516197519611",
+      "booster_box_price": 975.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9104396091643,
+      "product_gid": "gid://shopify/Product/9104396091643",
+      "old_title": "Stellar Miracle",
+      "base_title": "Stellar Miracle",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47516201713915",
+      "booster_box_price": 925.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9104397664507,
+      "product_gid": "gid://shopify/Product/9104397664507",
+      "old_title": "Night Wanderer",
+      "base_title": "Night Wanderer",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47516204990715",
+      "booster_box_price": 925.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9104400285947,
+      "product_gid": "gid://shopify/Product/9104400285947",
+      "old_title": "Mask of Change",
+      "base_title": "Mask of Change",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47516213412091",
+      "booster_box_price": 925.0,
+      "booster_pack_price": 39
+    },
+    {
+      "product_id": 9105023533307,
+      "product_gid": "gid://shopify/Product/9105023533307",
+      "old_title": "Crimson Haze",
+      "base_title": "Crimson Haze",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47517542220027",
+      "booster_box_price": 1425.0,
+      "booster_pack_price": 59
+    },
+    {
+      "product_id": 9176584356091,
+      "product_gid": "gid://shopify/Product/9176584356091",
+      "old_title": "Mega Dream ex",
+      "base_title": "Mega Dream ex",
+      "packs_per_box": 10,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47713374109947",
+      "booster_box_price": 1075.0,
+      "booster_pack_price": 129
+    },
+    {
+      "product_id": 9222616023291,
+      "product_gid": "gid://shopify/Product/9222616023291",
+      "old_title": "Nullifying Zero",
+      "base_title": "Nullifying Zero",
+      "packs_per_box": 30,
+      "booster_box_variant_id": "gid://shopify/ProductVariant/47876438098171",
+      "booster_box_price": 849.0,
+      "booster_pack_price": 35
+    }
+  ],
+  "skipped": [
+    {
+      "product_id": 9148722348283,
+      "reason": "excluded (One Piece)"
+    }
+  ]
+}

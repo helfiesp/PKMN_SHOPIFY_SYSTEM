@@ -1,0 +1,216 @@
+{
+  "version": 2,
+  "generated_at_utc": "2026-01-24T07:50:00.666075+00:00",
+  "mappings": {
+    "Pokémon Card Game MEGA Expansion Pack|Munix Zero|Box|true": {
+      "product_id": "gid://shopify/Product/9222616023291",
+      "handle": "nullifying-zero-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game MEGA High Class Pack|MEGA Dream ex|Box|true": {
+      "product_id": "gid://shopify/Product/9176584356091",
+      "handle": "mega-dream-ex-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "|||true": {
+      "product_id": null,
+      "handle": null,
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game MEGA Expansion Pack|Inferno X|Box|true": {
+      "product_id": "gid://shopify/Product/9111584571643",
+      "handle": "inferno-x-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Battle Partners|Box|true": {
+      "product_id": "gid://shopify/Product/9104268034299",
+      "handle": "battle-partners-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet Enhanced Expansion Pack|Pokemon Card 151|Box|true": {
+      "product_id": "gid://shopify/Product/9105029726459",
+      "handle": "pokemon-151-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game MEGA Expansion Pack|Mega Brave|Box|true": {
+      "product_id": "gid://shopify/Product/9104256925947",
+      "handle": "mega-brave",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet High Class Pack|Terastar Fest EX|Box|true": {
+      "product_id": "gid://shopify/Product/9104269574395",
+      "handle": "terastal-festival-ex-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Super Electric Breaker|Box|true": {
+      "product_id": "gid://shopify/Product/9104271966459",
+      "handle": "supercharged-breaker-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Future Flash|(PARADOX RIFT) Box (Future)|true": {
+      "product_id": "gid://shopify/Product/9105030807803",
+      "handle": "future-flash-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet Expansion Pack|Violet EX|Box|true": {
+      "product_id": "gid://shopify/Product/9105281843451",
+      "handle": "violet-ex-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Clay Burst (Kreba)|Box (Snow Hazard & Clay Burst)|true": {
+      "product_id": "gid://shopify/Product/9105283154171",
+      "handle": "clay-burst-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet Expansion Pack|White Flare|Box|true": {
+      "product_id": "gid://shopify/Product/9104263348475",
+      "handle": "white-flare-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Stella Miracle|Box|true": {
+      "product_id": "gid://shopify/Product/9104396091643",
+      "handle": "stellar-miracle-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Ruler of the Black Flame|Box|true": {
+      "product_id": "gid://shopify/Product/9110899589371",
+      "handle": "ruler-of-the-black-flame",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Sword & Shield Enhanced Expansion Pack|Incandescent Arcana|Box|true": {
+      "product_id": "gid://shopify/Product/9104394191099",
+      "handle": "paradise-dragona-booster-box-copy",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Ancient Roar|(PARADOX RIFT) Box|true": {
+      "product_id": "gid://shopify/Product/9105032511739",
+      "handle": "ancient-roar-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet Expansion Pack Deluxe|White Flare|Box|true": {
+      "product_id": "gid://shopify/Product/9104258957563",
+      "handle": "white-flare-deluxe-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack Deluxe|Black Bolt|Box|true": {
+      "product_id": "gid://shopify/Product/9104262332667",
+      "handle": "black-bolt-deluxe-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Enhanced Expansion Pack|Night Wanderer|Box|true": {
+      "product_id": "gid://shopify/Product/9104397664507",
+      "handle": "night-wanderer-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Glory of Team Rocket|Box|true": {
+      "product_id": "gid://shopify/Product/9103948153083",
+      "handle": "the-glory-of-team-rocket",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet Expansion Pack|Black Bolt|Box|true": {
+      "product_id": "gid://shopify/Product/9104264855803",
+      "handle": "black-bolt-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Enhanced Expansion Pack|Hot Wind Arena|Box|true": {
+      "product_id": "gid://shopify/Product/9104266100987",
+      "handle": "the-glory-of-team-rocket-copy",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet Expansion Pack|Scarlet EX|Box (Scarlet)|true": {
+      "product_id": "gid://shopify/Product/9105043456251",
+      "handle": "scarlet-ex-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Cyber Judge|Box|true": {
+      "product_id": "gid://shopify/Product/9105025171707",
+      "handle": "cyber-judge-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Mask of Transfiguration|Box|true": {
+      "product_id": "gid://shopify/Product/9104400285947",
+      "handle": "mask-of-change-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet High Class Pack|Shiny Treasure EX|Box|true": {
+      "product_id": "gid://shopify/Product/9110909157627",
+      "handle": "shiny-treasure-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game MEGA Expansion Pack|Mega Symphonia|Box|true": {
+      "product_id": "gid://shopify/Product/9104247030011",
+      "handle": "mega-symphonia",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Enhanced Expansion Pack|Triple Beat|Box|true": {
+      "product_id": "gid://shopify/Product/9105280270587",
+      "handle": "triplet-beat-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Expansion Pack|Snow Hazard|Box (Snow Hazard & Clay Burst)|true": {
+      "product_id": "gid://shopify/Product/9105044406523",
+      "handle": "snow-hazard-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Enhanced Expansion Pack|Paradise Dragon|Box|true": {
+      "product_id": "gid://shopify/Product/9104273015035",
+      "handle": "paradise-dragona-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Sword & Shield Expansion Pack|Paradigm Trigger|Box (Paratri)|true": {
+      "product_id": "gid://shopify/Product/9105038770427",
+      "handle": "paradigm-trigger-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Enhanced Expansion Pack|Crimson Haze|Box|true": {
+      "product_id": "gid://shopify/Product/9105023533307",
+      "handle": "crimson-haze-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokémon Card Game Scarlet & Violet Enhanced Expansion Pack|Raging Surf|Box|true": {
+      "product_id": "gid://shopify/Product/9105041752315",
+      "handle": "raging-surf-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    },
+    "Pokemon Card Game Scarlet & Violet Expansion Pack|Wild Force|Box (Wild)|true": {
+      "product_id": "gid://shopify/Product/9105024286971",
+      "handle": "wild-force-booster-box",
+      "notes": "auto-generated; edit as needed",
+      "disabled": false
+    }
+  }
+}

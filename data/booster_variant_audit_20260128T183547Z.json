@@ -1,0 +1,208 @@
+{
+  "applied_at_utc": "2026-01-28T18:36:15.799134+00:00",
+  "shop": "ipvqw7-yh.myshopify.com",
+  "api_version": "2026-01",
+  "plan_file": "C:\\Users\\cmhag\\Documents\\Projects\\Shopify\\data\\booster_variant_plan_20260128T183537Z.json",
+  "summary": {
+    "applied": 0,
+    "failed": 39,
+    "skipped": 0
+  },
+  "details": [
+    {
+      "product_id": 9111584571643,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104269574395,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104264855803,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104263348475,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9103948153083,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104247030011,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104256925947,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105041752315,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105025171707,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105027727611,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105028546811,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105029726459,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105030807803,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105032511739,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105033953531,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105036214523,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105038770427,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105024286971,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105043456251,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105044406523,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105280270587,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105281843451,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105283154171,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9110899589371,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9110909157627,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104268034299,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104258957563,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104262332667,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104266100987,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105026089211,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104271966459,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104273015035,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104394191099,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104396091643,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104397664507,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9104400285947,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9105023533307,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9176584356091,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    },
+    {
+      "product_id": 9222616023291,
+      "status": "failed",
+      "reason": "GraphQL errors: [{'message': \"Field 'code' doesn't exist on type 'UserError'\", 'locations': [{'line': 5, 'column': 32}], 'path': ['mutation ProductUpdateTitle', 'productUpdate', 'userErrors', 'code'], 'extensions': {'code': 'undefinedField', 'typeName': 'UserError', 'fieldName': 'code'}}]"
+    }
+  ]
+}
