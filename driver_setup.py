@@ -19,10 +19,17 @@ def create_chromium_driver(
 
     chrome_binary = os.getenv("CHROME_BINARY")
     if not chrome_binary:
+        # Windows paths
         common_paths = [
             r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
             r"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
             os.path.expandvars(r"%LOCALAPPDATA%\\Google\\Chrome\\Application\\chrome.exe"),
+            # Linux paths
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium",
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/snap/bin/chromium",
         ]
         for path in common_paths:
             if path and Path(path).exists():
@@ -73,6 +80,8 @@ def create_chromium_driver(
         pass
 
     raise RuntimeError(
-        "Unable to start Chrome driver. Ensure Chrome is installed or set CHROME_BINARY to chrome.exe. "
-        "Optionally set CHROMEDRIVER_PATH to a local chromedriver.exe. Selenium Manager requires internet access."
+        "Unable to start Chrome driver. "
+        "Ensure Chrome/Chromium is installed (Ubuntu: 'sudo apt install chromium-browser chromium-chromedriver'). "
+        "Optionally set CHROME_BINARY to your browser path or CHROMEDRIVER_PATH to your chromedriver path. "
+        "Selenium Manager requires internet access to auto-download drivers."
     )
