@@ -10,6 +10,10 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import threading
 import queue
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 LOG = logging.getLogger("competition-runner")
 logging.basicConfig(

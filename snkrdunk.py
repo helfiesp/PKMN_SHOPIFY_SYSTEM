@@ -14,6 +14,10 @@ from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import requests
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # =============================================================================
 # Paths / data folder
