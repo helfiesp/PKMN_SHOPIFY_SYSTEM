@@ -251,13 +251,40 @@ else
 fi
 echo ""
 
-# Test if application is responding
+# Test if application is responding and healthy
 print_info "Testing application health endpoint..."
-sleep 2
-if curl -f http://localhost:8000/api/v1/health >/dev/null 2>&1; then
-    print_success "Application is responding on port 8000"
-else
-    print_error "Application health check failed"
+MAX_RETRIES=15
+RETRY_COUNT=0
+HEALTH_STATUS=""
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    sleep 2
+    HEALTH_RESPONSE=$(curl -s http://localhost:8000/api/v1/health 2>/dev/null || echo "")
+    
+    if [ -n "$HEALTH_RESPONSE" ]; then
+        HEALTH_STATUS=$(echo "$HEALTH_RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+        DB_STATUS=$(echo "$HEALTH_RESPONSE" | grep -o '"database":"[^"]*"' | cut -d'"' -f4)
+        
+        if [ "$HEALTH_STATUS" = "healthy" ]; then
+            print_success "Application is healthy"
+            print_success "Database status: $DB_STATUS"
+            break
+        elif [ "$HEALTH_STATUS" = "degraded" ]; then
+            print_info "Application is responding but degraded: $DB_STATUS"
+            if [[ "$DB_STATUS" == "healthy" ]]; then
+                print_success "Database is healthy, continuing..."
+                break
+            fi
+        fi
+    fi
+    
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    print_info "Waiting for application to become healthy (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    print_error "Application health check failed after $MAX_RETRIES attempts"
+    print_error "Last health status: $HEALTH_STATUS"
     print_info "Service logs:"
     sudo journalctl -u $APP_NAME -n 30 --no-pager
     exit 1

@@ -1,6 +1,7 @@
 """Health check and status endpoints."""
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.database import get_db
 from app.config import settings
 from app.scheduler import scheduler
@@ -13,7 +14,7 @@ async def health_check(db: Session = Depends(get_db)):
     """Check API and database health."""
     try:
         # Test database connection
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
