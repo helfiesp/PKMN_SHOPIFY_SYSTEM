@@ -390,6 +390,21 @@ function timeAgo(date) {
     return then.toLocaleDateString('no-NO');
 }
 
+// Format datetime in Oslo timezone
+function formatOsloTime(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('no-NO', {
+        timeZone: 'Europe/Oslo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
 // Dashboard
 async function loadDashboard() {
     try {
@@ -5581,8 +5596,8 @@ async function loadSupplierProducts() {
                                 </span>
                             </td>
                             <td>${p.category || '-'}</td>
-                            <td>${timeAgo(p.first_seen_at)}</td>
-                            <td>${p.last_scraped_at ? timeAgo(p.last_scraped_at) : '-'}</td>
+                            <td>${formatOsloTime(p.first_seen_at)}</td>
+                            <td>${formatOsloTime(p.last_scraped_at)}</td>
                             <td>
                                 ${p.is_new ? `<button class="btn btn-sm btn-secondary" onclick="acknowledgeSupplierProduct(${p.id})">Acknowledge</button>` : ''}
                                 <button class="btn btn-sm btn-secondary" onclick="hideSupplierProduct(${p.id})">Hide</button>
@@ -5640,7 +5655,7 @@ async function loadSupplierScanLogs() {
                             <td>${log.products_found || 0}</td>
                             <td>${log.new_products || 0}</td>
                             <td>${log.restocked_products || 0}</td>
-                            <td>${new Date(log.started_at).toLocaleString()}</td>
+                            <td>${formatOsloTime(log.started_at)}</td>
                             <td>${log.duration_seconds ? log.duration_seconds.toFixed(1) + 's' : '-'}</td>
                             <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${log.error_message || '-'}</td>
                         </tr>
