@@ -421,6 +421,18 @@ class SnkrdunkService:
                         "_raw": item  # Keep original data
                     }
                     
+                    # If scan_log_id is provided, override prices with historical prices from that scan
+                    if scan_log_id and current_scan:
+                        from app.models import SnkrdunkPriceHistory
+                        historical_price = db.query(SnkrdunkPriceHistory).filter(
+                            SnkrdunkPriceHistory.scan_log_id == scan_log_id,
+                            SnkrdunkPriceHistory.snkrdunk_key == product_id
+                        ).first()
+                        
+                        if historical_price:
+                            normalized_item["minPriceJpy"] = historical_price.price_jpy
+                            normalized_item["last_price_updated"] = current_scan.created_at.isoformat() if current_scan.created_at else None
+                    
                     # Use pre-loaded translation if available, otherwise use extracted name
                     # (translations happen in background fetch, not on every GET)
                     if translate and name_ja:
