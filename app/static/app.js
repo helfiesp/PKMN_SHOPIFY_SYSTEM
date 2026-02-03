@@ -311,11 +311,8 @@ function loadTabData(tabName) {
                         });
                     }
                     
-                    // Render SNKRDUNK products table using the standard function
-                    renderSnkrdunkProductsTable();
-                    
-                    // Load available history dates for date picker
-                    loadAvailableHistoryDates();
+                    // Load available history dates for date picker first (this will auto-load latest scan)
+                    await loadAvailableHistoryDates();
                 } catch (error) {
                     console.error('Error loading mappings data:', error);
                     showAlert('Error loading mappings: ' + error.message, 'error');
@@ -4243,6 +4240,8 @@ async function loadSnkrdunkScanHistory() {
             noscansOption.disabled = true;
             noscansOption.textContent = '(No SNKRDUNK updates yet)';
             select.appendChild(noscansOption);
+            // Render current products if no history exists
+            renderSnkrdunkProductsTable();
             return;
         }
         
@@ -4266,9 +4265,12 @@ async function loadSnkrdunkScanHistory() {
         
         console.log(`Loaded ${logs.length} SNKRDUNK price updates`);
         
-        // Auto-load the most recent scan
+        // Auto-load the most recent scan if available
         if (logs.length > 0) {
             await loadSnkrdunkScan();
+        } else {
+            // If no scans, just render what we have
+            renderSnkrdunkProductsTable();
         }
     } catch (error) {
         console.error('Failed to load SNKRDUNK scan history:', error);
