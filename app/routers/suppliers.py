@@ -283,7 +283,7 @@ async def trigger_supplier_scan(
         script_path = scraper_script
         result = await asyncio.to_thread(
             subprocess.run,
-            ["python", script_path, str(request.website_id)],
+            ["python3", script_path, str(request.website_id)],  # Use python3 on Ubuntu
             capture_output=True,
             text=True,
             env=env,
@@ -298,10 +298,9 @@ async def trigger_supplier_scan(
         if result.returncode != 0:
             error_msg = result.stderr or "Script failed with no error output"
             scan_log = SupplierScanLog(
-                website_id=request.website_id,
+                supplier_website_id=request.website_id,
                 status="failed",
-                total_products=0,
-                output=result.stdout[:5000] if result.stdout else None,
+                products_found=0,
                 error_message=error_msg[:1000],
                 started_at=started_at,
                 completed_at=completed_at,
@@ -329,11 +328,9 @@ async def trigger_supplier_scan(
         
         # Create scan log
         scan_log = SupplierScanLog(
-            website_id=request.website_id,
+            supplier_website_id=request.website_id,
             status=status,
-            total_products=total_products,
-            output=result.stdout if status == "success" else None,
-            error_message=result.stderr if status == "failed" else None,
+            products_found=total_products,
             started_at=started_at,
             completed_at=completed_at,
             duration_seconds=duration
@@ -356,8 +353,9 @@ async def trigger_supplier_scan(
         duration = (completed_at - started_at).total_seconds()
         
         scan_log = SupplierScanLog(
-            website_id=request.website_id,
+            supplier_website_id=request.website_id,
             status="timeout",
+            products_found=0,
             error_message="Scan timed out after 30 minutes",
             started_at=started_at,
             completed_at=completed_at,
@@ -373,8 +371,9 @@ async def trigger_supplier_scan(
         duration = (completed_at - started_at).total_seconds()
         
         scan_log = SupplierScanLog(
-            website_id=request.website_id,
+            supplier_website_id=request.website_id,
             status="error",
+            products_found=0,
             error_message=str(e),
             started_at=started_at,
             completed_at=completed_at,
