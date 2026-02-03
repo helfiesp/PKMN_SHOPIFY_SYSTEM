@@ -274,10 +274,13 @@ async def trigger_supplier_scan(
         env = os.environ.copy()
         env.setdefault("CHROMEDRIVER_PATH", "/usr/bin/chromedriver")
         
-        # Get project root directory (parent of app/)
+        # Get project root directory
+        # __file__ = .../app/routers/suppliers.py
+        # We need to go up 3 levels: routers -> app -> project_root
         current_file = os.path.abspath(__file__)
-        app_dir = os.path.dirname(os.path.dirname(current_file))
-        project_root = app_dir
+        routers_dir = os.path.dirname(current_file)  # app/routers
+        app_dir = os.path.dirname(routers_dir)  # app
+        project_root = os.path.dirname(app_dir)  # project root
         
         # Run the scraper as a subprocess from project root
         script_path = scraper_script
