@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -86,7 +87,7 @@ class SupplierService:
             SupplierProduct.product_url == product_url
         ).first()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(ZoneInfo("Europe/Oslo"))
         is_new_product = False
         is_restocked = False
 
@@ -277,7 +278,7 @@ class SupplierService:
         completed_at: Optional[datetime] = None,
     ) -> SupplierScanLog:
         """Create a scan log entry."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(ZoneInfo("Europe/Oslo"))
         started = started_at or now
         completed = completed_at or now
 
