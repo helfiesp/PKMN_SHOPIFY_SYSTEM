@@ -282,6 +282,17 @@ async def trigger_supplier_scan(
         app_dir = os.path.dirname(routers_dir)  # app
         project_root = os.path.dirname(app_dir)  # project root
         
+        # Set up environment with Chrome paths and Python path
+        env = os.environ.copy()
+        env.setdefault("CHROMEDRIVER_PATH", "/usr/bin/chromedriver")
+        # Add project root to PYTHONPATH so imports work
+        env["PYTHONPATH"] = project_root + ":" + env.get("PYTHONPATH", "")
+        # Set up environment with Chrome paths and Python path
+        env = os.environ.copy()
+        env.setdefault("CHROMEDRIVER_PATH", "/usr/bin/chromedriver")
+        # Add project root to PYTHONPATH so imports work
+        env["PYTHONPATH"] = project_root + ":" + env.get("PYTHONPATH", "")
+        
         # Run the scraper as a subprocess from project root
         script_path = scraper_script
         result = await asyncio.to_thread(
