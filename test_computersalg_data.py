@@ -19,6 +19,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from driver_setup import create_chromium_driver
 import time
 
 
@@ -100,14 +101,7 @@ def scrape_computersalg():
     
     # Setup Chrome driver
     print("\n[SETUP] Initializing Chrome WebDriver...")
-    service = Service()
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.binary_location = '/usr/bin/chromium'  # Use chromium
-    
-    driver = webdriver.Chrome(service=service, options=options)
+    driver = create_chromium_driver(headless=True)
     
     try:
         base_url = "https://www.computersalg.no/l/4979/byttekort?f=c72d38dc-9dd6-4d3f-93cc-44bfd26b97aa&p={page}&sq=&csstock=0"
