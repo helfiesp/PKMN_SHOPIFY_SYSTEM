@@ -16,11 +16,11 @@ class ComputersalgScraper(BaseSupplierScraper):
         # Start URL for Pokemon trading cards
         self.start_url = "https://www.computersalg.no/l/4979/byttekort?f=c72d38dc-9dd6-4d3f-93cc-44bfd26b97aa&p=1&sq=&csstock=0"
     
-    def get_product_urls(self) -> list:
-        """Get all product data from the listing page (we extract directly from cards)"""
+    def scrape_products(self) -> list:
+        """Scrape all products from listing pages"""
         print(f"Scraping: {self.start_url}")
         self.driver.get(self.start_url)
-        self.wait_for_page_load()
+        self.wait(5)
         
         all_products = []
         page = 1
@@ -35,32 +35,27 @@ class ComputersalgScraper(BaseSupplierScraper):
             
             for card in product_cards:
                 try:
-                    # Get product URL
-                    link_elem = card.find_element("css selector", "a[href*='/i/']")
-                    url = link_elem.get_attribute("href")
-                    
-                    # Extract all data from the card
-                    data = self.extract_product_data_from_card(card, url)
-                    if data:
-                        all_products.append(data)
+                    product_data = self.extract_product_data_from_card(card)
+                    if product_data:
+                        all_products.append(product_data)
                 except Exception as e:
                     print(f"Error extracting product card: {e}")
                     continue
             
             # Check for next page
             try:
-                current_url = self.driver.current_url
                 if page >= max_pages:
                     break
                 
                 # Try to navigate to next page by updating URL
+                current_url = self.driver.current_url
                 if 'page=' in current_url:
                     next_page_url = re.sub(r'page=\d+', f'page={page+1}', current_url)
                 else:
                     next_page_url = current_url + f"&page={page+1}"
                 
                 self.driver.get(next_page_url)
-                self.wait_for_page_load()
+                self.wait(5)
                 
                 # Check if we got new products (if not, we've reached the end)
                 new_cards = self.driver.find_elements("css selector", "div[data-js-pagination-item]")
@@ -72,19 +67,18 @@ class ComputersalgScraper(BaseSupplierScraper):
                 break
         
         print(f"Total products found: {len(all_products)}")
-        
-        # Store products for processing
-        self._card_products = all_products
-        
-        # Return empty list since we're not using individual product URLs
-        return []
+        return all_products
     
-    def extract_product_data_from_card(self, card, url: str) -> dict:
+    def extract_product_data_from_card(self, card) -> dict:
         """Extract product data from a product card element"""
         try:
+            # Get product URL
+            link_elem = card.find_element("css selector", "a[href*='/i/']")
+            url = link_elem.get_attribute("href")
+            
             # Extract product name
             name_elem = card.find_element("css selector", "h3.m-product-card__name")
-            name = self.get_text_content(name_elem).strip()
+            name = self.get_element_text(name_elem).strip()
             
             # Clean up name - remove quotes and extra whitespace
             name = name.replace('„', '').replace('"', '').replace('  ', ' ').strip()
@@ -93,7 +87,7 @@ class ComputersalgScraper(BaseSupplierScraper):
             price = None
             try:
                 price_elem = card.find_element("css selector", "span.m-product-card__price-text")
-                price_text = self.get_text_content(price_elem).strip()
+                price_text = self.get_element_text(price_elem).strip()
                 # Remove spaces, thousand separator dots, and convert comma to decimal
                 price_text = price_text.replace(' ', '').replace('.', '').replace(',', '.')
                 price = float(price_text)
@@ -104,7 +98,7 @@ class ComputersalgScraper(BaseSupplierScraper):
             sku = None
             try:
                 sku_elem = card.find_element("css selector", "span[itemprop*='sku']")
-                sku = self.get_text_content(sku_elem).strip()
+                sku = self.get_element_text(sku_elem).strip()
             except Exception:
                 pass
             
@@ -112,7 +106,7 @@ class ComputersalgScraper(BaseSupplierScraper):
             in_stock = False
             try:
                 # Look for stock indicator
-                stock_elem = card.find_element("css selector", "span.stock.green")
+                card.find_element("css selector", "span.stock.green")
                 in_stock = True
             except Exception:
                 in_stock = False
@@ -128,51 +122,26 @@ class ComputersalgScraper(BaseSupplierScraper):
                 pass
             
             return {
-                'url': url,
+                'product_url': url,
                 'name': name,
                 'price': price,
                 'sku': sku,
                 'in_stock': in_stock,
                 'image_url': image_url,
-                'currency': 'NOK',
             }
         
         except Exception as e:
             print(f"Error extracting card data: {e}")
             return None
     
-    def extract_product_data(self, url: str) -> dict:
-        """Not used - we extract from cards directly"""
-        # Get pre-extracted data
-        if hasattr(self, '_card_products'):
-            for product in self._card_products:
-                if product['url'] == url:
-                    return product
-        return None
+    def wait(self, seconds: int):
+        """Wait for a specified number of seconds"""
+        import time
+        time.sleep(seconds)
     
-    def run(self):
-        """Override run to use card-based extraction"""
-        try:
-            self.setup_driver()
-            
-            # Get all products from listing pages
-            self.get_product_urls()
-            
-            # Process each product
-            if hasattr(self, '_card_products'):
-                for product_data in self._card_products:
-                    if product_data:
-                        self.save_product(
-                            product_url=product_data['url'],
-                            name=product_data['name'],
-                            in_stock=product_data['in_stock'],
-                            price=product_data['price'],
-                            sku=product_data['sku'],
-                            image_url=product_data['image_url']
-                        )
-        
-        finally:
-            self.cleanup()
+    def get_element_text(self, element):
+        """Get text content from an element using JavaScript"""
+        return self.driver.execute_script("return arguments[0].textContent;", element)
 
 
 def main():
