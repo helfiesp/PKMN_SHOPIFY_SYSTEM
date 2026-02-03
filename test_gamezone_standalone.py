@@ -159,10 +159,12 @@ def main():
             logger.info(f"Found {len(product_cards)} product cards on page {page}")
             
             # Extract data from each card
-            for card in product_cards:
+            for idx, card in enumerate(product_cards):
                 product_data = extract_product_data_from_card(card)
                 if product_data:
                     all_products.append(product_data)
+                elif idx < 3:  # Debug first 3 failures
+                    logger.warning(f"Failed to extract data from card {idx}, HTML: {card.get_attribute('outerHTML')[:500]}")
             
             # Check if there's a next page
             page += 1
