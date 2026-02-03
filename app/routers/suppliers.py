@@ -257,7 +257,8 @@ async def trigger_supplier_scan(
     # Map website IDs to scraper scripts
     scraper_map = {
         1: "suppliers/lekekassen.py",
-        2: "suppliers/extra_leker.py"
+        2: "suppliers/extra_leker.py",
+        3: "suppliers/computersalg.py"
     }
     
     scraper_script = scraper_map.get(request.website_id)
