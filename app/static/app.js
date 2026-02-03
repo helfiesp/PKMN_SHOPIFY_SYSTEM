@@ -4299,6 +4299,15 @@ async function loadSnkrdunkScan() {
         
         const logId = select.value;
         
+        // First, ensure we have the current product data with full details
+        if (!window.snkrdunkProducts || window.snkrdunkProducts.length === 0) {
+            const currentResponse = await fetch(`${API_BASE}/snkrdunk/products`);
+            if (currentResponse.ok) {
+                const currentData = await currentResponse.json();
+                window.snkrdunkProducts = currentData.items || [];
+            }
+        }
+        
         // Fetch the scan log details for display
         const scanResponse = await fetch(`${API_BASE}/snkrdunk/scan-logs/${logId}`);
         if (!scanResponse.ok) {
@@ -4322,23 +4331,28 @@ async function loadSnkrdunkScan() {
             return;
         }
         
-        // Replace window.snkrdunkProducts with historical data
-        window.snkrdunkProducts = historyData.items.map(item => ({
-            id: item.id,
-            name: item.name,
-            nameEn: item.nameEn,
-            minPriceJpy: item.minPriceJpy,
-            price_change: item.price_change || 0,
-            brand: item.brand || {},
-            last_price_updated: scan.created_at
-        }));
+        // Build a map of historical prices by product ID
+        const historicalPrices = {};
+        historyData.items.forEach(item => {
+            historicalPrices[item.id.toString()] = item;
+        });
         
-        console.log(`Loaded ${window.snkrdunkProducts.length} products from historical scan`);
+        // Update current products with historical prices, keeping all other data intact
+        window.snkrdunkProducts.forEach(product => {
+            const histItem = historicalPrices[product.id.toString()];
+            if (histItem) {
+                product.minPriceJpy = histItem.minPriceJpy;
+                product.price_change = histItem.price_change || 0;
+                product.last_price_updated = scan.created_at;
+            }
+        });
+        
+        console.log(`Updated ${window.snkrdunkProducts.length} products with historical prices`);
         
         renderSnkrdunkProductsTable();
         
         const dateStr = scanDate.toLocaleString();
-        showAlert(`✓ Showing prices from ${dateStr} (${window.snkrdunkProducts.length} products)`, 'success');
+        showAlert(`✓ Showing prices from ${dateStr} (${historyData.items.length} historical records)`, 'success');
     } catch (error) {
         console.error('Error loading scan:', error);
         showAlert('Error loading scan: ' + error.message, 'error');
