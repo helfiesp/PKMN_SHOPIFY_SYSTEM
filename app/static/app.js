@@ -393,8 +393,13 @@ function timeAgo(date) {
 // Format datetime in Oslo timezone
 function formatOsloTime(dateString) {
     if (!dateString) return '-';
-    // Timestamps from API are already in Oslo timezone, just format them
-    const date = new Date(dateString);
+    // Timestamps from API are in Oslo timezone but without TZ info
+    // Append +01:00 to tell JS they're already in Oslo time
+    let isoString = dateString;
+    if (!dateString.includes('+') && !dateString.includes('Z')) {
+        isoString = dateString + '+01:00';
+    }
+    const date = new Date(isoString);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
