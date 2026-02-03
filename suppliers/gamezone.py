@@ -18,10 +18,9 @@ class GamezoneScraper(BaseSupplierScraper):
     """Scraper for Gamezone.no Pokemon products."""
     
     def __init__(self, website_id: int):
-        super().__init__(
-            website_id=website_id,
-            base_url="https://gamezone.no/samlekort/pokemon"
-        )
+        super().__init__(website_id)
+        self.base_url = "https://gamezone.no/samlekort/pokemon"
+        self.products_per_page = 40
     
     def scrape_products(self) -> List[Dict]:
         """
