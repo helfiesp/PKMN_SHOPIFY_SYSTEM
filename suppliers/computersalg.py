@@ -76,9 +76,17 @@ class ComputersalgScraper(BaseSupplierScraper):
             link_elem = card.find_element("css selector", "a[href*='/i/']")
             url = link_elem.get_attribute("href")
             
+            if not url:
+                print("No URL found, skipping product")
+                return None
+            
             # Extract product name
             name_elem = card.find_element("css selector", "h3.m-product-card__name")
             name = self.get_element_text(name_elem).strip()
+            
+            if not name:
+                print(f"No name found for {url}, skipping")
+                return None
             
             # Clean up name - remove quotes and extra whitespace
             name = name.replace('„', '').replace('"', '').replace('  ', ' ').strip()
@@ -92,7 +100,7 @@ class ComputersalgScraper(BaseSupplierScraper):
                 price_text = price_text.replace(' ', '').replace('.', '').replace(',', '.')
                 price = float(price_text)
             except Exception as e:
-                print(f"Could not extract price: {e}")
+                print(f"Could not extract price for {name}: {e}")
             
             # Extract SKU
             sku = None
@@ -118,6 +126,9 @@ class ComputersalgScraper(BaseSupplierScraper):
                 image_url = img_elem.get_attribute("src")
                 if image_url and image_url.startswith('//'):
                     image_url = 'https:' + image_url
+                # Skip placeholder images
+                if image_url and 'data:image' in image_url:
+                    image_url = None
             except Exception:
                 pass
             
@@ -128,10 +139,14 @@ class ComputersalgScraper(BaseSupplierScraper):
                 'sku': sku,
                 'in_stock': in_stock,
                 'image_url': image_url,
+                'stock_quantity': None,
+                'category': None,
             }
         
         except Exception as e:
             print(f"Error extracting card data: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def wait(self, seconds: int):
