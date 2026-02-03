@@ -17,12 +17,12 @@ class ComputersalgScraper(BaseSupplierScraper):
         self.start_url = "https://www.computersalg.no/l/4979/byttekort?f=c72d38dc-9dd6-4d3f-93cc-44bfd26b97aa&p=1&sq=&csstock=0"
     
     def get_product_urls(self) -> list:
-        """Get all product URLs from the listing page"""
+        """Get all product data from the listing page (we extract directly from cards)"""
         print(f"Scraping: {self.start_url}")
         self.driver.get(self.start_url)
         self.wait_for_page_load()
         
-        product_urls = []
+        all_products = []
         page = 1
         max_pages = 10  # Safety limit
         
@@ -35,44 +35,55 @@ class ComputersalgScraper(BaseSupplierScraper):
             
             for card in product_cards:
                 try:
-                    # Get product link
+                    # Get product URL
                     link_elem = card.find_element("css selector", "a[href*='/i/']")
-                    href = link_elem.get_attribute("href")
-                    if href and href not in product_urls:
-                        product_urls.append(href)
+                    url = link_elem.get_attribute("href")
+                    
+                    # Extract all data from the card
+                    data = self.extract_product_data_from_card(card, url)
+                    if data:
+                        all_products.append(data)
                 except Exception as e:
-                    print(f"Error extracting product URL: {e}")
+                    print(f"Error extracting product card: {e}")
                     continue
             
-            # Check for next page button
+            # Check for next page
             try:
-                # Look for pagination - the page parameter in URL
                 current_url = self.driver.current_url
-                if f"page={page+1}" in current_url or page >= max_pages:
+                if page >= max_pages:
                     break
                 
                 # Try to navigate to next page by updating URL
-                next_page_url = re.sub(r'page=\d+', f'page={page+1}', current_url)
-                if 'page=' not in current_url:
+                if 'page=' in current_url:
+                    next_page_url = re.sub(r'page=\d+', f'page={page+1}', current_url)
+                else:
                     next_page_url = current_url + f"&page={page+1}"
                 
                 self.driver.get(next_page_url)
                 self.wait_for_page_load()
+                
+                # Check if we got new products (if not, we've reached the end)
+                new_cards = self.driver.find_elements("css selector", "div[data-js-pagination-item]")
+                if len(new_cards) == 0:
+                    break
+                    
                 page += 1
             except Exception:
                 break
         
-        print(f"Total products found: {len(product_urls)}")
-        return product_urls
-    
-    def extract_product_data(self, url: str) -> dict:
-        """Extract product data from product page"""
-        self.driver.get(url)
-        self.wait_for_page_load()
+        print(f"Total products found: {len(all_products)}")
         
+        # Store products for processing
+        self._card_products = all_products
+        
+        # Return empty list since we're not using individual product URLs
+        return []
+    
+    def extract_product_data_from_card(self, card, url: str) -> dict:
+        """Extract product data from a product card element"""
         try:
             # Extract product name
-            name_elem = self.driver.find_element("css selector", "h3.m-product-card__name")
+            name_elem = card.find_element("css selector", "h3.m-product-card__name")
             name = self.get_text_content(name_elem).strip()
             
             # Clean up name - remove quotes and extra whitespace
@@ -81,10 +92,10 @@ class ComputersalgScraper(BaseSupplierScraper):
             # Extract price
             price = None
             try:
-                price_elem = self.driver.find_element("css selector", "span.m-product-card__price-text")
+                price_elem = card.find_element("css selector", "span.m-product-card__price-text")
                 price_text = self.get_text_content(price_elem).strip()
-                # Remove thousand separator and convert to float
-                price_text = price_text.replace('.', '').replace(',', '.').replace(' ', '')
+                # Remove spaces, thousand separator dots, and convert comma to decimal
+                price_text = price_text.replace(' ', '').replace('.', '').replace(',', '.')
                 price = float(price_text)
             except Exception as e:
                 print(f"Could not extract price: {e}")
@@ -92,7 +103,7 @@ class ComputersalgScraper(BaseSupplierScraper):
             # Extract SKU
             sku = None
             try:
-                sku_elem = self.driver.find_element("css selector", "span[itemprop*='sku']")
+                sku_elem = card.find_element("css selector", "span[itemprop*='sku']")
                 sku = self.get_text_content(sku_elem).strip()
             except Exception:
                 pass
@@ -101,26 +112,23 @@ class ComputersalgScraper(BaseSupplierScraper):
             in_stock = False
             try:
                 # Look for stock indicator
-                stock_elem = self.driver.find_element("css selector", "span.stock.green")
+                stock_elem = card.find_element("css selector", "span.stock.green")
                 in_stock = True
             except Exception:
-                # If green stock not found, check for red (out of stock)
-                try:
-                    self.driver.find_element("css selector", "span.stock.red")
-                    in_stock = False
-                except Exception:
-                    # Default to False if no stock indicator found
-                    in_stock = False
+                in_stock = False
             
             # Extract image URL
             image_url = None
             try:
-                img_elem = self.driver.find_element("css selector", "div.m-product-card__image img")
+                img_elem = card.find_element("css selector", "div.m-product-card__image img")
                 image_url = img_elem.get_attribute("src")
+                if image_url and image_url.startswith('//'):
+                    image_url = 'https:' + image_url
             except Exception:
                 pass
             
             return {
+                'url': url,
                 'name': name,
                 'price': price,
                 'sku': sku,
@@ -130,8 +138,41 @@ class ComputersalgScraper(BaseSupplierScraper):
             }
         
         except Exception as e:
-            print(f"Error extracting product data from {url}: {e}")
+            print(f"Error extracting card data: {e}")
             return None
+    
+    def extract_product_data(self, url: str) -> dict:
+        """Not used - we extract from cards directly"""
+        # Get pre-extracted data
+        if hasattr(self, '_card_products'):
+            for product in self._card_products:
+                if product['url'] == url:
+                    return product
+        return None
+    
+    def run(self):
+        """Override run to use card-based extraction"""
+        try:
+            self.setup_driver()
+            
+            # Get all products from listing pages
+            self.get_product_urls()
+            
+            # Process each product
+            if hasattr(self, '_card_products'):
+                for product_data in self._card_products:
+                    if product_data:
+                        self.save_product(
+                            product_url=product_data['url'],
+                            name=product_data['name'],
+                            in_stock=product_data['in_stock'],
+                            price=product_data['price'],
+                            sku=product_data['sku'],
+                            image_url=product_data['image_url']
+                        )
+        
+        finally:
+            self.cleanup()
 
 
 def main():
