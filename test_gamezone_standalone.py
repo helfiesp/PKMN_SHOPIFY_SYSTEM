@@ -158,6 +158,12 @@ def main():
             
             logger.info(f"Found {len(product_cards)} product cards on page {page}")
             
+            # Debug: save first card HTML to file
+            if page == 1 and product_cards:
+                with open("gamezone_card_sample.html", "w", encoding="utf-8") as f:
+                    f.write(product_cards[0].get_attribute('outerHTML'))
+                logger.info("Saved first card HTML to gamezone_card_sample.html")
+            
             # Extract data from each card
             for idx, card in enumerate(product_cards):
                 product_data = extract_product_data_from_card(card)
