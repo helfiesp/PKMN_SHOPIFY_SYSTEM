@@ -152,12 +152,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Tab Management
 const DYNAMIC_TABS = new Set([
-    'booster-variants',
-    'booster-inventory',
     'mappings',
     'reports',
     'competitors',
     'competitor-mappings',
+    'suppliers',
     'settings'
 ]);
 
@@ -246,17 +245,11 @@ function loadTabData(tabName) {
                 loadPricePlans();
             }, 100);
             break;
-        case 'booster-variants': 
+        case 'suppliers':
             setTimeout(() => {
-                renderDynamicTab('booster-variants');
-                loadBoosterVariantPlans();
-            }, 100); 
-            break;
-        case 'booster-inventory': 
-            setTimeout(() => {
-                renderDynamicTab('booster-inventory');
-                loadBoosterInventoryPlans();
-            }, 100); 
+                renderDynamicTab('suppliers');
+                loadSuppliers();
+            }, 100);
             break;
         case 'mappings': 
             setTimeout(async () => {
@@ -2126,51 +2119,48 @@ function renderDynamicTab(tabName) {
     const container = document.getElementById('dynamic-tab');
     if (!container) return;
 
-    if (tabName === 'booster-variants') {
+    if (tabName === 'suppliers') {
         container.innerHTML = `
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Generate Booster Variant Plan</h3>
+                    <h3 class="card-title">📦 Supplier Inventory</h3>
+                    <button class="btn btn-primary" onclick="triggerSupplierScan()">🔄 Scan All Suppliers</button>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Collection ID</label>
-                    <input type="text" id="booster-variant-collection-id" class="form-input" placeholder="444116140283" value="444116140283">
-                    <div class="form-hint">Booster collection ID (typically 444116140283)</div>
-                </div>
-                <button class="btn btn-primary" onclick="generateBoosterVariantPlan()">Generate Plan</button>
             </div>
 
-            <div class="card">
+            <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Booster Variant Plans</h3>
-                    <button class="btn btn-sm btn-secondary" onclick="loadBoosterVariantPlans()">Refresh</button>
+                    <h3 class="card-title">Supplier Websites</h3>
                 </div>
-                <div id="booster-variants-table" class="table-container"></div>
-            </div>
-        `;
-        return;
-    }
-
-    if (tabName === 'booster-inventory') {
-        container.innerHTML = `
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Generate Booster Inventory Plan</h3>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Collection ID</label>
-                    <input type="text" id="booster-inventory-collection-id" class="form-input" placeholder="444116140283" value="444116140283">
-                    <div class="form-hint">Booster collection ID</div>
-                </div>
-                <button class="btn btn-primary" onclick="generateBoosterInventoryPlan()">Generate Plan</button>
+                <div id="supplier-websites-container" class="table-container"></div>
             </div>
 
-            <div class="card">
+            <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
-                    <h3 class="card-title">Booster Inventory Plans</h3>
-                    <button class="btn btn-sm btn-secondary" onclick="loadBoosterInventoryPlans()">Refresh</button>
+                    <h3 class="card-title">Products</h3>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <select id="supplier-filter" class="form-input" onchange="loadSupplierProducts()" style="width: auto;">
+                            <option value="">All Suppliers</option>
+                        </select>
+                        <select id="supplier-stock-filter" class="form-input" onchange="loadSupplierProducts()" style="width: auto;">
+                            <option value="">All Stock Status</option>
+                            <option value="in_stock">In Stock</option>
+                            <option value="out_of_stock">Out of Stock</option>
+                        </select>
+                        <select id="supplier-new-filter" class="form-input" onchange="loadSupplierProducts()" style="width: auto;">
+                            <option value="">All Products</option>
+                            <option value="new">New Only</option>
+                        </select>
+                    </div>
                 </div>
-                <div id="booster-inventory-table" class="table-container"></div>
+                <div id="supplier-products-table" class="table-container"></div>
+            </div>
+
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Scan Logs</h3>
+                </div>
+                <div id="supplier-scan-logs-table" class="table-container"></div>
             </div>
         `;
         return;
@@ -5460,3 +5450,273 @@ function escapeHtml(text) {
     };
     return text.replace(/[&<>"']/g, m => map[m]);
 }
+
+// ==================== SUPPLIER FUNCTIONS ====================
+
+async function loadSuppliers() {
+    try {
+        // Load supplier websites
+        const websites = await fetch(`${API_BASE}/suppliers/websites`).then(r => r.json());
+        renderSupplierWebsites(websites);
+
+        // Populate filter dropdown
+        const filterSelect = document.getElementById('supplier-filter');
+        if (filterSelect) {
+            filterSelect.innerHTML = '<option value="">All Suppliers</option>' +
+                websites.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+        }
+
+        // Load products
+        await loadSupplierProducts();
+
+        // Load scan logs
+        await loadSupplierScanLogs();
+    } catch (error) {
+        console.error('Error loading suppliers:', error);
+        showAlert('Failed to load supplier data', 'error');
+    }
+}
+
+function renderSupplierWebsites(websites) {
+    const container = document.getElementById('supplier-websites-container');
+    if (!container) return;
+
+    if (websites.length === 0) {
+        container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">No supplier websites configured</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>URL</th>
+                    <th>Status</th>
+                    <th>Last Scan</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${websites.map(w => `
+                    <tr>
+                        <td><strong>${w.name}</strong></td>
+                        <td><a href="${w.url}" target="_blank" style="color: var(--primary); text-decoration: none;">${w.url}</a></td>
+                        <td>
+                            <span class="badge ${w.is_active ? 'badge-success' : 'badge-secondary'}">
+                                ${w.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                        </td>
+                        <td>${w.last_scan_at ? timeAgo(w.last_scan_at) : 'Never'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="triggerSupplierScanById(${w.id})">🔄 Scan</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+async function loadSupplierProducts() {
+    const container = document.getElementById('supplier-products-table');
+    if (!container) return;
+
+    container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Loading products...</p>';
+
+    try {
+        const websiteId = document.getElementById('supplier-filter')?.value || '';
+        const stockFilter = document.getElementById('supplier-stock-filter')?.value || '';
+        const newFilter = document.getElementById('supplier-new-filter')?.value || '';
+
+        let url = `${API_BASE}/suppliers/products/in-stock?limit=500`;
+        if (websiteId) url += `&website_id=${websiteId}`;
+
+        const products = await fetch(url).then(r => r.json());
+
+        // Apply client-side filters
+        let filtered = products;
+        if (stockFilter === 'in_stock') {
+            filtered = filtered.filter(p => p.in_stock);
+        } else if (stockFilter === 'out_of_stock') {
+            filtered = filtered.filter(p => !p.in_stock);
+        }
+        if (newFilter === 'new') {
+            filtered = filtered.filter(p => p.is_new);
+        }
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">No products found</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Supplier</th>
+                        <th>Product</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                        <th>Category</th>
+                        <th>First Seen</th>
+                        <th>Last Scraped</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${filtered.map(p => `
+                        <tr>
+                            <td>${p.supplier_website_id}</td>
+                            <td>
+                                <a href="${p.product_url}" target="_blank" style="color: var(--primary); text-decoration: none;">
+                                    ${p.name}
+                                </a>
+                                ${p.is_new ? '<span class="badge badge-success" style="margin-left: 0.5rem;">NEW</span>' : ''}
+                            </td>
+                            <td>${p.price ? `${p.price.toFixed(2)} ${p.currency}` : '-'}</td>
+                            <td>
+                                <span class="badge ${p.in_stock ? 'badge-success' : 'badge-secondary'}">
+                                    ${p.in_stock ? 'In Stock' : 'Out of Stock'}
+                                </span>
+                            </td>
+                            <td>${p.category || '-'}</td>
+                            <td>${timeAgo(p.first_seen_at)}</td>
+                            <td>${p.last_scraped_at ? timeAgo(p.last_scraped_at) : '-'}</td>
+                            <td>
+                                ${p.is_new ? `<button class="btn btn-sm btn-secondary" onclick="acknowledgeSupplierProduct(${p.id})">Acknowledge</button>` : ''}
+                                <button class="btn btn-sm btn-secondary" onclick="hideSupplierProduct(${p.id})">Hide</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (error) {
+        console.error('Error loading supplier products:', error);
+        container.innerHTML = '<p style="text-align: center; padding: 2rem; color: red;">Failed to load products</p>';
+    }
+}
+
+async function loadSupplierScanLogs() {
+    const container = document.getElementById('supplier-scan-logs-table');
+    if (!container) return;
+
+    try {
+        const logs = await fetch(`${API_BASE}/suppliers/scan-logs?limit=20`).then(r => r.json());
+
+        if (logs.length === 0) {
+            container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">No scan logs yet</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Website ID</th>
+                        <th>Status</th>
+                        <th>Products Found</th>
+                        <th>New Products</th>
+                        <th>Restocked</th>
+                        <th>Started</th>
+                        <th>Duration</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${logs.map(log => `
+                        <tr>
+                            <td>${log.supplier_website_id}</td>
+                            <td>
+                                <span class="badge ${
+                                    log.status === 'success' ? 'badge-success' :
+                                    log.status === 'failed' ? 'badge-danger' :
+                                    'badge-secondary'
+                                }">
+                                    ${log.status}
+                                </span>
+                            </td>
+                            <td>${log.products_found || 0}</td>
+                            <td>${log.new_products || 0}</td>
+                            <td>${log.restocked_products || 0}</td>
+                            <td>${new Date(log.started_at).toLocaleString()}</td>
+                            <td>${log.duration_seconds ? log.duration_seconds.toFixed(1) + 's' : '-'}</td>
+                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${log.error_message || '-'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (error) {
+        console.error('Error loading scan logs:', error);
+        container.innerHTML = '<p style="text-align: center; padding: 2rem; color: red;">Failed to load scan logs</p>';
+    }
+}
+
+async function triggerSupplierScan() {
+    if (!confirm('Scan all supplier websites? This may take several minutes.')) return;
+
+    showAlert('Starting supplier scans...', 'info');
+
+    try {
+        const websites = await fetch(`${API_BASE}/suppliers/websites?active_only=true`).then(r => r.json());
+
+        for (const website of websites) {
+            await triggerSupplierScanById(website.id);
+        }
+
+        showAlert('All supplier scans completed!', 'success');
+        await loadSuppliers();
+    } catch (error) {
+        console.error('Error triggering supplier scans:', error);
+        showAlert('Failed to trigger supplier scans', 'error');
+    }
+}
+
+async function triggerSupplierScanById(websiteId) {
+    try {
+        const result = await fetch(`${API_BASE}/suppliers/scan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ website_id: websiteId })
+        }).then(r => r.json());
+
+        showAlert(`Scan completed for website ${websiteId}: ${result.total_products} products found`, 'success');
+        await loadSuppliers();
+    } catch (error) {
+        console.error('Error triggering supplier scan:', error);
+        showAlert(`Failed to scan website ${websiteId}`, 'error');
+    }
+}
+
+async function acknowledgeSupplierProduct(productId) {
+    try {
+        await fetch(`${API_BASE}/suppliers/products/${productId}/acknowledge`, {
+            method: 'POST'
+        });
+
+        showAlert('Product acknowledged', 'success');
+        await loadSupplierProducts();
+    } catch (error) {
+        console.error('Error acknowledging product:', error);
+        showAlert('Failed to acknowledge product', 'error');
+    }
+}
+
+async function hideSupplierProduct(productId) {
+    if (!confirm('Hide this product? It will be marked as irrelevant.')) return;
+
+    try {
+        await fetch(`${API_BASE}/suppliers/products/${productId}/hide`, {
+            method: 'POST'
+        });
+
+        showAlert('Product hidden', 'success');
+        await loadSupplierProducts();
+    } catch (error) {
+        console.error('Error hiding product:', error);
+        showAlert('Failed to hide product', 'error');
+    }
+}
+
