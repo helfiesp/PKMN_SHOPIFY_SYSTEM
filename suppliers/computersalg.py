@@ -132,7 +132,7 @@ class ComputersalgScraper(BaseSupplierScraper):
             except Exception:
                 pass
             
-            return {
+            product_data = {
                 'product_url': url,
                 'name': name,
                 'price': price,
@@ -142,6 +142,15 @@ class ComputersalgScraper(BaseSupplierScraper):
                 'stock_quantity': None,
                 'category': None,
             }
+            
+            # DEBUG: Print first product data to verify structure
+            if not hasattr(self, '_debug_printed'):
+                print(f"DEBUG: First product data structure:")
+                for key, val in product_data.items():
+                    print(f"  {key}: {type(val).__name__} = {val}")
+                self._debug_printed = True
+            
+            return product_data
         
         except Exception as e:
             print(f"Error extracting card data: {e}")
