@@ -311,7 +311,10 @@ function loadTabData(tabName) {
                         });
                     }
                     
-                    // Load available history dates for date picker first (this will auto-load latest scan)
+                    // Render the current products immediately
+                    renderSnkrdunkProductsTable();
+                    
+                    // Load available history dates for date picker (but don't auto-select)
                     await loadAvailableHistoryDates();
                 } catch (error) {
                     console.error('Error loading mappings data:', error);
@@ -4256,22 +4259,13 @@ async function loadSnkrdunkScanHistory() {
             option.textContent = `${dateStr} ${timeStr} (${scan.total_items || 0} items)`;
             select.appendChild(option);
             
-            // Auto-select the latest scan (first in list from API)
+            // Mark the latest scan but don't auto-select it
             if (index === 0) {
                 option.style.fontWeight = 'bold';
-                option.selected = true;
             }
         });
         
-        console.log(`Loaded ${logs.length} SNKRDUNK price updates`);
-        
-        // Auto-load the most recent scan if available
-        if (logs.length > 0) {
-            await loadSnkrdunkScan();
-        } else {
-            // If no scans, just render what we have
-            renderSnkrdunkProductsTable();
-        }
+        console.log(`Loaded ${logs.length} SNKRDUNK price updates (dropdown populated)`);
     } catch (error) {
         console.error('Failed to load SNKRDUNK scan history:', error);
     }
@@ -4305,56 +4299,46 @@ async function loadSnkrdunkScan() {
         
         const logId = select.value;
         
-        // Fetch products with scan_log_id to get price changes
-        const response = await fetch(`${API_BASE}/snkrdunk/products?scan_log_id=${logId}`);
-        if (!response.ok) throw new Error('Failed to load products');
-        
-        const data = await response.json();
-        window.snkrdunkProducts = data.items || [];
-        
         // Fetch the scan log details for display
         const scanResponse = await fetch(`${API_BASE}/snkrdunk/scan-logs/${logId}`);
         if (!scanResponse.ok) {
-            showAlert('Failed to load scan details', 'error');
-            return;
+            throw new Error('Failed to load scan details');
         }
         
         const scan = await scanResponse.json();
         const scanDate = new Date(scan.created_at);
         
-        // Fetch historical prices for this specific scan log to update prices
-        const historyResponse = await fetch(`${API_BASE}/snkrdunk/price-history?log_id=${logId}&limit=200`);
+        // Fetch historical prices for this specific scan log
+        const historyResponse = await fetch(`${API_BASE}/snkrdunk/price-history?log_id=${logId}&limit=500`);
         
-        if (historyResponse.ok) {
-            const historyData = await historyResponse.json();
-            const historicalPrices = {};
-            
-            // Build a map of product id -> price data
-            if (historyData.items && historyData.items.length > 0) {
-                historyData.items.forEach(item => {
-                    historicalPrices[item.id] = item;
-                });
-            }
-            
-            // Update window.snkrdunkProducts with historical data
-            if (window.snkrdunkProducts && window.snkrdunkProducts.length > 0) {
-                window.snkrdunkProducts.forEach(product => {
-                    const key = product.id.toString();
-                    // Always update the timestamp to the selected scan
-                    product.last_price_updated = scan.created_at;
-                    // Only update price if we have historical data for this product
-                    if (historicalPrices[key]) {
-                        const hist = historicalPrices[key];
-                        product.minPriceJpy = hist.minPriceJpy;
-                    }
-                });
-            }
+        if (!historyResponse.ok) {
+            throw new Error('Failed to load historical prices');
         }
+        
+        const historyData = await historyResponse.json();
+        
+        if (!historyData.items || historyData.items.length === 0) {
+            showAlert('No historical data found for this scan', 'warning');
+            return;
+        }
+        
+        // Replace window.snkrdunkProducts with historical data
+        window.snkrdunkProducts = historyData.items.map(item => ({
+            id: item.id,
+            name: item.name,
+            nameEn: item.nameEn,
+            minPriceJpy: item.minPriceJpy,
+            price_change: item.price_change || 0,
+            brand: item.brand || {},
+            last_price_updated: scan.created_at
+        }));
+        
+        console.log(`Loaded ${window.snkrdunkProducts.length} products from historical scan`);
         
         renderSnkrdunkProductsTable();
         
         const dateStr = scanDate.toLocaleString();
-        showAlert(`✓ Showing prices from ${dateStr}`, 'success');
+        showAlert(`✓ Showing prices from ${dateStr} (${window.snkrdunkProducts.length} products)`, 'success');
     } catch (error) {
         console.error('Error loading scan:', error);
         showAlert('Error loading scan: ' + error.message, 'error');
