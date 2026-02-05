@@ -258,15 +258,30 @@ async def trigger_supplier_scan(
     scraper_map = {
         1: "suppliers/lekekassen.py",
         2: "suppliers/extra_leker.py",
-        3: "suppliers/computersalg.py"
+        3: "suppliers/computersalg.py",
+        4: "suppliers/sprell.py"
     }
     
+    # Try to get scraper from map, or auto-detect from website name
     scraper_script = scraper_map.get(request.website_id)
     if not scraper_script:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No scraper configured for website ID {request.website_id}"
-        )
+        # Auto-detect: convert website name to snake_case and look for supplier file
+        scraper_name = website.name.lower().replace(" ", "_").replace("-", "_")
+        scraper_script = f"suppliers/{scraper_name}.py"
+        
+        # Verify the file exists
+        import os
+        current_file = os.path.abspath(__file__)
+        routers_dir = os.path.dirname(current_file)
+        app_dir = os.path.dirname(routers_dir)
+        project_root = os.path.dirname(app_dir)
+        scraper_path = os.path.join(project_root, scraper_script)
+        
+        if not os.path.exists(scraper_path):
+            raise HTTPException(
+                status_code=400,
+                detail=f"No scraper configured for website ID {request.website_id}. Expected file: {scraper_script}"
+            )
     
     started_at = datetime.now(ZoneInfo("Europe/Oslo"))
     
