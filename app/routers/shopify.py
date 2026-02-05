@@ -288,6 +288,7 @@ async def refresh_all_prices(db: Session = Depends(get_db)):
                       id
                       price
                       compareAtPrice
+                      inventoryQuantity
                     }
                   }
                 }
@@ -320,6 +321,7 @@ async def refresh_all_prices(db: Session = Depends(get_db)):
                 shopify_variant_id = variant_node.get("id", "")
                 price = variant_node.get("price")
                 compare_at_price = variant_node.get("compareAtPrice")
+                inventory_quantity = variant_node.get("inventoryQuantity")
                 
                 # Find and update the variant in database
                 variant = db.query(Variant).filter(
@@ -330,6 +332,8 @@ async def refresh_all_prices(db: Session = Depends(get_db)):
                     variant.price = float(price)
                     if compare_at_price:
                         variant.compare_at_price = float(compare_at_price)
+                    if inventory_quantity is not None:
+                        variant.inventory_quantity = int(inventory_quantity)
                     variant.updated_at = datetime.utcnow()
                     db.commit()
                     updated_count += 1

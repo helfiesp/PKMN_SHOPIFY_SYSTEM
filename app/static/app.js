@@ -2392,7 +2392,7 @@ function renderDynamicTab(tabName) {
                 <div class="card-header">
                     <h3 class="card-title">🗺️ Competitor Product Mappings</h3>
                     <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-sm btn-secondary" onclick="refreshShopifyPrices()">Refresh Shopify Prices</button>
+                        <button class="btn btn-sm btn-secondary" onclick="refreshShopifyPrices()">Refresh Shopify</button>
                         <button class="btn btn-sm btn-secondary" onclick="loadCompetitorMappings()">Refresh</button>
                     </div>
                 </div>
@@ -3754,7 +3754,7 @@ async function refreshShopifyPrices() {
         const result = await response.json();
         
         if (result.updated_count > 0) {
-            showAlert(`✓ Shopify prices refreshed! Updated ${result.updated_count} variant prices${result.error_count > 0 ? `, ${result.error_count} errors` : ''}.`, 'success');
+            showAlert(`✓ Shopify data refreshed! Updated ${result.updated_count} variants (prices & stock)${result.error_count > 0 ? `, ${result.error_count} errors` : ''}.`, 'success');
             
             // Reload competitor mappings to show updated prices
             setTimeout(() => {
@@ -3765,8 +3765,8 @@ async function refreshShopifyPrices() {
             hideLoading('competitor-mappings-table');
         }
     } catch (error) {
-        console.error('Error refreshing Shopify prices:', error);
-        showAlert(`Failed to refresh Shopify prices: ${error.message}`, 'error');
+        console.error('Error refreshing Shopify data:', error);
+        showAlert(`Failed to refresh Shopify data: ${error.message}`, 'error');
         hideLoading('competitor-mappings-table');
     }
 }
