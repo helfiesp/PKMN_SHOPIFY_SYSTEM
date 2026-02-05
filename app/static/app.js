@@ -3625,7 +3625,8 @@ async function mapSelectedCompetitorToShopify() {
         if (!response.ok) throw new Error('Failed to map competitor to Shopify');
         showAlert('Mapped competitor to Shopify ✓', 'success');
         closeMappingPanel();
-        loadCompetitors();
+        // Stay on current tab and just reload the data
+        await loadCompetitors();
     } catch (error) {
         showAlert(`Mapping failed: ${error.message}`, 'error');
     }
@@ -3646,7 +3647,8 @@ async function mapSelectedCompetitorToSnkrdunk() {
         if (!response.ok) throw new Error('Failed to map competitor to SNKRDUNK');
         showAlert('Mapped competitor to SNKRDUNK ✓', 'success');
         closeMappingPanel();
-        loadCompetitors();
+        // Stay on current tab and just reload the data
+        await loadCompetitors();
     } catch (error) {
         showAlert(`Mapping failed: ${error.message}`, 'error');
     }
