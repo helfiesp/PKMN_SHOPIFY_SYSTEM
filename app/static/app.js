@@ -130,13 +130,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if there's a tab in the URL hash
         const hash = window.location.hash.substring(1); // Remove the '#'
         if (hash && hash !== '') {
-            switchTab(hash);
-            // Clear the hash after switching
-            window.history.replaceState(null, null, '');
+            switchTab(hash, false); // Don't update hash, already in URL
         } else {
-            loadDashboard();
+            switchTab('dashboard');
         }
-        console.log('Dashboard loaded');
+        console.log('Initial tab loaded');
+        
+        // Listen for hash changes (browser back/forward)
+        window.addEventListener('hashchange', () => {
+            const newHash = window.location.hash.substring(1);
+            if (newHash && newHash !== currentTab) {
+                switchTab(newHash, false); // Don't update hash, already changed
+            } else if (!newHash) {
+                switchTab('dashboard');
+            }
+        });
         
         checkHealth();
         console.log('Health checked');
@@ -171,8 +179,13 @@ function initializeTabs() {
     });
 }
 
-function switchTab(tabName) {
+function switchTab(tabName, updateHash = true) {
     currentTab = tabName;
+    
+    // Update URL hash to preserve tab state
+    if (updateHash) {
+        window.location.hash = tabName;
+    }
     
     // Update tab buttons
     document.querySelectorAll('.nav-item').forEach(tab => {
