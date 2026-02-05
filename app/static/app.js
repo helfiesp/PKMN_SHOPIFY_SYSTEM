@@ -14,6 +14,10 @@ let competitorSortedData = [];
 let selectedSupplierProducts = new Set();
 let allSupplierProducts = [];
 
+// Competitor products state
+let selectedCompetitorProducts = new Set();
+let allCompetitorProducts = [];
+
 // Helper function to ensure table body exists with proper headers
 function ensureTableBody(tableId, headers, className = 'data-table') {
     let table = document.getElementById(tableId);
@@ -2809,6 +2813,10 @@ async function loadCompetitors() {
         const products = await response.json();
         window.competitorProducts = products;
         competitorSortedData = [...products];
+        
+        // Store for bulk operations
+        allCompetitorProducts = products;
+        selectedCompetitorProducts.clear();
 
         // Load SNKRDUNK options once for the dropdowns
         let snkrdunkOptions = [];
@@ -2842,7 +2850,7 @@ async function loadCompetitors() {
         window.mappedCompetitorsData = mappedCompetitors;
 
         const table = document.getElementById('competitors-table');
-        const headers = ['Website', 'Product Name', 'Category', 'Price (NOK)', 'Stock', 'Last Updated', 'Price Last Changed', 'Mapping', 'Actions'];
+        const headers = ['', 'Website', 'Product Name', 'Category', 'Price (NOK)', 'Stock', 'Last Updated', 'Price Last Changed', 'Mapping', 'Actions'];
         const thead = table?.querySelector('thead');
         
         if (!table || !thead) {
@@ -2855,13 +2863,18 @@ async function loadCompetitors() {
             const headerRow = document.createElement('tr');
             headers.forEach((header, idx) => {
                 const th = document.createElement('th');
-                th.textContent = header;
-                // Make sortable columns have cursor pointer
-                if (['Price (NOK)', 'Mapping'].includes(header)) {
-                    th.style.cursor = 'pointer';
-                    th.style.userSelect = 'none';
-                    th.onclick = () => sortCompetitorTable(header);
-                    th.title = 'Click to sort';
+                if (idx === 0) {
+                    th.style.width = '40px';
+                    th.textContent = '';
+                } else {
+                    th.textContent = header;
+                    // Make sortable columns have cursor pointer
+                    if (['Price (NOK)', 'Mapping'].includes(header)) {
+                        th.style.cursor = 'pointer';
+                        th.style.userSelect = 'none';
+                        th.onclick = () => sortCompetitorTable(header);
+                        th.title = 'Click to sort';
+                    }
                 }
                 headerRow.appendChild(th);
             });
@@ -3002,33 +3015,63 @@ function renderCompetitorTable(products, snkrdunkOptions, mappedCompetitors) {
     if (!tbody) return;
     
     if (products.length === 0) {
-        setTableBodyMessage(tbody, 9, 'No competitor data yet. Run a scan to populate data.');
+        setTableBodyMessage(tbody, 10, 'No competitor data yet. Run a scan to populate data.');
         return;
     }
+    
+    // Add bulk action bar before table
+    const table = document.getElementById('competitors-table');
+    let bulkBar = table?.previousElementSibling;
+    if (!bulkBar || !bulkBar.classList.contains('bulk-action-bar')) {
+        bulkBar = document.createElement('div');
+        bulkBar.className = 'bulk-action-bar';
+        bulkBar.style.cssText = 'margin-bottom: 1.5rem; padding: 1rem 1.25rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);';
+        table.parentElement.insertBefore(bulkBar, table);
+    }
+    
+    bulkBar.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <input type="checkbox" id="select-all-competitors" onchange="toggleAllCompetitorProducts(this.checked)" 
+                   style="width: 18px; height: 18px; cursor: pointer;">
+            <label for="select-all-competitors" style="cursor: pointer; margin: 0; font-weight: 600; color: white; font-size: 0.95rem;">Select All</label>
+        </div>
+        <span id="competitor-selected-count" style="color: rgba(255,255,255,0.9); font-size: 0.9rem; font-weight: 500;">0 selected</span>
+        <div style="flex: 1;"></div>
+        <button class="btn btn-sm" onclick="bulkMapCompetitors()" id="bulk-map-btn" disabled
+                style="background: white; color: #667eea; border: none; font-weight: 600; padding: 0.5rem 1rem; border-radius: 6px;">
+            🔗 Bulk Map Selected
+        </button>
+        <button class="btn btn-sm" onclick="bulkHideCompetitors()" id="bulk-hide-competitors-btn" disabled
+                style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; padding: 0.5rem 1rem; border-radius: 6px;">
+            🗑️ Hide Selected
+        </button>
+    `;
     
     tbody.innerHTML = '';
     products.forEach(product => {
         const row = document.createElement('tr');
         const linkHtml = product.product_link
-            ? `<a href="${product.product_link}" target="_blank" rel="noopener noreferrer">View</a>`
+            ? `<a href="${product.product_link}" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: none; font-weight: 500;">🔗</a>`
             : '';
         const displayName = formatCompetitorName(product.raw_name);
+        
+        // Check for price changes
+        const hasPriceChange = product.price_last_changed && 
+            new Date(product.price_last_changed) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Last 7 days
         
         let mappingHtml = '';
         const existingMapping = mappedCompetitors[product.id];
         
         if (existingMapping) {
-            // Show existing mapping with unmap option
             mappingHtml = `
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <span style="font-weight: 600; color: green;">✓ Mapped</span>
+                    <span style="font-weight: 600; color: #10b981;">✓ Mapped</span>
                 </div>
             `;
         } else {
-            // Show unmapped indicator
             mappingHtml = `
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <span style="font-weight: 600; color: #999;">— Unmapped</span>
+                    <span style="font-weight: 600; color: #94a3b8;">— Unmapped</span>
                 </div>
             `;
         }
@@ -3040,17 +3083,38 @@ function renderCompetitorTable(products, snkrdunkOptions, mappedCompetitors) {
             ? new Date(product.price_last_changed).toLocaleDateString('no-NO', {year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'})
             : '—';
         
+        // Add highlighting class
+        let rowClass = '';
+        if (hasPriceChange) {
+            rowClass = 'competitor-row-price-change';
+        }
+        
+        row.className = rowClass;
+        row.dataset.productId = product.id;
         row.innerHTML = `
-            <td><strong>${product.website}</strong></td>
+            <td style="text-align: center;">
+                <input type="checkbox" class="competitor-checkbox" data-product-id="${product.id}" 
+                       onchange="toggleCompetitorProductSelection(${product.id}, this.checked)"
+                       style="width: 18px; height: 18px; cursor: pointer;">
+            </td>
+            <td><strong style="color: #667eea;">${product.website}</strong></td>
             <td>
-                <div>${displayName} ${linkHtml}</div>
-                <div style="font-size: 0.75rem; color: var(--text-secondary);">${product.normalized_name || '—'}</div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <span style="color: #1e293b; font-weight: 500;">${displayName}</span>
+                    ${linkHtml}
+                    ${hasPriceChange ? '<span class="badge" style="background: #f59e0b; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">PRICE CHANGE</span>' : ''}
+                </div>
+                <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">${product.normalized_name || '—'}</div>
             </td>
             <td>${product.category || '—'}</td>
-            <td>${product.price_ore ? (product.price_ore / 100).toFixed(2) + ' kr' : '—'}</td>
-            <td>${product.stock_status || 'Unknown'}</td>
-            <td style="font-size: 0.85rem; color: #666;">${lastUpdated}</td>
-            <td style="font-size: 0.85rem; color: #666;">${priceLastChanged}</td>
+            <td style="font-weight: 600; color: #1e293b;">${product.price_ore ? (product.price_ore / 100).toFixed(2) + ' kr' : '—'}</td>
+            <td>
+                <span class="badge ${product.stock_status === 'På lager' || product.stock_status === 'In Stock' ? 'badge-success' : 'badge-secondary'}" style="padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
+                    ${product.stock_status || 'Unknown'}
+                </span>
+            </td>
+            <td style="font-size: 0.85rem; color: #64748b;">${lastUpdated}</td>
+            <td style="font-size: 0.85rem; color: ${hasPriceChange ? '#f59e0b' : '#64748b'}; font-weight: ${hasPriceChange ? '600' : '400'};">${priceLastChanged}</td>
             <td>${mappingHtml}</td>
             <td>
                 ${existingMapping ? `<button class="btn btn-sm btn-secondary" onclick="unmapCompetitor(${existingMapping.mapping_id})">Unmap</button>` : `<button class="btn btn-sm btn-primary" onclick="showMapDialog(${product.id})">Map</button>`}
@@ -5900,6 +5964,79 @@ async function bulkHideSupplierProducts() {
         await loadSupplierProducts();
     } catch (error) {
         console.error('Error hiding products:', error);
+        showAlert('Failed to hide some products', 'error');
+    }
+}
+
+// Competitor bulk selection functions
+function toggleCompetitorProductSelection(productId, checked) {
+    if (checked) {
+        selectedCompetitorProducts.add(productId);
+    } else {
+        selectedCompetitorProducts.delete(productId);
+    }
+    updateCompetitorBulkActionButtons();
+}
+
+function toggleAllCompetitorProducts(checked) {
+    selectedCompetitorProducts.clear();
+    
+    if (checked) {
+        allCompetitorProducts.forEach(p => {
+            selectedCompetitorProducts.add(p.id);
+        });
+    }
+    
+    // Update all checkboxes
+    document.querySelectorAll('.competitor-checkbox').forEach(cb => {
+        cb.checked = checked;
+    });
+    
+    updateCompetitorBulkActionButtons();
+}
+
+function updateCompetitorBulkActionButtons() {
+    const count = selectedCompetitorProducts.size;
+    const countEl = document.getElementById('competitor-selected-count');
+    const mapBtn = document.getElementById('bulk-map-btn');
+    const hideBtn = document.getElementById('bulk-hide-competitors-btn');
+    
+    if (countEl) {
+        countEl.textContent = `${count} selected`;
+    }
+    
+    if (mapBtn) {
+        mapBtn.disabled = count === 0;
+    }
+    
+    if (hideBtn) {
+        hideBtn.disabled = count === 0;
+    }
+    
+    // Update select-all checkbox state
+    const selectAllCb = document.getElementById('select-all-competitors');
+    if (selectAllCb) {
+        selectAllCb.checked = count > 0 && count === allCompetitorProducts.length;
+        selectAllCb.indeterminate = count > 0 && count < allCompetitorProducts.length;
+    }
+}
+
+async function bulkMapCompetitors() {
+    if (selectedCompetitorProducts.size === 0) return;
+    
+    const count = selectedCompetitorProducts.size;
+    showAlert(`Bulk mapping of ${count} products is not yet implemented. Please map products individually.`, 'info');
+}
+
+async function bulkHideCompetitors() {
+    if (selectedCompetitorProducts.size === 0) return;
+    
+    const count = selectedCompetitorProducts.size;
+    if (!confirm(`Hide ${count} competitor product(s)? (Feature coming soon)`)) return;
+    
+    showAlert('Bulk hide for competitor products will be available soon', 'info');
+}
+
         showAlert('Failed to hide some products', 'error');
     }
 }

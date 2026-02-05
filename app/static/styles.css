@@ -651,3 +651,22 @@ button.btn:not([disabled]):hover {
     white-space: nowrap;
 }
 
+/* Competitor Product Row Highlighting */
+.competitor-row-price-change {
+    background: linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%) !important;
+    border-left: 4px solid #f59e0b !important;
+    transition: all 0.2s ease;
+}
+
+.competitor-row-price-change:hover {
+    background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+}
+
+/* Competitor checkbox styling */
+input[type="checkbox"].competitor-checkbox,
+input[type="checkbox"]#select-all-competitors {
+    cursor: pointer;
+    accent-color: #667eea;
+}
+
