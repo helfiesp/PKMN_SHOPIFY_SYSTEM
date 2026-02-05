@@ -3766,12 +3766,12 @@ async function loadCompetitorMappings() {
         const mappings = await response.json();
         
         const tbody = ensureTableBody('competitor-mappings-table', [
-            'My Shopify Product', 'My Price', 'Competitors (Expandable)', 'Lowest In-Stock', 'Stock Filter', 'Margin vs Lowest', 'Actions'
+            'My Shopify Product', 'My Price', 'My Stock', 'Competitors (Expandable)', 'Lowest In-Stock', 'Stock Filter', 'Margin vs Lowest', 'Actions'
         ], 'data-table');
         if (!tbody) return;
         
         if (!mappings || mappings.length === 0) {
-            setTableBodyMessage(tbody, 5, 'No competitor mappings yet. Map products from the Competitors tab.');
+            setTableBodyMessage(tbody, 7, 'No competitor mappings yet. Map products from the Competitors tab.');
             return;
         }
         
@@ -3780,6 +3780,10 @@ async function loadCompetitorMappings() {
             const myPrice = productGroup.shopify_variants && productGroup.shopify_variants.length > 0 
                 ? parseFloat(productGroup.shopify_variants[0].price) 
                 : null;
+            
+            const myStock = productGroup.shopify_variants && productGroup.shopify_variants.length > 0 
+                ? productGroup.shopify_variants[0].inventory_quantity 
+                : 0;
             
             // Calculate lowest IN-STOCK competitor price only
             const inStockPrices = productGroup.competitors
@@ -3812,6 +3816,7 @@ async function loadCompetitorMappings() {
             row.innerHTML = `
                 <td style="font-weight: 600;">${productGroup.shopify_product_title || '—'}</td>
                 <td style="font-weight: 600; color: ${isCheapest ? 'green' : '#2563eb'}; background: ${isCheapest ? '#e8f5e9' : 'transparent'}; padding: 0.5rem; border-radius: 4px;">${myPrice ? myPrice.toFixed(2) + ' kr' : '—'}</td>
+                <td style="font-weight: 600; color: ${myStock > 0 ? 'green' : 'red'};">${myStock}</td>
                 <td>
                     <button class="btn btn-sm btn-secondary" onclick="toggleCompetitorExpand('${expandId}')">
                         Show ${productGroup.competitors.length} competitors ▼
@@ -3834,7 +3839,7 @@ async function loadCompetitorMappings() {
             expandRow.id = expandId;
             expandRow.style.display = 'none';
             expandRow.innerHTML = `
-                <td colspan="6" style="background: #f9f9f9; padding: 1rem;">
+                <td colspan="7" style="background: #f9f9f9; padding: 1rem;">
                     <div style="margin: 0.5rem 0; font-weight: 600; font-size: 0.9rem;">Competing Products:</div>
                     ${productGroup.competitors.map(c => {
                         const compPrice = c.competitor_price_ore ? (c.competitor_price_ore / 100) : null;
@@ -3885,10 +3890,10 @@ async function loadCompetitorMappings() {
     } catch (error) {
         console.error('Error loading competitor mappings:', error);
         const tbody = ensureTableBody('competitor-mappings-table', [
-            'My Shopify Product', 'My Price', 'Competitors', 'Lowest In-Stock', 'Stock Filter', 'Margin vs Lowest', 'Actions'
+            'My Shopify Product', 'My Price', 'My Stock', 'Competitors', 'Lowest In-Stock', 'Stock Filter', 'Margin vs Lowest', 'Actions'
         ], 'data-table');
         if (tbody) {
-            setTableBodyMessage(tbody, 6, `Error: ${error.message}`, true);
+            setTableBodyMessage(tbody, 7, `Error: ${error.message}`, true);
         }
     }
 }

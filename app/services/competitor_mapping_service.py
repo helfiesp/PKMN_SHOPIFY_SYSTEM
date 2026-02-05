@@ -269,7 +269,7 @@ class CompetitorMappingService:
             if product_key not in grouped:
                 variants_data = []
                 if final_product and final_product.variants:
-                    variants_data = [{"id": v.id, "price": float(v.price)} for v in final_product.variants]
+                    variants_data = [{"id": v.id, "price": float(v.price), "inventory_quantity": v.inventory_quantity or 0} for v in final_product.variants]
                 
                 grouped[product_key] = {
                     "shopify_product_id": final_product.id if final_product else None,
