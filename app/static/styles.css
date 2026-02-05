@@ -578,40 +578,76 @@ tbody tr:hover {
 
 /* Supplier Product Row Highlighting */
 .supplier-row-new {
-    background-color: #d1fae5 !important;
-    transition: background-color 0.3s ease;
+    background: linear-gradient(90deg, #ecfdf5 0%, #d1fae5 100%) !important;
+    border-left: 4px solid #10b981 !important;
+    transition: all 0.2s ease;
 }
 
 .supplier-row-new:hover {
-    background-color: #a7f3d0 !important;
+    background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 100%) !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
 }
 
 .supplier-row-price-change {
-    background-color: #fef3c7 !important;
-    transition: background-color 0.3s ease;
+    background: linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%) !important;
+    border-left: 4px solid #f59e0b !important;
+    transition: all 0.2s ease;
 }
 
 .supplier-row-price-change:hover {
-    background-color: #fde68a !important;
+    background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
 }
 
 /* Ensure table rows maintain their highlighting */
 .data-table tbody tr.supplier-row-new td,
 .data-table tbody tr.supplier-row-price-change td {
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-top: 1px solid rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+    padding: 1rem 0.75rem;
+}
+
+/* Regular rows styling */
+.data-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f8fafc;
 }
 
 /* Checkbox styling */
 input[type="checkbox"].product-checkbox,
 input[type="checkbox"]#select-all-products {
     cursor: pointer;
-    accent-color: var(--primary);
+    accent-color: #667eea;
 }
 
 /* Bulk action buttons styling */
 .btn[disabled] {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
+}
+
+.btn[disabled]:hover {
+    opacity: 0.4;
+}
+
+/* Button hover effects for enabled buttons */
+button.btn:not([disabled]):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+}
+
+/* Badge improvements */
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 4px;
+    white-space: nowrap;
 }
 

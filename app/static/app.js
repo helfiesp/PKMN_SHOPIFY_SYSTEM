@@ -5541,6 +5541,10 @@ async function loadSupplierProducts() {
         const stockFilter = document.getElementById('supplier-stock-filter')?.value || '';
         const newFilter = document.getElementById('supplier-new-filter')?.value || '';
 
+        // Fetch supplier websites to get names
+        const websites = await fetch(`${API_BASE}/suppliers/websites`).then(r => r.json());
+        const websiteMap = new Map(websites.map(w => [w.id, w.name]));
+
         let url = `${API_BASE}/suppliers/products/in-stock?limit=500`;
         if (websiteId) url += `&website_id=${websiteId}`;
 
@@ -5583,18 +5587,20 @@ async function loadSupplierProducts() {
         }
 
         const bulkActionBar = `
-            <div style="margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 6px; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <div style="margin-bottom: 1.5rem; padding: 1rem 1.25rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);">
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                     <input type="checkbox" id="select-all-products" onchange="toggleAllSupplierProducts(this.checked)" 
                            style="width: 18px; height: 18px; cursor: pointer;">
-                    <label for="select-all-products" style="cursor: pointer; margin: 0; font-weight: 600;">Select All</label>
+                    <label for="select-all-products" style="cursor: pointer; margin: 0; font-weight: 600; color: white; font-size: 0.95rem;">Select All</label>
                 </div>
-                <span id="selected-count" style="color: #666; font-size: 0.9rem;">0 selected</span>
+                <span id="selected-count" style="color: rgba(255,255,255,0.9); font-size: 0.9rem; font-weight: 500;">0 selected</span>
                 <div style="flex: 1;"></div>
-                <button class="btn btn-sm btn-primary" onclick="bulkAcknowledgeSupplierProducts()" id="bulk-acknowledge-btn" disabled>
+                <button class="btn btn-sm" onclick="bulkAcknowledgeSupplierProducts()" id="bulk-acknowledge-btn" disabled
+                        style="background: white; color: #667eea; border: none; font-weight: 600; padding: 0.5rem 1rem; border-radius: 6px;">
                     ✓ Acknowledge Selected
                 </button>
-                <button class="btn btn-sm btn-secondary" onclick="bulkHideSupplierProducts()" id="bulk-hide-btn" disabled>
+                <button class="btn btn-sm" onclick="bulkHideSupplierProducts()" id="bulk-hide-btn" disabled
+                        style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); font-weight: 600; padding: 0.5rem 1rem; border-radius: 6px;">
                     🗑️ Hide Selected
                 </button>
             </div>
@@ -5619,36 +5625,37 @@ async function loadSupplierProducts() {
                     ${filtered.map(p => {
                         const priceChange = priceChanges.get(p.id);
                         const hasRecentPriceChange = priceChange && priceChange.changed;
+                        const supplierName = websiteMap.get(p.supplier_website_id) || `Supplier ${p.supplier_website_id}`;
                         
                         // Determine row highlighting
                         let rowStyle = '';
                         let rowClass = '';
                         if (p.is_new) {
                             rowClass = 'supplier-row-new';
-                            rowStyle = 'background-color: #d1fae5 !important;';
                         } else if (hasRecentPriceChange) {
                             rowClass = 'supplier-row-price-change';
-                            rowStyle = 'background-color: #fef3c7 !important;';
                         }
                         
                         return `
-                        <tr class="${rowClass}" style="${rowStyle}" data-product-id="${p.id}">
-                            <td>
+                        <tr class="${rowClass}" data-product-id="${p.id}">
+                            <td style="text-align: center;">
                                 <input type="checkbox" class="product-checkbox" data-product-id="${p.id}" 
                                        onchange="toggleSupplierProductSelection(${p.id}, this.checked)"
                                        style="width: 18px; height: 18px; cursor: pointer;">
                             </td>
-                            <td>${p.supplier_website_id}</td>
+                            <td><strong style="color: #667eea;">${supplierName}</strong></td>
                             <td>
-                                <a href="${p.product_url}" target="_blank" style="color: var(--primary); text-decoration: none;">
-                                    ${p.name}
-                                </a>
-                                ${p.is_new ? '<span class="badge badge-success" style="margin-left: 0.5rem; background: #10b981;">NEW</span>' : ''}
-                                ${hasRecentPriceChange ? '<span class="badge" style="margin-left: 0.5rem; background: #f59e0b; color: white;">PRICE CHANGE</span>' : ''}
+                                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                    <a href="${p.product_url}" target="_blank" style="color: #1e293b; text-decoration: none; font-weight: 500;">
+                                        ${p.name}
+                                    </a>
+                                    ${p.is_new ? '<span class="badge badge-success" style="background: #10b981; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">NEW</span>' : ''}
+                                    ${hasRecentPriceChange ? '<span class="badge" style="background: #f59e0b; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">PRICE CHANGE</span>' : ''}
+                                </div>
                             </td>
                             <td>
-                                ${p.price ? `${p.price.toFixed(2)} ${p.currency}` : '-'}
-                                ${hasRecentPriceChange ? `<br><small style="color: #f59e0b;">(was ${priceChange.old_price?.toFixed(2)} ${p.currency})</small>` : ''}
+                                <div style="font-weight: 600; color: #1e293b;">${p.price ? `${p.price.toFixed(2)} ${p.currency}` : '-'}</div>
+                                ${hasRecentPriceChange ? `<small style="color: #f59e0b; font-weight: 500;">was ${priceChange.old_price?.toFixed(2)} ${p.currency}</small>` : ''}
                             </td>
                             <td>
                                 <span class="badge ${p.in_stock ? 'badge-success' : 'badge-secondary'}">
