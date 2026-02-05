@@ -270,7 +270,6 @@ async def trigger_supplier_scan(
         scraper_script = f"suppliers/{scraper_name}.py"
         
         # Verify the file exists
-        import os
         current_file = os.path.abspath(__file__)
         routers_dir = os.path.dirname(current_file)
         app_dir = os.path.dirname(routers_dir)
