@@ -26,7 +26,7 @@ def test_sprell_scraper_simple():
     try:
         # Create driver
         print("\nInitializing browser...")
-        driver = create_chromium_driver(headless=False)  # Set to False to see what's happening
+        driver = create_chromium_driver(headless=True)  # Headless for server compatibility
         
         # Navigate to page
         print(f"Navigating to: {url}")
