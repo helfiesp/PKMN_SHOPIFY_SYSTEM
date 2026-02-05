@@ -184,41 +184,32 @@ class SprellScraper(BaseSupplierScraper):
                     traceback.print_exc()
                     continue
             
-            # Try to go to next page
+            # Try to go to next page using URL parameter
             try:
-                # Look for "next" button in pagination
-                # Note: Sprell.no might use different pagination - this is a generic approach
-                # We'll need to check the actual pagination structure on the site
+                # Navigate to next page using URL parameter
+                # Sprell.no uses &page=N for pagination
+                page_num += 1
+                next_url = self.website.url
                 
-                # Try to find a "next" page link
-                next_button = None
-                try:
-                    # Common pagination patterns
-                    next_button = self.driver.find_element(By.CSS_SELECTOR, "a[aria-label*='next' i]")
-                except:
-                    try:
-                        next_button = self.driver.find_element(By.CSS_SELECTOR, "a.next")
-                    except:
-                        try:
-                            next_button = self.driver.find_element(By.CSS_SELECTOR, "button[aria-label*='next' i]")
-                        except:
-                            pass
-                
-                if next_button:
-                    button_class = next_button.get_attribute("class") or ""
-                    button_disabled = next_button.get_attribute("disabled")
-                    
-                    if "disabled" in button_class or button_disabled:
-                        LOG.info("Last page reached (next button disabled)")
-                        break
-                    
-                    # Click the next button
-                    self.driver.execute_script("arguments[0].click();", next_button)
-                    page_num += 1
-                    time.sleep(3)  # Wait for page load
+                if "&page=" in next_url:
+                    # Replace existing page parameter
+                    import re
+                    next_url = re.sub(r'&page=\d+', f'&page={page_num}', next_url)
+                elif "?" in next_url:
+                    # Add page parameter to existing query string
+                    next_url = next_url + f"&page={page_num}"
                 else:
-                    # No pagination found, might be single page
-                    LOG.info("No pagination found, assuming single page")
+                    # Create new query string with page parameter
+                    next_url = next_url + f"?page={page_num}"
+                
+                LOG.info(f"Going to page {page_num}: {next_url}")
+                self.driver.get(next_url)
+                time.sleep(3)  # Wait for page load
+                
+                # Check if we actually got products on this page
+                new_products = self.driver.find_elements(By.CSS_SELECTOR, "article.CardContainer-module_cardContainer__qolR1")
+                if not new_products:
+                    LOG.info("No products found on next page, stopping pagination")
                     break
                 
             except Exception as e:
