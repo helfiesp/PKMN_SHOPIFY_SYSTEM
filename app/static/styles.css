@@ -575,3 +575,43 @@ tbody tr:hover {
         font-size: 0.75rem;
     }
 }
+
+/* Supplier Product Row Highlighting */
+.supplier-row-new {
+    background-color: #d1fae5 !important;
+    transition: background-color 0.3s ease;
+}
+
+.supplier-row-new:hover {
+    background-color: #a7f3d0 !important;
+}
+
+.supplier-row-price-change {
+    background-color: #fef3c7 !important;
+    transition: background-color 0.3s ease;
+}
+
+.supplier-row-price-change:hover {
+    background-color: #fde68a !important;
+}
+
+/* Ensure table rows maintain their highlighting */
+.data-table tbody tr.supplier-row-new td,
+.data-table tbody tr.supplier-row-price-change td {
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Checkbox styling */
+input[type="checkbox"].product-checkbox,
+input[type="checkbox"]#select-all-products {
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+/* Bulk action buttons styling */
+.btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+

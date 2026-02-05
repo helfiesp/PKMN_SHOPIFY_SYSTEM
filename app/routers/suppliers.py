@@ -207,7 +207,75 @@ def unhide_product(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/products/{product_id}/history")
+def get_product_history(
+    product_id: int,
+    limit: int = Query(10, le=100),
+    db: Session = Depends(get_db)
+):
+    """Get availability and price history for a product."""
+    from app.models import SupplierAvailabilityHistory
+    
+    history = db.query(SupplierAvailabilityHistory).filter(
+        SupplierAvailabilityHistory.supplier_product_id == product_id
+    ).order_by(
+        SupplierAvailabilityHistory.recorded_at.desc()
+    ).limit(limit).all()
+    
+    return [{
+        "id": h.id,
+        "in_stock": h.in_stock,
+        "stock_quantity": h.stock_quantity,
+        "price": h.price,
+        "stock_changed": h.stock_changed,
+        "price_changed": h.price_changed,
+        "recorded_at": h.recorded_at
+    } for h in history]
+
+
+@router.get("/products/recent-changes/bulk")
+def get_recent_price_changes_bulk(
+    product_ids: str = Query(..., description="Comma-separated list of product IDs"),
+    db: Session = Depends(get_db)
+):
+    """Get recent price changes for multiple products at once."""
+    from app.models import SupplierAvailabilityHistory
+    from sqlalchemy import func
+    
+    # Parse product IDs
+    try:
+        ids = [int(pid.strip()) for pid in product_ids.split(',') if pid.strip()]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid product IDs format")
+    
+    if len(ids) > 500:
+        raise HTTPException(status_code=400, detail="Maximum 500 products per request")
+    
+    # Get the latest two records for each product to detect changes
+    result = {}
+    for product_id in ids:
+        history = db.query(SupplierAvailabilityHistory).filter(
+            SupplierAvailabilityHistory.supplier_product_id == product_id
+        ).order_by(
+            SupplierAvailabilityHistory.recorded_at.desc()
+        ).limit(2).all()
+        
+        if len(history) >= 2:
+            latest = history[0]
+            previous = history[1]
+            if latest.price_changed:
+                result[product_id] = {
+                    "old_price": previous.price,
+                    "new_price": latest.price,
+                    "changed": True
+                }
+    
+    return result
+
+
 @router.get("/alerts", response_model=List[SupplierAlertResponse])
+
+
 def get_alerts(
     unread_only: bool = Query(True),
     limit: int = Query(50, le=200),

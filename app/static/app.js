@@ -10,6 +10,10 @@ let competitorSortColumn = null;
 let competitorSortDirection = 'asc'; // 'asc' or 'desc'
 let competitorSortedData = [];
 
+// Supplier products state
+let selectedSupplierProducts = new Set();
+let allSupplierProducts = [];
+
 // Helper function to ensure table body exists with proper headers
 function ensureTableBody(tableId, headers, className = 'data-table') {
     let table = document.getElementById(tableId);
@@ -5553,15 +5557,54 @@ async function loadSupplierProducts() {
             filtered = filtered.filter(p => p.is_new);
         }
 
+        // Store for bulk operations
+        allSupplierProducts = filtered;
+        selectedSupplierProducts.clear();
+
         if (filtered.length === 0) {
             container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">No products found</p>';
             return;
         }
 
-        container.innerHTML = `
+        // Fetch price history to detect price changes (bulk request)
+        const priceChanges = new Map();
+        try {
+            if (filtered.length > 0 && filtered.length <= 500) {
+                const productIds = filtered.map(p => p.id).join(',');
+                const changes = await fetch(`${API_BASE}/suppliers/products/recent-changes/bulk?product_ids=${productIds}`).then(r => r.json());
+                
+                // Convert response to Map
+                Object.entries(changes).forEach(([productId, change]) => {
+                    priceChanges.set(parseInt(productId), change);
+                });
+            }
+        } catch (err) {
+            console.log('Price history not available:', err);
+        }
+
+        const bulkActionBar = `
+            <div style="margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 6px; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="select-all-products" onchange="toggleAllSupplierProducts(this.checked)" 
+                           style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="select-all-products" style="cursor: pointer; margin: 0; font-weight: 600;">Select All</label>
+                </div>
+                <span id="selected-count" style="color: #666; font-size: 0.9rem;">0 selected</span>
+                <div style="flex: 1;"></div>
+                <button class="btn btn-sm btn-primary" onclick="bulkAcknowledgeSupplierProducts()" id="bulk-acknowledge-btn" disabled>
+                    ✓ Acknowledge Selected
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="bulkHideSupplierProducts()" id="bulk-hide-btn" disabled>
+                    🗑️ Hide Selected
+                </button>
+            </div>
+        `;
+
+        container.innerHTML = bulkActionBar + `
             <table class="data-table">
                 <thead>
                     <tr>
+                        <th style="width: 40px;"></th>
                         <th>Supplier</th>
                         <th>Product</th>
                         <th>Price</th>
@@ -5573,16 +5616,40 @@ async function loadSupplierProducts() {
                     </tr>
                 </thead>
                 <tbody>
-                    ${filtered.map(p => `
-                        <tr>
+                    ${filtered.map(p => {
+                        const priceChange = priceChanges.get(p.id);
+                        const hasRecentPriceChange = priceChange && priceChange.changed;
+                        
+                        // Determine row highlighting
+                        let rowStyle = '';
+                        let rowClass = '';
+                        if (p.is_new) {
+                            rowClass = 'supplier-row-new';
+                            rowStyle = 'background-color: #d1fae5 !important;';
+                        } else if (hasRecentPriceChange) {
+                            rowClass = 'supplier-row-price-change';
+                            rowStyle = 'background-color: #fef3c7 !important;';
+                        }
+                        
+                        return `
+                        <tr class="${rowClass}" style="${rowStyle}" data-product-id="${p.id}">
+                            <td>
+                                <input type="checkbox" class="product-checkbox" data-product-id="${p.id}" 
+                                       onchange="toggleSupplierProductSelection(${p.id}, this.checked)"
+                                       style="width: 18px; height: 18px; cursor: pointer;">
+                            </td>
                             <td>${p.supplier_website_id}</td>
                             <td>
                                 <a href="${p.product_url}" target="_blank" style="color: var(--primary); text-decoration: none;">
                                     ${p.name}
                                 </a>
-                                ${p.is_new ? '<span class="badge badge-success" style="margin-left: 0.5rem;">NEW</span>' : ''}
+                                ${p.is_new ? '<span class="badge badge-success" style="margin-left: 0.5rem; background: #10b981;">NEW</span>' : ''}
+                                ${hasRecentPriceChange ? '<span class="badge" style="margin-left: 0.5rem; background: #f59e0b; color: white;">PRICE CHANGE</span>' : ''}
                             </td>
-                            <td>${p.price ? `${p.price.toFixed(2)} ${p.currency}` : '-'}</td>
+                            <td>
+                                ${p.price ? `${p.price.toFixed(2)} ${p.currency}` : '-'}
+                                ${hasRecentPriceChange ? `<br><small style="color: #f59e0b;">(was ${priceChange.old_price?.toFixed(2)} ${p.currency})</small>` : ''}
+                            </td>
                             <td>
                                 <span class="badge ${p.in_stock ? 'badge-success' : 'badge-secondary'}">
                                     ${p.in_stock ? 'In Stock' : 'Out of Stock'}
@@ -5596,7 +5663,8 @@ async function loadSupplierProducts() {
                                 <button class="btn btn-sm btn-secondary" onclick="hideSupplierProduct(${p.id})">Hide</button>
                             </td>
                         </tr>
-                    `).join('')}
+                    `;
+                    }).join('')}
                 </tbody>
             </table>
         `;
@@ -5725,6 +5793,107 @@ async function hideSupplierProduct(productId) {
     } catch (error) {
         console.error('Error hiding product:', error);
         showAlert('Failed to hide product', 'error');
+    }
+}
+
+// Bulk selection functions
+function toggleSupplierProductSelection(productId, checked) {
+    if (checked) {
+        selectedSupplierProducts.add(productId);
+    } else {
+        selectedSupplierProducts.delete(productId);
+    }
+    updateBulkActionButtons();
+}
+
+function toggleAllSupplierProducts(checked) {
+    selectedSupplierProducts.clear();
+    
+    if (checked) {
+        allSupplierProducts.forEach(p => {
+            selectedSupplierProducts.add(p.id);
+        });
+    }
+    
+    // Update all checkboxes
+    document.querySelectorAll('.product-checkbox').forEach(cb => {
+        cb.checked = checked;
+    });
+    
+    updateBulkActionButtons();
+}
+
+function updateBulkActionButtons() {
+    const count = selectedSupplierProducts.size;
+    const countEl = document.getElementById('selected-count');
+    const acknowledgeBtn = document.getElementById('bulk-acknowledge-btn');
+    const hideBtn = document.getElementById('bulk-hide-btn');
+    
+    if (countEl) {
+        countEl.textContent = `${count} selected`;
+    }
+    
+    if (acknowledgeBtn) {
+        acknowledgeBtn.disabled = count === 0;
+    }
+    
+    if (hideBtn) {
+        hideBtn.disabled = count === 0;
+    }
+    
+    // Update select-all checkbox state
+    const selectAllCb = document.getElementById('select-all-products');
+    if (selectAllCb) {
+        selectAllCb.checked = count > 0 && count === allSupplierProducts.length;
+        selectAllCb.indeterminate = count > 0 && count < allSupplierProducts.length;
+    }
+}
+
+async function bulkAcknowledgeSupplierProducts() {
+    if (selectedSupplierProducts.size === 0) return;
+    
+    const count = selectedSupplierProducts.size;
+    if (!confirm(`Acknowledge ${count} product(s)?`)) return;
+    
+    try {
+        const promises = Array.from(selectedSupplierProducts).map(productId =>
+            fetch(`${API_BASE}/suppliers/products/${productId}/acknowledge`, {
+                method: 'POST'
+            })
+        );
+        
+        await Promise.all(promises);
+        
+        showAlert(`${count} product(s) acknowledged successfully`, 'success');
+        selectedSupplierProducts.clear();
+        await loadSupplierProducts();
+    } catch (error) {
+        console.error('Error acknowledging products:', error);
+        showAlert('Failed to acknowledge some products', 'error');
+    }
+}
+
+async function bulkHideSupplierProducts() {
+    if (selectedSupplierProducts.size === 0) return;
+    
+    const count = selectedSupplierProducts.size;
+    if (!confirm(`Hide ${count} product(s)? They will be marked as irrelevant.`)) return;
+    
+    try {
+        const promises = Array.from(selectedSupplierProducts).map(productId =>
+            fetch(`${API_BASE}/suppliers/products/${productId}/hide`, {
+                method: 'POST'
+            })
+        );
+        
+        await Promise.all(promises);
+        
+        showAlert(`${count} product(s) hidden successfully`, 'success');
+        selectedSupplierProducts.clear();
+        await loadSupplierProducts();
+    } catch (error) {
+        console.error('Error hiding products:', error);
+        showAlert('Failed to hide some products', 'error');
     }
 }
 
