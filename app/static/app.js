@@ -772,20 +772,21 @@ async function loadCompetitorPriceChanges() {
             const vel = change.velocity || {};
             let velocityInfo = '';
             
-            if (vel.insufficient_data) {
+            if (!vel || vel.insufficient_data === true) {
                 velocityInfo = '<div style="color: #999; font-size: 0.8rem;">Insufficient data</div>';
             } else {
                 const dailySales = vel.avg_daily_sales || 0;
                 const weeklySales = vel.weekly_sales_estimate || 0;
                 const daysToSellout = vel.days_until_sellout;
                 const totalSold = vel.total_units_sold || 0;
+                const daysTracked = vel.days_tracked || 0;
                 
                 velocityInfo = `
                     <div style="font-size: 0.85rem; line-height: 1.4;">
-                        <div style="font-weight: 600; color: #2563eb;">📊 ${dailySales} units/day</div>
-                        <div style="color: #666;">~${weeklySales} per week</div>
-                        ${totalSold > 0 ? `<div style="color: #059669; font-size: 0.75rem;">Sold ${totalSold} in ${vel.days_tracked}d</div>` : ''}
-                        ${daysToSellout ? `<div style="color: #dc2626; font-size: 0.75rem; margin-top: 2px;">⚠️ ${daysToSellout}d to sellout</div>` : ''}
+                        <div style="font-weight: 600; color: #2563eb;">📊 ${dailySales.toFixed(1)} units/day</div>
+                        <div style="color: #666;">~${weeklySales.toFixed(1)} per week</div>
+                        ${totalSold > 0 && daysTracked > 0 ? `<div style="color: #059669; font-size: 0.75rem;">Sold ${totalSold} in ${daysTracked}d</div>` : ''}
+                        ${daysToSellout && daysToSellout < 999 ? `<div style="color: #dc2626; font-size: 0.75rem; margin-top: 2px;">⚠️ ${daysToSellout.toFixed(1)}d to sellout</div>` : ''}
                     </div>
                 `;
             }
@@ -801,7 +802,7 @@ async function loadCompetitorPriceChanges() {
             }
             
             // Highlight significant changes or high velocity
-            const highVelocity = vel.avg_daily_sales && vel.avg_daily_sales > 2;
+            const highVelocity = vel && vel.avg_daily_sales && vel.avg_daily_sales > 2;
             const isSignificant = (change.price_changed && Math.abs((change.current_price - change.previous_price) / change.previous_price) > 0.1) ||
                                  (change.stock_changed && !change.in_stock && change.previous_stock_amount > 0) ||
                                  highVelocity;
