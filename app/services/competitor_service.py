@@ -1,15 +1,16 @@
 """Competitor product service for analyzing competitor pricing and availability."""
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
 import statistics
-from sqlalchemy import or_
+from sqlalchemy import or_, desc
 
 from app.models import (
     CompetitorProduct, 
     CompetitorProductDaily,
     CompetitorProductSnapshot,
     CompetitorProductOverride,
+    CompetitorSalesVelocity,
     today_oslo
 )
 from app.config import settings
@@ -381,6 +382,128 @@ class CompetitorService:
             'in_stock_count': in_stock,
             'out_of_stock_count': out_of_stock,
             'by_website': by_website
+        }
+    
+    def calculate_sales_velocity(
+        self,
+        db: Session,
+        competitor_product_id: int,
+        days_back: int = 30
+    ) -> Dict[str, Any]:
+        """
+        Calculate sales velocity metrics for a competitor product.
+        Analyzes stock changes over time to estimate sales rate.
+        """
+        from datetime import date, timedelta
+        
+        cutoff_date = date.today() - timedelta(days=days_back)
+        
+        # Get all daily snapshots for this product in the period
+        snapshots = db.query(CompetitorProductDaily).filter(
+            CompetitorProductDaily.competitor_product_id == competitor_product_id,
+            CompetitorProductDaily.day >= cutoff_date.isoformat()
+        ).order_by(CompetitorProductDaily.day).all()
+        
+        if len(snapshots) < 2:
+            return {
+                'insufficient_data': True,
+                'days_tracked': len(snapshots),
+                'avg_daily_sales': 0,
+                'total_units_sold': 0,
+                'total_units_restocked': 0,
+                'weekly_sales_estimate': 0,
+                'days_until_sellout': None,
+                'times_restocked': 0,
+                'times_sold_out': 0,
+                'sell_through_rate': 0,
+                'current_stock': snapshots[-1].stock_amount if snapshots else 0
+            }
+        
+        # Track changes
+        total_sold = 0
+        total_restocked = 0
+        times_restocked = 0
+        times_sold_out = 0
+        days_in_stock = 0
+        days_out_of_stock = 0
+        stock_levels = []
+        price_when_high_velocity = None
+        max_velocity = 0
+        
+        for i in range(1, len(snapshots)):
+            prev = snapshots[i-1]
+            curr = snapshots[i]
+            
+            prev_stock = prev.stock_amount or 0
+            curr_stock = curr.stock_amount or 0
+            
+            stock_levels.append(curr_stock)
+            
+            # Track availability
+            is_in_stock = curr_stock > 0
+            if is_in_stock:
+                days_in_stock += 1
+            else:
+                days_out_of_stock += 1
+                times_sold_out += 1 if prev_stock > 0 else 0
+            
+            # Calculate stock delta
+            stock_delta = curr_stock - prev_stock
+            
+            if stock_delta < 0:
+                # Stock decreased - items were sold
+                total_sold += abs(stock_delta)
+                
+                # Track velocity at this point
+                daily_velocity = abs(stock_delta)
+                if daily_velocity > max_velocity:
+                    max_velocity = daily_velocity
+                    try:
+                        # Parse price
+                        price_str = curr.price or "0"
+                        if ',' in price_str or '.' in price_str:
+                            price_str = price_str.replace(',', '.').replace(' ', '')
+                            price_str = ''.join(c for c in price_str if c.isdigit() or c == '.')
+                            price_when_high_velocity = float(price_str) if price_str else None
+                        else:
+                            price_str = ''.join(c for c in price_str if c.isdigit())
+                            price_when_high_velocity = (float(price_str) / 100.0) if price_str else None
+                    except:
+                        pass
+                        
+            elif stock_delta > 0:
+                # Stock increased - restock occurred
+                total_restocked += stock_delta
+                times_restocked += 1
+        
+        # Calculate metrics
+        days_tracked = len(snapshots) - 1
+        avg_daily_sales = total_sold / days_tracked if days_tracked > 0 else 0
+        weekly_sales_estimate = avg_daily_sales * 7
+        
+        current_stock = snapshots[-1].stock_amount or 0
+        days_until_sellout = (current_stock / avg_daily_sales) if avg_daily_sales > 0 else None
+        
+        # Sell-through rate (percentage of inventory sold)
+        max_stock = max(stock_levels) if stock_levels else 0
+        sell_through_rate = (total_sold / max_stock * 100) if max_stock > 0 else 0
+        
+        return {
+            'insufficient_data': False,
+            'days_tracked': days_tracked,
+            'avg_daily_sales': round(avg_daily_sales, 2),
+            'total_units_sold': total_sold,
+            'total_units_restocked': total_restocked,
+            'weekly_sales_estimate': round(weekly_sales_estimate, 1),
+            'days_until_sellout': round(days_until_sellout, 1) if days_until_sellout else None,
+            'times_restocked': times_restocked,
+            'times_sold_out': times_sold_out,
+            'sell_through_rate': round(sell_through_rate, 1),
+            'current_stock': current_stock,
+            'days_in_stock': days_in_stock,
+            'days_out_of_stock': days_out_of_stock,
+            'price_at_peak_velocity': price_when_high_velocity,
+            'peak_daily_velocity': max_velocity
         }
 
 

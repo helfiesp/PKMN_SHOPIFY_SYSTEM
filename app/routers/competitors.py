@@ -632,8 +632,10 @@ async def get_competitor_price_changes(
     """
     Get competitor price and stock changes by comparing daily snapshots.
     Detects when competitors have changed their prices or stock levels.
+    Includes sales velocity metrics for each product.
     """
     from app.models import CompetitorProductDaily, CompetitorProduct
+    from app.services.competitor_service import competitor_service
     from sqlalchemy import func, and_, desc
     from datetime import timedelta, date
     
@@ -726,9 +728,17 @@ async def get_competitor_price_changes(
                     should_include = stock_changed
                 
                 if should_include:
+                    # Calculate sales velocity metrics for this product
+                    velocity_metrics = competitor_service.calculate_sales_velocity(
+                        db, 
+                        product.id, 
+                        days_back=days_back
+                    )
+                    
                     change_record = {
                         "product_name": product.normalized_name or product.raw_name or "Unknown Product",
                         "product_link": product.product_link,
+                        "product_id": product.id,
                         "competitor_name": product.website.replace('_', ' ').title(),
                         "previous_date": previous_daily.day,
                         "current_date": daily.day,
@@ -746,6 +756,13 @@ async def get_competitor_price_changes(
                         "current_stock_amount": curr_stock,
                         "previous_stock_status": prev_stock_status,
                         "current_stock_status": curr_stock_status,
+                        
+                        # Current in_stock flag
+                        "in_stock": "lager" in curr_stock_status.lower() or "stock" in curr_stock_status.lower(),
+                        
+                        # Sales velocity metrics
+                        "velocity": velocity_metrics
+                    }
                         
                         # Current in_stock flag
                         "in_stock": "lager" in curr_stock_status.lower() or "stock" in curr_stock_status.lower()
