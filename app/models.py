@@ -550,6 +550,53 @@ class CompetitorPriceHistory(Base):
     )
 
 
+class CompetitorSalesVelocity(Base):
+    """Sales velocity and inventory movement tracking for competitor products."""
+    __tablename__ = "competitor_sales_velocity"
+
+    id = Column(Integer, primary_key=True, index=True)
+    competitor_product_id = Column(Integer, ForeignKey("competitor_products.id"), nullable=False, index=True)
+    
+    # Time period for metrics
+    period_start = Column(String(10), nullable=False, index=True)  # YYYY-MM-DD
+    period_end = Column(String(10), nullable=False, index=True)  # YYYY-MM-DD
+    period_days = Column(Integer, nullable=False)  # Number of days in period
+    
+    # Stock tracking
+    starting_stock = Column(Integer, default=0)
+    ending_stock = Column(Integer, default=0)
+    min_stock = Column(Integer, default=0)  # Minimum stock observed in period
+    max_stock = Column(Integer, default=0)  # Maximum stock observed in period
+    
+    # Sales calculations
+    total_units_sold = Column(Integer, default=0)  # Estimated units sold (stock decreases)
+    total_units_restocked = Column(Integer, default=0)  # Units added (stock increases)
+    
+    # Velocity metrics
+    avg_daily_sales = Column(Float, default=0.0)  # Average units sold per day
+    days_in_stock = Column(Integer, default=0)  # Days product was available
+    days_out_of_stock = Column(Integer, default=0)  # Days product was unavailable
+    sellout_speed_days = Column(Float)  # Days to sell out (if applicable)
+    
+    # Stock status changes
+    times_restocked = Column(Integer, default=0)  # How many times stock was replenished
+    times_sold_out = Column(Integer, default=0)  # How many times product sold out
+    
+    # Price correlation
+    avg_price = Column(Float)  # Average price during period
+    price_at_fastest_sales = Column(Float)  # Price when sales velocity was highest
+    
+    # Metadata
+    last_calculated_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationship
+    competitor_product = relationship("CompetitorProduct")
+    
+    __table_args__ = (
+        Index('idx_sales_velocity_product_period', 'competitor_product_id', 'period_start', 'period_end', unique=True),
+    )
+
+
 class ProductPriceHistory(Base):
     """Historical price tracking for my Shopify products."""
     __tablename__ = "product_price_history"
