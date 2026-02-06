@@ -696,7 +696,7 @@ async function loadCompetitorPriceChanges() {
     const daysBack = parseInt(document.getElementById('days-back-filter').value);
     const tbody = document.getElementById('competitor-changes-tbody');
     
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #999;">Loading competitor changes...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #999;">Loading competitor changes...</td></tr>';
     
     try {
         // Fetch competitor daily snapshots
@@ -713,7 +713,7 @@ async function loadCompetitorPriceChanges() {
         const changes = await response.json();
         
         if (!changes || changes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #999;">No competitor changes detected in the selected period</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #999;">No competitor changes detected in the selected period</td></tr>';
             return;
         }
         
@@ -768,9 +768,43 @@ async function loadCompetitorPriceChanges() {
                 stockInfo = `<div>${change.current_stock_status} [${change.current_stock_amount}]</div>`;
             }
             
-            // Highlight significant changes
+            // Sales velocity metrics
+            const vel = change.velocity || {};
+            let velocityInfo = '';
+            
+            if (vel.insufficient_data) {
+                velocityInfo = '<div style="color: #999; font-size: 0.8rem;">Insufficient data</div>';
+            } else {
+                const dailySales = vel.avg_daily_sales || 0;
+                const weeklySales = vel.weekly_sales_estimate || 0;
+                const daysToSellout = vel.days_until_sellout;
+                const totalSold = vel.total_units_sold || 0;
+                
+                velocityInfo = `
+                    <div style="font-size: 0.85rem; line-height: 1.4;">
+                        <div style="font-weight: 600; color: #2563eb;">📊 ${dailySales} units/day</div>
+                        <div style="color: #666;">~${weeklySales} per week</div>
+                        ${totalSold > 0 ? `<div style="color: #059669; font-size: 0.75rem;">Sold ${totalSold} in ${vel.days_tracked}d</div>` : ''}
+                        ${daysToSellout ? `<div style="color: #dc2626; font-size: 0.75rem; margin-top: 2px;">⚠️ ${daysToSellout}d to sellout</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            // Stock status with more detail
+            let stockStatusBadge = '';
+            if (change.in_stock) {
+                const stockLevel = change.current_stock_amount || 0;
+                const stockColor = stockLevel > 10 ? '#22c55e' : stockLevel > 5 ? '#f59e0b' : '#ef4444';
+                stockStatusBadge = `<span class="badge" style="background: ${stockColor}; color: white;">In Stock [${stockLevel}]</span>`;
+            } else {
+                stockStatusBadge = `<span class="badge badge-gray">Out of Stock</span>`;
+            }
+            
+            // Highlight significant changes or high velocity
+            const highVelocity = vel.avg_daily_sales && vel.avg_daily_sales > 2;
             const isSignificant = (change.price_changed && Math.abs((change.current_price - change.previous_price) / change.previous_price) > 0.1) ||
-                                 (change.stock_changed && !change.in_stock && change.previous_stock_amount > 0);
+                                 (change.stock_changed && !change.in_stock && change.previous_stock_amount > 0) ||
+                                 highVelocity;
             const rowStyle = isSignificant ? 'background: #fef3c7;' : '';
             
             return `
@@ -781,7 +815,8 @@ async function loadCompetitorPriceChanges() {
                     <td style="font-size: 0.9rem;">${priceInfo}</td>
                     <td style="font-size: 0.9rem;">${stockInfo}</td>
                     <td style="font-size: 0.85rem;">${deltaInfo || '-'}</td>
-                    <td><span class="badge badge-${change.in_stock ? 'success' : 'gray'}">${change.in_stock ? 'In Stock' : 'Out of Stock'}</span></td>
+                    <td>${velocityInfo}</td>
+                    <td>${stockStatusBadge}</td>
                     <td style="font-size: 0.85rem; color: #666;">${timeAgo(change.changed_at)}</td>
                 </tr>
             `;
@@ -789,7 +824,7 @@ async function loadCompetitorPriceChanges() {
         
     } catch (error) {
         console.error('Error loading competitor changes:', error);
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #ef4444;">Error: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #ef4444;">Error: ${error.message}</td></tr>`;
     }
 }
 

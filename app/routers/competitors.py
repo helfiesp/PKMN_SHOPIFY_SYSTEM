@@ -763,10 +763,6 @@ async def get_competitor_price_changes(
                         # Sales velocity metrics
                         "velocity": velocity_metrics
                     }
-                        
-                        # Current in_stock flag
-                        "in_stock": "lager" in curr_stock_status.lower() or "stock" in curr_stock_status.lower()
-                    }
                     changes.append(change_record)
                     
             except (ValueError, AttributeError) as e:
