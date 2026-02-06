@@ -2491,7 +2491,20 @@ function renderDynamicTab(tabName) {
             <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
                     <h3 class="card-title">Products</h3>
-                    <div style="display: flex; gap: 0.5rem;">
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <button id="filter-today-btn" class="btn btn-sm" onclick="filterProductsToday()" 
+                                style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-weight: 600; padding: 0.5rem 1rem; border: none; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);">
+                            📅 Today's New (<span id="today-count">0</span>)
+                        </button>
+                        <button id="filter-week-btn" class="btn btn-sm btn-secondary" onclick="filterProductsWeek()" 
+                                style="padding: 0.5rem 1rem;">
+                            📆 This Week (<span id="week-count">0</span>)
+                        </button>
+                        <button id="filter-all-btn" class="btn btn-sm btn-secondary" onclick="filterProductsAll()" 
+                                style="padding: 0.5rem 1rem;">
+                            📋 All Products
+                        </button>
+                        <div style="border-left: 2px solid #e5e7eb; height: 30px; margin: 0 0.5rem;"></div>
                         <select id="supplier-filter" class="form-input" onchange="loadSupplierProducts()" style="width: auto;">
                             <option value="">All Suppliers</option>
                         </select>
@@ -5937,10 +5950,47 @@ async function loadSupplierProducts() {
         if (newFilter === 'new') {
             filtered = filtered.filter(p => p.is_new);
         }
+        
+        // Apply date filter
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        
+        if (currentDateFilter === 'today') {
+            filtered = filtered.filter(p => {
+                const firstSeen = new Date(p.first_seen_at);
+                return firstSeen >= todayStart;
+            });
+        } else if (currentDateFilter === 'week') {
+            filtered = filtered.filter(p => {
+                const firstSeen = new Date(p.first_seen_at);
+                return firstSeen >= weekStart;
+            });
+        }
 
         // Store for bulk operations
         allSupplierProducts = filtered;
         selectedSupplierProducts.clear();
+
+        // Calculate today's and this week's new products (from unfiltered list)
+        const todayProducts = products.filter(p => {
+            const firstSeen = new Date(p.first_seen_at);
+            return firstSeen >= todayStart;
+        });
+        
+        const weekProducts = products.filter(p => {
+            const firstSeen = new Date(p.first_seen_at);
+            return firstSeen >= weekStart;
+        });
+        
+        // Update count badges
+        const todayCountEl = document.getElementById('today-count');
+        const weekCountEl = document.getElementById('week-count');
+        if (todayCountEl) todayCountEl.textContent = todayProducts.length;
+        if (weekCountEl) weekCountEl.textContent = weekProducts.length;
+        
+        // Update filter button styles
+        updateFilterButtonStyles();
 
         if (filtered.length === 0) {
             container.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">No products found</p>';
@@ -6348,5 +6398,45 @@ async function bulkHideCompetitors() {
     if (!confirm(`Hide ${count} competitor product(s)? (Feature coming soon)`)) return;
     
     showAlert('Bulk hide for competitor products will be available soon', 'info');
+}
+
+// Supplier product date filtering
+let currentDateFilter = 'all'; // 'all', 'today', 'week'
+
+function filterProductsToday() {
+    currentDateFilter = 'today';
+    updateFilterButtonStyles();
+    loadSupplierProducts();
+}
+
+function filterProductsWeek() {
+    currentDateFilter = 'week';
+    updateFilterButtonStyles();
+    loadSupplierProducts();
+}
+
+function filterProductsAll() {
+    currentDateFilter = 'all';
+    updateFilterButtonStyles();
+    loadSupplierProducts();
+}
+
+function updateFilterButtonStyles() {
+    const todayBtn = document.getElementById('filter-today-btn');
+    const weekBtn = document.getElementById('filter-week-btn');
+    const allBtn = document.getElementById('filter-all-btn');
+    
+    const activeStyle = 'background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-weight: 600; padding: 0.5rem 1rem; border: none; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);';
+    const inactiveStyle = 'background: #e5e7eb; color: #64748b; font-weight: 600; padding: 0.5rem 1rem; border: none;';
+    
+    if (todayBtn) {
+        todayBtn.style.cssText = currentDateFilter === 'today' ? activeStyle : inactiveStyle;
+    }
+    if (weekBtn) {
+        weekBtn.style.cssText = currentDateFilter === 'week' ? activeStyle.replace('#10b981', '#667eea').replace('#059669', '#764ba2').replace('16, 185, 129', '102, 126, 234') : inactiveStyle;
+    }
+    if (allBtn) {
+        allBtn.style.cssText = currentDateFilter === 'all' ? 'background: #64748b; color: white; font-weight: 600; padding: 0.5rem 1rem; border: none;' : inactiveStyle;
+    }
 }
 
