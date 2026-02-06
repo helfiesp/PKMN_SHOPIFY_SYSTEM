@@ -6073,7 +6073,3 @@ async function bulkHideCompetitors() {
     showAlert('Bulk hide for competitor products will be available soon', 'info');
 }
 
-        showAlert('Failed to hide some products', 'error');
-    }
-}
-
