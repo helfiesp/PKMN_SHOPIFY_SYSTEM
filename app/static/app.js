@@ -696,7 +696,7 @@ async function loadCompetitorPriceChanges() {
     const daysBack = parseInt(document.getElementById('days-back-filter').value);
     const tbody = document.getElementById('competitor-changes-tbody');
     
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #999;">Loading competitor changes...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #999;">Loading competitor changes...</td></tr>';
     
     try {
         // Fetch competitor daily snapshots
@@ -713,7 +713,7 @@ async function loadCompetitorPriceChanges() {
         const changes = await response.json();
         
         if (!changes || changes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #999;">No competitor changes detected in the selected period</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #999;">No competitor changes detected in the selected period</td></tr>';
             return;
         }
         
@@ -768,28 +768,10 @@ async function loadCompetitorPriceChanges() {
                 stockInfo = `<div>${change.current_stock_status} [${change.current_stock_amount}]</div>`;
             }
             
-            // Sales velocity metrics
+            // Check velocity for visual indicator
             const vel = change.velocity || {};
-            let velocityInfo = '';
-            
-            if (!vel || vel.insufficient_data === true) {
-                velocityInfo = '<div style="color: #999; font-size: 0.8rem;">Insufficient data</div>';
-            } else {
-                const dailySales = vel.avg_daily_sales || 0;
-                const weeklySales = vel.weekly_sales_estimate || 0;
-                const daysToSellout = vel.days_until_sellout;
-                const totalSold = vel.total_units_sold || 0;
-                const daysTracked = vel.days_tracked || 0;
-                
-                velocityInfo = `
-                    <div style="font-size: 0.85rem; line-height: 1.4;">
-                        <div style="font-weight: 600; color: #2563eb;">📊 ${dailySales.toFixed(1)} units/day</div>
-                        <div style="color: #666;">~${weeklySales.toFixed(1)} per week</div>
-                        ${totalSold > 0 && daysTracked > 0 ? `<div style="color: #059669; font-size: 0.75rem;">Sold ${totalSold} in ${daysTracked}d</div>` : ''}
-                        ${daysToSellout && daysToSellout < 999 ? `<div style="color: #dc2626; font-size: 0.75rem; margin-top: 2px;">⚠️ ${daysToSellout.toFixed(1)}d to sellout</div>` : ''}
-                    </div>
-                `;
-            }
+            const hasVelocityData = vel && !vel.insufficient_data && vel.avg_daily_sales > 0;
+            const velocityIndicator = hasVelocityData ? ' 📊' : '';
             
             // Stock status with more detail
             let stockStatusBadge = '';
@@ -808,15 +790,22 @@ async function loadCompetitorPriceChanges() {
                                  highVelocity;
             const rowStyle = isSignificant ? 'background: #fef3c7;' : '';
             
+            // Store velocity data as JSON for modal
+            const velocityDataJson = JSON.stringify(change.velocity || {}).replace(/"/g, '&quot;');
+            
             return `
                 <tr style="${rowStyle}">
-                    <td style="font-weight: 500;">${change.product_name || '-'}</td>
+                    <td style="font-weight: 500;">
+                        <a href="#" onclick="showCompetitorVelocityModal('${change.product_name}', '${change.competitor_name}', '${velocityDataJson}', ${change.current_stock_amount}, ${change.current_price}); return false;" 
+                           style="color: #2563eb; text-decoration: none; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">
+                            ${change.product_name || '-'}${velocityIndicator}
+                        </a>
+                    </td>
                     <td><span class="badge" style="background: #f3f4f6; color: #374151; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">${change.competitor_name}</span></td>
                     <td style="font-size: 0.85rem;">${changeTypeLabel}</td>
                     <td style="font-size: 0.9rem;">${priceInfo}</td>
                     <td style="font-size: 0.9rem;">${stockInfo}</td>
                     <td style="font-size: 0.85rem;">${deltaInfo || '-'}</td>
-                    <td>${velocityInfo}</td>
                     <td>${stockStatusBadge}</td>
                     <td style="font-size: 0.85rem; color: #666;">${timeAgo(change.changed_at)}</td>
                 </tr>
@@ -825,8 +814,296 @@ async function loadCompetitorPriceChanges() {
         
     } catch (error) {
         console.error('Error loading competitor changes:', error);
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #ef4444;">Error: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #ef4444;">Error: ${error.message}</td></tr>`;
     }
+}
+
+// Show competitor velocity modal with detailed analytics
+function showCompetitorVelocityModal(productName, competitorName, velocityDataJson, currentStock, currentPrice) {
+    const vel = JSON.parse(velocityDataJson.replace(/&quot;/g, '"'));
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        backdrop-filter: blur(4px);
+    `;
+    
+    const hasData = vel && !vel.insufficient_data && vel.avg_daily_sales > 0;
+    
+    let contentHTML = '';
+    
+    if (!hasData) {
+        contentHTML = `
+            <div style="background: white; border-radius: 12px; max-width: 600px; width: 95%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                <div style="padding: 2rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-start; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
+                    <div>
+                        <h2 style="margin: 0; color: white; font-size: 1.4rem; font-weight: 700;">${productName}</h2>
+                        <div style="font-size: 0.9rem; color: rgba(255,255,255,0.9); margin-top: 0.5rem; font-weight: 500;">${competitorName}</div>
+                    </div>
+                    <button onclick="this.closest('div').parentElement.remove()" style="background: rgba(255,255,255,0.2); border: none; font-size: 1.5rem; cursor: pointer; color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">&times;</button>
+                </div>
+                
+                <div style="padding: 3rem; text-align: center;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">📊</div>
+                    <h3 style="color: #666; font-size: 1.2rem; margin: 0;">Insufficient Data</h3>
+                    <p style="color: #999; margin-top: 1rem; line-height: 1.6;">
+                        Not enough historical data to calculate sales velocity metrics.<br>
+                        Need at least 2 days of stock tracking data.
+                    </p>
+                </div>
+            </div>
+        `;
+    } else {
+        const dailySales = vel.avg_daily_sales || 0;
+        const weeklySales = vel.weekly_sales_estimate || 0;
+        const monthlySales = weeklySales * 4.33;
+        const totalSold = vel.total_units_sold || 0;
+        const totalRestocked = vel.total_units_restocked || 0;
+        const daysTracked = vel.days_tracked || 0;
+        const daysInStock = vel.days_in_stock || 0;
+        const daysOutOfStock = vel.days_out_of_stock || 0;
+        const timesRestocked = vel.times_restocked || 0;
+        const timesSoldOut = vel.times_sold_out || 0;
+        const sellThroughRate = vel.sell_through_rate || 0;
+        const daysToSellout = vel.days_until_sellout;
+        const peakVelocity = vel.peak_daily_velocity || dailySales;
+        
+        // Calculate velocity bar width (max at 10 units/day = 100%)
+        const velocityBarWidth = Math.min((dailySales / 10) * 100, 100);
+        const velocityColor = dailySales > 5 ? '#ef4444' : dailySales > 2 ? '#f59e0b' : dailySales > 1 ? '#22c55e' : '#3b82f6';
+        
+        // Availability percentage
+        const availabilityPct = daysTracked > 0 ? (daysInStock / daysTracked * 100).toFixed(0) : 0;
+        const availabilityColor = availabilityPct > 80 ? '#22c55e' : availabilityPct > 50 ? '#f59e0b' : '#ef4444';
+        
+        // Stock status
+        const stockStatus = currentStock > 10 ? '✅ Well Stocked' : currentStock > 5 ? '⚠️ Low Stock' : currentStock > 0 ? '🔴 Very Low' : '❌ Out of Stock';
+        const stockColor = currentStock > 10 ? '#22c55e' : currentStock > 5 ? '#f59e0b' : currentStock > 0 ? '#ef4444' : '#999';
+        
+        contentHTML = `
+            <div style="background: white; border-radius: 12px; max-width: 800px; width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                <div style="padding: 2rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-start; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
+                    <div>
+                        <h2 style="margin: 0; color: white; font-size: 1.4rem; font-weight: 700;">${productName}</h2>
+                        <div style="font-size: 0.9rem; color: rgba(255,255,255,0.9); margin-top: 0.5rem; font-weight: 500;">${competitorName} • ${currentPrice.toFixed(2)} kr</div>
+                    </div>
+                    <button onclick="this.closest('div').parentElement.remove()" style="background: rgba(255,255,255,0.2); border: none; font-size: 1.5rem; cursor: pointer; color: white; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">&times;</button>
+                </div>
+                
+                <div style="padding: 2rem;">
+                    <!-- Key Metrics Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 8px; color: white;">
+                            <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.5rem;">Daily Sales Rate</div>
+                            <div style="font-size: 2rem; font-weight: 700;">${dailySales.toFixed(1)}</div>
+                            <div style="font-size: 0.8rem; opacity: 0.9; margin-top: 0.25rem;">units/day</div>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 1.5rem; border-radius: 8px; color: white;">
+                            <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.5rem;">Weekly Sales</div>
+                            <div style="font-size: 2rem; font-weight: 700;">~${weeklySales.toFixed(0)}</div>
+                            <div style="font-size: 0.8rem; opacity: 0.9; margin-top: 0.25rem;">units/week</div>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 1.5rem; border-radius: 8px; color: white;">
+                            <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.5rem;">Monthly Est.</div>
+                            <div style="font-size: 2rem; font-weight: 700;">~${monthlySales.toFixed(0)}</div>
+                            <div style="font-size: 0.8rem; opacity: 0.9; margin-top: 0.25rem;">units/month</div>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); padding: 1.5rem; border-radius: 8px; color: white;">
+                            <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.5rem;">Current Stock</div>
+                            <div style="font-size: 2rem; font-weight: 700;">${currentStock}</div>
+                            <div style="font-size: 0.8rem; opacity: 0.9; margin-top: 0.25rem;">${stockStatus}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sales Velocity Visualization -->
+                    <div style="background: #f9fafb; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #111;">📈 Sales Velocity</h3>
+                        <div style="background: #e5e7eb; height: 40px; border-radius: 20px; overflow: hidden; position: relative;">
+                            <div style="background: ${velocityColor}; height: 100%; width: ${velocityBarWidth}%; transition: all 0.3s; display: flex; align-items: center; justify-content: flex-end; padding-right: 1rem; color: white; font-weight: 600; font-size: 0.9rem;">
+                                ${dailySales.toFixed(1)} units/day
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.75rem; color: #666;">
+                            <span>Slow (0)</span>
+                            <span>Medium (5)</span>
+                            <span>Fast (10+)</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Detailed Stats -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                        <div style="background: #f9fafb; padding: 1.5rem; border-radius: 8px;">
+                            <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; color: #666; font-weight: 600;">📦 Inventory Movement</h4>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #666;">Total Sold:</span>
+                                    <span style="font-weight: 600; color: #22c55e;">${totalSold} units</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #666;">Restocked:</span>
+                                    <span style="font-weight: 600; color: #3b82f6;">${totalRestocked} units</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #666;">Peak Velocity:</span>
+                                    <span style="font-weight: 600; color: #ef4444;">${peakVelocity} units/day</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #666;">Sell-Through Rate:</span>
+                                    <span style="font-weight: 600; color: #7c3aed;">${sellThroughRate.toFixed(1)}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: #f9fafb; padding: 1.5rem; border-radius: 8px;">
+                            <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; color: #666; font-weight: 600;">⏱️ Availability</h4>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #666;">Days Tracked:</span>
+                                    <span style="font-weight: 600;">${daysTracked} days</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #666;">In Stock:</span>
+                                    <span style="font-weight: 600; color: #22c55e;">${daysInStock} days</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #666;">Out of Stock:</span>
+                                    <span style="font-weight: 600; color: #ef4444;">${daysOutOfStock} days</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #666;">Availability:</span>
+                                    <span style="font-weight: 600; color: ${availabilityColor};">${availabilityPct}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Restock Pattern -->
+                    <div style="background: #f9fafb; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; color: #666; font-weight: 600;">🔄 Restock Pattern</h4>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;">${timesRestocked}</div>
+                                <div style="font-size: 0.85rem; color: #666; margin-top: 0.25rem;">Times Restocked</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 2rem; font-weight: 700; color: #ef4444;">${timesSoldOut}</div>
+                                <div style="font-size: 0.85rem; color: #666; margin-top: 0.25rem;">Times Sold Out</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 2rem; font-weight: 700; color: ${daysToSellout && daysToSellout < 30 ? '#ef4444' : '#22c55e'};">
+                                    ${daysToSellout && daysToSellout < 999 ? daysToSellout.toFixed(1) : '∞'}
+                                </div>
+                                <div style="font-size: 0.85rem; color: #666; margin-top: 0.25rem;">Days to Sellout</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Insights -->
+                    ${generateVelocityInsights(dailySales, daysToSellout, currentStock, sellThroughRate, availabilityPct)}
+                </div>
+            </div>
+        `;
+    }
+    
+    modal.innerHTML = contentHTML;
+    document.body.appendChild(modal);
+    modal.onclick = (e) => {
+        if (e.target === modal) modal.remove();
+    };
+}
+
+function generateVelocityInsights(dailySales, daysToSellout, currentStock, sellThroughRate, availabilityPct) {
+    const insights = [];
+    
+    if (dailySales > 3) {
+        insights.push({
+            icon: '🔥',
+            title: 'High Demand Product',
+            text: `This product sells ${dailySales.toFixed(1)} units per day - significantly above average. Consider keeping higher stock levels.`,
+            color: '#ef4444'
+        });
+    } else if (dailySales > 1.5) {
+        insights.push({
+            icon: '📈',
+            title: 'Good Sales Velocity',
+            text: `Steady sales of ${dailySales.toFixed(1)} units/day indicates consistent demand.`,
+            color: '#22c55e'
+        });
+    } else if (dailySales > 0.5) {
+        insights.push({
+            icon: '📊',
+            title: 'Moderate Velocity',
+            text: `Sales pace of ${dailySales.toFixed(1)} units/day is moderate. Monitor for trends.`,
+            color: '#3b82f6'
+        });
+    } else {
+        insights.push({
+            icon: '🐌',
+            title: 'Slow Moving',
+            text: `Low velocity of ${dailySales.toFixed(1)} units/day. Consider adjusting pricing or marketing.`,
+            color: '#f59e0b'
+        });
+    }
+    
+    if (daysToSellout && daysToSellout < 7 && currentStock > 0) {
+        insights.push({
+            icon: '⚠️',
+            title: 'Stock Alert',
+            text: `Current stock will sell out in ~${daysToSellout.toFixed(1)} days. Restock recommended soon!`,
+            color: '#ef4444'
+        });
+    }
+    
+    if (sellThroughRate > 80) {
+        insights.push({
+            icon: '💪',
+            title: 'Excellent Sell-Through',
+            text: `${sellThroughRate.toFixed(0)}% sell-through rate indicates very strong performance.`,
+            color: '#22c55e'
+        });
+    }
+    
+    if (availabilityPct < 70) {
+        insights.push({
+            icon: '📉',
+            title: 'Low Availability',
+            text: `Product only available ${availabilityPct}% of the time. Frequent stockouts may impact sales potential.`,
+            color: '#f59e0b'
+        });
+    }
+    
+    if (insights.length === 0) {
+        return '';
+    }
+    
+    return `
+        <div style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); padding: 1.5rem; border-radius: 8px; border: 1px solid #e0e7ff;">
+            <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #111; font-weight: 600;">💡 Insights & Recommendations</h4>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                ${insights.map(insight => `
+                    <div style="display: flex; gap: 1rem; align-items: start;">
+                        <div style="font-size: 1.5rem; flex-shrink: 0;">${insight.icon}</div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: ${insight.color}; margin-bottom: 0.25rem;">${insight.title}</div>
+                            <div style="font-size: 0.9rem; color: #666; line-height: 1.5;">${insight.text}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
 }
 
 // Products
