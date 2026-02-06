@@ -663,6 +663,26 @@ async def get_competitor_price_changes(
             CompetitorProductDaily.day
         ).all()
         
+        # Pre-calculate velocity metrics for all unique products (avoid repeated calculations)
+        unique_product_ids = set()
+        for daily, product in snapshots:
+            unique_product_ids.add(product.id)
+        
+        velocity_cache = {}
+        for product_id in unique_product_ids:
+            try:
+                velocity_cache[product_id] = competitor_service.calculate_sales_velocity(
+                    db, product_id, days_back=days_back
+                )
+            except Exception as e:
+                print(f"Velocity calculation error for product {product_id}: {e}")
+                velocity_cache[product_id] = {
+                    'insufficient_data': True,
+                    'avg_daily_sales': 0,
+                    'weekly_sales_estimate': 0,
+                    'days_until_sellout': None
+                }
+        
         # Group by product_id to detect changes
         changes = []
         current_product_id = None
@@ -728,12 +748,13 @@ async def get_competitor_price_changes(
                     should_include = stock_changed
                 
                 if should_include:
-                    # Calculate sales velocity metrics for this product
-                    velocity_metrics = competitor_service.calculate_sales_velocity(
-                        db, 
-                        product.id, 
-                        days_back=days_back
-                    )
+                    # Get pre-calculated velocity metrics
+                    velocity_metrics = velocity_cache.get(product.id, {
+                        'insufficient_data': True,
+                        'avg_daily_sales': 0,
+                        'weekly_sales_estimate': 0,
+                        'days_until_sellout': None
+                    })
                     
                     change_record = {
                         "product_name": product.normalized_name or product.raw_name or "Unknown Product",
