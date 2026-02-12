@@ -6632,6 +6632,123 @@ async function showProductDetails(productId, period) {
     }
 }
 
+// Competitor Analytics
+async function loadCompetitorAnalytics() {
+    try {
+        const period = document.getElementById('competitor-period')?.value || 30;
+
+        const response = await fetch(`${API_BASE}/analytics/competitor-overview?days_back=${period}`);
+        if (!response.ok) throw new Error('Failed to load competitor analytics');
+
+        const data = await response.json();
+
+        // Update totals
+        document.getElementById('stat-total-competitors').textContent = data.totals.total_websites || 0;
+        document.getElementById('stat-total-comp-products').textContent = data.totals.total_products || 0;
+        document.getElementById('stat-total-stock-added').textContent = data.totals.total_stock_added || 0;
+        document.getElementById('stat-total-stock-sold').textContent = data.totals.total_stock_removed || 0;
+        document.getElementById('stat-total-sales-estimate').textContent = `${(data.totals.total_estimated_sales || 0).toFixed(0)} units`;
+
+        // Render per-website sections
+        const container = document.getElementById('competitor-websites-container');
+        if (!data.websites || data.websites.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #999;">No competitor data found</div>';
+            return;
+        }
+
+        container.innerHTML = data.websites.map((website, index) => {
+            const summary = website.summary;
+            const products = website.products;
+
+            return `
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; cursor: pointer;" onclick="toggleWebsiteProducts('website-${index}')">
+                        <h3 style="color: white; margin: 0; font-size: 1.25rem;">🏪 ${website.website}</h3>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <span style="font-size: 0.9rem;">${summary.total_products} products tracked</span>
+                            <span style="font-size: 0.9rem;">▼</span>
+                        </div>
+                    </div>
+
+                    <!-- Website Summary Stats -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; padding: 1.5rem; background: #f9fafb;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Current Stock</div>
+                            <div style="font-size: 1.5rem; font-weight: 600; color: #2563eb;">${summary.current_stock}</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Stock Added</div>
+                            <div style="font-size: 1.5rem; font-weight: 600; color: #10b981;">+${summary.stock_added}</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Stock Sold</div>
+                            <div style="font-size: 1.5rem; font-weight: 600; color: #ef4444;">-${summary.stock_removed}</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Avg Daily Sales</div>
+                            <div style="font-size: 1.5rem; font-weight: 600; color: #8b5cf6;">${summary.avg_daily_sales.toFixed(1)}/day</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Price Changes</div>
+                            <div style="font-size: 1.5rem; font-weight: 600; color: #f59e0b;">${summary.total_price_changes}</div>
+                        </div>
+                    </div>
+
+                    <!-- Product Details Table (collapsible) -->
+                    <div id="website-${index}" style="display: none; padding: 1.5rem; padding-top: 0;">
+                        <h4 style="margin-bottom: 1rem; color: #374151;">Product Breakdown</h4>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Current Stock</th>
+                                        <th>Price</th>
+                                        <th>Stock Added</th>
+                                        <th>Stock Sold</th>
+                                        <th>Price Changes</th>
+                                        <th>Daily Sales Avg</th>
+                                        <th>Est. Total Sales</th>
+                                        <th>Days to Sellout</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${products.map(p => `
+                                        <tr>
+                                            <td><strong>${p.name}</strong></td>
+                                            <td>${p.current_stock}</td>
+                                            <td>${p.current_price.toFixed(2)} kr</td>
+                                            <td style="color: #10b981; font-weight: 600;">+${p.stock_added}</td>
+                                            <td style="color: #ef4444; font-weight: 600;">-${p.stock_removed}</td>
+                                            <td>${p.price_changes}</td>
+                                            <td>${p.avg_daily_sales.toFixed(1)}</td>
+                                            <td>${p.total_sales_estimate.toFixed(0)}</td>
+                                            <td>${p.days_until_sellout ? p.days_until_sellout.toFixed(0) + ' days' : 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        showAlert(`Loaded analytics for ${data.websites.length} competitors`, 'success');
+
+    } catch (error) {
+        console.error('Competitor analytics error:', error);
+        showAlert('Failed to load competitor analytics: ' + error.message, 'error');
+    }
+}
+
+function toggleWebsiteProducts(id) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.style.display = element.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
 async function showAnalyticsDiagnostics() {
     try {
         const period = document.getElementById('analytics-period')?.value || 30;

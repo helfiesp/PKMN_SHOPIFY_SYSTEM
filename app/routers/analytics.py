@@ -555,6 +555,129 @@ async def get_analytics_diagnostics(
         raise HTTPException(status_code=500, detail=f"Diagnostics failed: {str(e)}")
 
 
+@router.get("/competitor-overview")
+async def get_competitor_overview(
+    days_back: int = Query(30, description="Number of days to analyze"),
+    db: Session = Depends(get_db)
+):
+    """
+    Comprehensive competitor analytics overview.
+    Shows stock changes, sales velocity, and activity per website.
+    """
+    try:
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+
+        # Get all competitors grouped by website
+        websites = db.query(CompetitorProduct.website).distinct().all()
+        website_analytics = []
+
+        for (website,) in websites:
+            # Get all products for this website
+            products = db.query(CompetitorProduct).filter(
+                CompetitorProduct.website == website
+            ).all()
+
+            if not products:
+                continue
+
+            # Calculate totals for this website
+            total_products = len(products)
+            total_current_stock = sum(p.stock_amount or 0 for p in products)
+            total_sales_estimate = 0
+            total_daily_sales = 0
+
+            products_detail = []
+
+            for product in products:
+                # Get sales velocity
+                velocity = db.query(CompetitorSalesVelocity).filter(
+                    CompetitorSalesVelocity.competitor_product_id == product.id
+                ).first()
+
+                if velocity:
+                    total_sales_estimate += velocity.total_sales_estimate or 0
+                    total_daily_sales += velocity.avg_daily_sales or 0
+
+                # Get stock changes from daily snapshots
+                daily_snapshots = db.query(CompetitorProductDaily).filter(
+                    and_(
+                        CompetitorProductDaily.competitor_product_id == product.id,
+                        CompetitorProductDaily.snapshot_date >= cutoff_date.date()
+                    )
+                ).order_by(CompetitorProductDaily.snapshot_date).all()
+
+                # Calculate stock added/removed
+                stock_added = 0
+                stock_removed = 0
+                price_changes = 0
+
+                for i in range(1, len(daily_snapshots)):
+                    prev = daily_snapshots[i-1]
+                    curr = daily_snapshots[i]
+
+                    stock_diff = (curr.stock_amount or 0) - (prev.stock_amount or 0)
+                    if stock_diff > 0:
+                        stock_added += stock_diff
+                    elif stock_diff < 0:
+                        stock_removed += abs(stock_diff)
+
+                    if prev.price_ore != curr.price_ore:
+                        price_changes += 1
+
+                products_detail.append({
+                    'product_id': product.id,
+                    'name': product.normalized_name or product.raw_name,
+                    'current_stock': product.stock_amount or 0,
+                    'current_price': product.price_ore / 100 if product.price_ore else 0,
+                    'stock_added': stock_added,
+                    'stock_removed': stock_removed,
+                    'price_changes': price_changes,
+                    'avg_daily_sales': velocity.avg_daily_sales if velocity else 0,
+                    'total_sales_estimate': velocity.total_sales_estimate if velocity else 0,
+                    'days_until_sellout': velocity.days_until_sellout if velocity else None,
+                    'last_updated': product.last_check_time.isoformat() if product.last_check_time else None
+                })
+
+            # Calculate website-level stock changes
+            website_stock_added = sum(p['stock_added'] for p in products_detail)
+            website_stock_removed = sum(p['stock_removed'] for p in products_detail)
+
+            website_analytics.append({
+                'website': website,
+                'summary': {
+                    'total_products': total_products,
+                    'current_stock': total_current_stock,
+                    'stock_added': website_stock_added,
+                    'stock_removed': website_stock_removed,
+                    'estimated_sales': total_sales_estimate,
+                    'avg_daily_sales': total_daily_sales,
+                    'total_price_changes': sum(p['price_changes'] for p in products_detail)
+                },
+                'products': sorted(products_detail, key=lambda x: x['stock_removed'], reverse=True)
+            })
+
+        # Sort websites by total sales volume
+        website_analytics.sort(key=lambda x: x['summary']['stock_removed'], reverse=True)
+
+        return {
+            'period_days': days_back,
+            'start_date': cutoff_date.date().isoformat(),
+            'end_date': datetime.now().date().isoformat(),
+            'websites': website_analytics,
+            'totals': {
+                'total_websites': len(website_analytics),
+                'total_products': sum(w['summary']['total_products'] for w in website_analytics),
+                'total_stock': sum(w['summary']['current_stock'] for w in website_analytics),
+                'total_stock_added': sum(w['summary']['stock_added'] for w in website_analytics),
+                'total_stock_removed': sum(w['summary']['stock_removed'] for w in website_analytics),
+                'total_estimated_sales': sum(w['summary']['estimated_sales'] for w in website_analytics)
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate competitor overview: {str(e)}")
+
+
 @router.get("/top-sellers")
 async def get_top_sellers(
     days_back: int = Query(30, description="Number of days to look back"),

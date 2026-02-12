@@ -38,6 +38,7 @@
                 <button class="nav-item" data-tab="mappings">Mappings</button>
                 <button class="nav-item" data-tab="competitor-mappings">Competitor Maps</button>
                 <button class="nav-item" data-tab="analytics">Sales Analytics</button>
+                <button class="nav-item" data-tab="competitor-analytics">Competitor Intel</button>
                 <button class="nav-item" data-tab="reports">Reports</button>
                 <button class="nav-item" data-tab="price-monitoring">Price Monitoring</button>
                 <button class="nav-item" data-tab="settings">Settings</button>
@@ -612,6 +613,52 @@
                         </table>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Competitor Analytics Tab -->
+        <div id="competitor-analytics-tab" class="tab-content is-hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🎯 Competitor Intelligence</h2>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <select id="competitor-period" class="btn btn-secondary" style="padding: 0.5rem 1rem;">
+                            <option value="7">Last 7 Days</option>
+                            <option value="14">Last 14 Days</option>
+                            <option value="30" selected>Last 30 Days</option>
+                            <option value="60">Last 60 Days</option>
+                            <option value="90">Last 90 Days</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadCompetitorAnalytics()">Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Overall Totals -->
+                <div id="competitor-totals" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">Total Competitors</div>
+                        <div class="stat-value" id="stat-total-competitors" style="color: white;">-</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">Total Products</div>
+                        <div class="stat-value" id="stat-total-comp-products" style="color: white;">-</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">Stock Added</div>
+                        <div class="stat-value" id="stat-total-stock-added" style="color: white;">-</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">Stock Sold</div>
+                        <div class="stat-value" id="stat-total-stock-sold" style="color: white;">-</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">Est. Total Sales</div>
+                        <div class="stat-value" id="stat-total-sales-estimate" style="color: white;">-</div>
+                    </div>
+                </div>
+
+                <!-- Per-Website Analytics -->
+                <div id="competitor-websites-container"></div>
             </div>
         </div>
 
