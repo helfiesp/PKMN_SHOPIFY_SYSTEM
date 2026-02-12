@@ -10,14 +10,13 @@ from urllib.parse import urlencode, parse_qs
 from app.database import get_db
 from app.models import Setting
 from app.config import settings
+from app.services.settings_service import settings_service
 
 router = APIRouter()
 
 
-def verify_shopify_hmac(query_params: dict, hmac_to_verify: str) -> bool:
+def verify_shopify_hmac(query_params: dict, hmac_to_verify: str, client_secret: str) -> bool:
     """Verify the HMAC signature from Shopify."""
-    # Get client secret from settings
-    client_secret = settings.shopify_client_secret
     if not client_secret:
         return False
 
@@ -39,7 +38,7 @@ def verify_shopify_hmac(query_params: dict, hmac_to_verify: str) -> bool:
 
 
 @router.get("/install")
-async def install_app(shop: str, request: Request):
+async def install_app(shop: str, request: Request, db: Session = Depends(get_db)):
     """
     Step 1: Redirect user to Shopify authorization page.
 
@@ -52,8 +51,8 @@ async def install_app(shop: str, request: Request):
     if not shop.endswith('.myshopify.com'):
         shop = f"{shop}.myshopify.com"
 
-    # Get client ID from settings
-    client_id = settings.shopify_client_id
+    # Get client ID from database
+    client_id = settings_service.get_setting_value(db, "shopify_client_id")
     if not client_id:
         raise HTTPException(status_code=500, detail="Shopify Client ID not configured")
 
@@ -100,9 +99,9 @@ async def oauth_callback(
     # if not verify_shopify_hmac(query_params, hmac_value):
     #     raise HTTPException(status_code=403, detail="Invalid HMAC signature")
 
-    # Get client credentials from settings
-    client_id = settings.shopify_client_id
-    client_secret = settings.shopify_client_secret
+    # Get client credentials from database
+    client_id = settings_service.get_setting_value(db, "shopify_client_id")
+    client_secret = settings_service.get_setting_value(db, "shopify_client_secret")
 
     if not client_id or not client_secret:
         raise HTTPException(status_code=500, detail="Shopify credentials not configured")
@@ -221,12 +220,14 @@ async def oauth_status(db: Session = Depends(get_db)):
     """Check OAuth configuration status."""
     shop_setting = db.query(Setting).filter(Setting.key == 'shopify_shop').first()
     token_setting = db.query(Setting).filter(Setting.key == 'shopify_token').first()
+    client_id = settings_service.get_setting_value(db, "shopify_client_id")
+    client_secret = settings_service.get_setting_value(db, "shopify_client_secret")
 
     return {
         'configured': bool(shop_setting and token_setting),
         'shop': shop_setting.value if shop_setting else None,
         'has_token': bool(token_setting and token_setting.value),
         'token_preview': f"{token_setting.value[:20]}..." if token_setting and token_setting.value else None,
-        'client_id_set': bool(settings.shopify_client_id),
-        'client_secret_set': bool(settings.shopify_client_secret),
+        'client_id_set': bool(client_id),
+        'client_secret_set': bool(client_secret),
     }
