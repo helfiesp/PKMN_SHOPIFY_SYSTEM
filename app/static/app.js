@@ -1973,83 +1973,120 @@ function renderProductIntelTable(products) {
             <tr id="details-${index}" style="display: none; background: #f9fafb;">
                 <td colspan="8" style="padding: 1.5rem;">
                     <div>
-                        <h4 style="margin: 0 0 1rem 0; color: #111;">🏪 Competitor Pricing & Intel</h4>
+                        <h4 style="margin: 0 0 1rem 0; color: #111; font-size: 1rem;">🏪 Competitor Pricing & Intelligence</h4>
                             ${compCount > 0 ? `
-                                <!-- Price Summary -->
-                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.9rem;">
+                                <!-- Price Summary Card -->
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 1.25rem; border-radius: 6px; margin-bottom: 1.25rem; box-shadow: 0 2px 4px rgba(102,126,234,0.2);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
                                         <div>
-                                            <div style="opacity: 0.9;">Your Price</div>
-                                            <div style="font-size: 1.5rem; font-weight: 700;">${product.current_price.toFixed(0)} NOK</div>
+                                            <div style="font-size: 0.75rem; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Your Price</div>
+                                            <div style="font-size: 1.75rem; font-weight: 700;">${product.current_price.toFixed(0)} NOK</div>
                                         </div>
-                                        <div>
-                                            <div style="opacity: 0.9;">Avg Competitor</div>
-                                            <div style="font-size: 1.5rem; font-weight: 700;">${avgCompPrice.toFixed(0)} NOK</div>
+                                        <div style="text-align: center; opacity: 0.6;">
+                                            <div style="font-size: 1.5rem;">vs</div>
                                         </div>
-                                    </div>
-                                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.3); display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 0.85rem;">
-                                            ${priceDiff > 0 ? `You're ${priceDiff.toFixed(0)} NOK higher` : priceDiff < 0 ? `You're ${Math.abs(priceDiff).toFixed(0)} NOK cheaper` : 'Same price'}
-                                        </span>
+                                        <div style="text-align: right;">
+                                            <div style="font-size: 0.75rem; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Avg Competitor</div>
+                                            <div style="font-size: 1.75rem; font-weight: 700;">${avgCompPrice.toFixed(0)} NOK</div>
+                                        </div>
                                         ${avgCompPrice > 0 && avgCompPrice < product.current_price ? `
                                             <button onclick="matchAveragePrice(${product.product_id}, ${avgCompPrice.toFixed(2)})"
-                                                    style="background: white; color: #667eea; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
-                                                Match Average
+                                                    style="background: white; color: #667eea; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.1s;"
+                                                    onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='translateY(0)'">
+                                                📊 Match Average
                                             </button>
                                         ` : ''}
                                     </div>
+                                    ${priceDiff !== 0 ? `
+                                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.2); text-align: center; font-size: 0.85rem;">
+                                            ${priceDiff > 0 ? `⚠️ You're <strong>${priceDiff.toFixed(0)} NOK higher</strong> than average` : `✓ You're <strong>${Math.abs(priceDiff).toFixed(0)} NOK cheaper</strong> than average`}
+                                        </div>
+                                    ` : ''}
                                 </div>
 
-                                <!-- Individual Competitors -->
-                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                    ${product.competitor_sales.by_competitor.map(c => {
+                                <!-- Competitor Table -->
+                                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+                                    <!-- Table Header -->
+                                    <div style="background: #f9fafb; padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; display: grid; grid-template-columns: 2fr 1.5fr 1fr 1fr auto; gap: 1rem; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        <div>Competitor</div>
+                                        <div>Price & Diff</div>
+                                        <div style="text-align: center;">Stock</div>
+                                        <div style="text-align: center;">Est. Sales</div>
+                                        <div style="text-align: right;">Actions</div>
+                                    </div>
+
+                                    <!-- Competitor Rows -->
+                                    ${product.competitor_sales.by_competitor.map((c, idx) => {
                                         const priceDiff = product.current_price - c.price;
                                         const isExpensive = priceDiff > 0;
                                         const hasSalesData = c.total_sales_estimate > 0;
                                         return `
-                                        <div style="padding: 0.6rem; background: ${isExpensive ? '#fef2f2' : '#f0fdf4'}; border-radius: 4px; border-left: 3px solid ${isExpensive ? '#dc2626' : '#059669'}; margin-bottom: 0.4rem;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                                <div style="flex: 1;">
-                                                    <span style="font-weight: 700; color: #111; font-size: 0.9rem;">${c.website}</span>
-                                                    <span style="font-size: 0.75rem; color: #666; margin-left: 0.5rem;">
-                                                        Stock: ${c.current_stock} | ${hasSalesData ? `Sales: ~${c.total_sales_estimate.toFixed(0)} (${c.avg_daily_sales.toFixed(1)}/day)` : 'No sales data'}
-                                                    </span>
+                                        <div style="padding: 0.85rem 1rem; border-bottom: ${idx < product.competitor_sales.by_competitor.length - 1 ? '1px solid #f3f4f6' : 'none'}; display: grid; grid-template-columns: 2fr 1.5fr 1fr 1fr auto; gap: 1rem; align-items: center; transition: background 0.15s;"
+                                             onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+
+                                            <!-- Competitor Name -->
+                                            <div>
+                                                <div style="font-weight: 600; color: #111; font-size: 0.9rem; margin-bottom: 0.15rem;">${c.website}</div>
+                                                <div style="font-size: 0.75rem; color: #9ca3af;">${c.product_name}</div>
+                                            </div>
+
+                                            <!-- Price & Difference -->
+                                            <div>
+                                                <div style="font-size: 1rem; font-weight: 700; color: #111; margin-bottom: 0.15rem;">${c.price.toFixed(0)} NOK</div>
+                                                <div style="font-size: 0.75rem; color: ${isExpensive ? '#dc2626' : '#059669'}; font-weight: 500;">
+                                                    ${isExpensive ? `↓ ${priceDiff.toFixed(0)} NOK cheaper` : `↑ ${Math.abs(priceDiff).toFixed(0)} NOK more`}
                                                 </div>
-                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                                    <div style="text-align: right;">
-                                                        <div style="font-size: 1.1rem; font-weight: 700; color: ${isExpensive ? '#dc2626' : '#059669'};">${c.price.toFixed(0)} NOK</div>
-                                                        <div style="font-size: 0.7rem; color: ${isExpensive ? '#dc2626' : '#059669'};">
-                                                            ${isExpensive ? `${priceDiff.toFixed(0)} NOK cheaper` : `${Math.abs(priceDiff).toFixed(0)} NOK more`}
-                                                        </div>
+                                            </div>
+
+                                            <!-- Stock -->
+                                            <div style="text-align: center;">
+                                                <div style="display: inline-block; padding: 0.25rem 0.6rem; background: ${c.current_stock > 10 ? '#d1fae5' : c.current_stock > 0 ? '#fef3c7' : '#fee2e2'}; color: ${c.current_stock > 10 ? '#065f46' : c.current_stock > 0 ? '#92400e' : '#991b1b'}; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">
+                                                    ${c.current_stock} units
+                                                </div>
+                                            </div>
+
+                                            <!-- Sales Data -->
+                                            <div style="text-align: center;">
+                                                ${hasSalesData ? `
+                                                    <div style="font-size: 0.85rem; font-weight: 600; color: #111; margin-bottom: 0.15rem;">~${c.total_sales_estimate.toFixed(0)}</div>
+                                                    <div style="font-size: 0.7rem; color: #9ca3af;">${c.avg_daily_sales.toFixed(1)}/day</div>
+                                                ` : `
+                                                    <div style="font-size: 0.75rem; color: #d1d5db;">No data</div>
+                                                `}
+                                            </div>
+
+                                            <!-- Actions -->
+                                            <div style="text-align: right;">
+                                                ${isExpensive ? `
+                                                    <div style="display: flex; gap: 0.4rem; justify-content: flex-end;">
+                                                        <button onclick="matchCompetitorPrice(${product.product_id}, ${c.price}, '${c.website}')"
+                                                                style="background: #dc2626; color: white; border: none; padding: 0.4rem 0.7rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.75rem; transition: background 0.15s;"
+                                                                onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
+                                                            Match
+                                                        </button>
+                                                        <button onclick="matchCompetitorPrice(${product.product_id}, ${c.price - 10}, '${c.website} -10')"
+                                                                style="background: #059669; color: white; border: none; padding: 0.4rem 0.7rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.75rem; transition: background 0.15s;"
+                                                                onmouseover="this.style.background='#047857'" onmouseout="this.style.background='#059669'">
+                                                            Undercut
+                                                        </button>
                                                     </div>
-                                                    ${isExpensive ? `
-                                                        <div style="display: flex; gap: 0.35rem;">
-                                                            <button onclick="matchCompetitorPrice(${product.product_id}, ${c.price}, '${c.website}')"
-                                                                    style="background: #dc2626; color: white; border: none; padding: 0.35rem 0.6rem; border-radius: 3px; font-weight: 600; cursor: pointer; font-size: 0.75rem; white-space: nowrap;">
-                                                                Match
-                                                            </button>
-                                                            <button onclick="matchCompetitorPrice(${product.product_id}, ${c.price - 10}, '${c.website} -10')"
-                                                                    style="background: #059669; color: white; border: none; padding: 0.35rem 0.6rem; border-radius: 3px; font-weight: 600; cursor: pointer; font-size: 0.75rem; white-space: nowrap;">
-                                                                Undercut
-                                                            </button>
-                                                        </div>
-                                                    ` : `
-                                                        <span style="font-size: 0.75rem; color: #059669; font-weight: 600;">✓ Cheaper</span>
-                                                    `}
-                                                </div>
+                                                ` : `
+                                                    <span style="font-size: 0.75rem; color: #059669; font-weight: 600; background: #d1fae5; padding: 0.25rem 0.6rem; border-radius: 12px;">✓ Cheaper</span>
+                                                `}
                                             </div>
                                         </div>
                                     `;
                                     }).join('')}
                                 </div>
                             ` : `
-                                <div style="text-align: center; padding: 3rem 1rem; color: #999;">
-                                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
-                                    <div style="font-size: 1.1rem; margin-bottom: 0.5rem;">No competitor data available</div>
-                                    <div style="font-size: 0.9rem; margin-bottom: 1.5rem;">Map competitors to see pricing intelligence</div>
+                                <div style="text-align: center; padding: 2.5rem 1rem; background: #f9fafb; border: 2px dashed #e5e7eb; border-radius: 8px;">
+                                    <div style="font-size: 2.5rem; margin-bottom: 0.75rem; opacity: 0.5;">🔍</div>
+                                    <div style="font-size: 1rem; font-weight: 600; color: #6b7280; margin-bottom: 0.5rem;">No Competitor Data</div>
+                                    <div style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 1.25rem;">Map competitors to see pricing intelligence and sales estimates</div>
                                     <button onclick="mapCompetitors(${product.product_id})"
-                                            style="background: #667eea; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer;">
-                                        Map Competitors
+                                            style="background: #667eea; color: white; border: none; padding: 0.65rem 1.25rem; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(102,126,234,0.3); transition: all 0.15s;"
+                                            onmouseover="this.style.background='#5568d3'; this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#667eea'; this.style.transform='translateY(0)'">
+                                        📍 Map Competitors
                                     </button>
                                 </div>
                             `}
