@@ -618,12 +618,13 @@ async def get_competitor_overview(
                     total_daily_sales += velocity.avg_daily_sales or 0
 
                 # Get stock changes from daily snapshots
+                cutoff_date_str = cutoff_date.date().isoformat()  # Convert to YYYY-MM-DD string
                 daily_snapshots = db.query(CompetitorProductDaily).filter(
                     and_(
                         CompetitorProductDaily.competitor_product_id == product.id,
-                        CompetitorProductDaily.snapshot_date >= cutoff_date.date()
+                        CompetitorProductDaily.day >= cutoff_date_str
                     )
-                ).order_by(CompetitorProductDaily.snapshot_date).all()
+                ).order_by(CompetitorProductDaily.day).all()
 
                 # Calculate stock added/removed
                 stock_added = 0
