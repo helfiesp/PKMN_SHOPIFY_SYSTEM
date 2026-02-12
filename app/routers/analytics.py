@@ -100,12 +100,20 @@ def fetch_shopify_orders(days_back: int = 30):
 
             data = response.json()
 
+            # Debug: Show raw response on first iteration
+            if cursor is None:
+                print(f"[DEBUG] First page response keys: {list(data.keys())}")
+                if "data" in data:
+                    print(f"[DEBUG] Data keys: {list(data.get('data', {}).keys())}")
+
             if "errors" in data:
                 print(f"[ERROR] Shopify GraphQL errors: {data['errors']}")
                 break
 
             orders_data = data.get("data", {}).get("orders", {})
             edges = orders_data.get("edges", [])
+
+            print(f"[DEBUG] Page returned {len(edges)} orders")
 
             for edge in edges:
                 all_orders.append(edge["node"])
@@ -380,6 +388,94 @@ async def get_product_sales_trend(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get sales trend: {str(e)}")
+
+
+@router.get("/test-orders")
+async def test_orders_connection():
+    """
+    Test endpoint to check if we can fetch ANY orders from Shopify at all.
+    Fetches the 5 most recent orders without date restrictions.
+    """
+    try:
+        shop = settings.get_shopify_shop()
+        token = settings.get_shopify_token()
+
+        if not shop or not token:
+            return {"error": "Shopify credentials not configured"}
+
+        query = """
+        query($first: Int!) {
+            orders(first: $first, sortKey: CREATED_AT, reverse: true) {
+                edges {
+                    node {
+                        id
+                        name
+                        createdAt
+                        totalPriceSet {
+                            shopMoney {
+                                amount
+                            }
+                        }
+                        lineItems(first: 5) {
+                            edges {
+                                node {
+                                    title
+                                    quantity
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+
+        url = f"https://{shop}/admin/api/{settings.shopify_api_version}/graphql.json"
+        headers = {
+            "X-Shopify-Access-Token": token,
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(
+            url,
+            json={"query": query, "variables": {"first": 5}},
+            headers=headers,
+            timeout=30
+        )
+
+        if not response.ok:
+            return {
+                "error": f"API request failed: {response.status_code}",
+                "details": response.text
+            }
+
+        data = response.json()
+
+        if "errors" in data:
+            return {
+                "error": "GraphQL errors",
+                "details": data["errors"]
+            }
+
+        orders = data.get("data", {}).get("orders", {}).get("edges", [])
+
+        return {
+            "success": True,
+            "orders_count": len(orders),
+            "orders": [
+                {
+                    "name": order["node"]["name"],
+                    "created_at": order["node"]["createdAt"],
+                    "items_count": len(order["node"]["lineItems"]["edges"])
+                }
+                for order in orders
+            ],
+            "shopify_api_version": settings.shopify_api_version,
+            "shop": shop
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @router.get("/diagnostics")
