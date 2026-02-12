@@ -37,6 +37,7 @@
             <div class="nav-secondary">
                 <button class="nav-item" data-tab="mappings">Mappings</button>
                 <button class="nav-item" data-tab="competitor-mappings">Competitor Maps</button>
+                <button class="nav-item" data-tab="analytics">Sales Analytics</button>
                 <button class="nav-item" data-tab="reports">Reports</button>
                 <button class="nav-item" data-tab="price-monitoring">Price Monitoring</button>
                 <button class="nav-item" data-tab="settings">Settings</button>
@@ -534,6 +535,78 @@
                             </thead>
                             <tbody id="competitor-changes-tbody">
                                 <tr><td colspan="8" style="text-align: center; padding: 2rem; color: #999;">Click "Apply Filters" to load competitor changes</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sales Analytics Tab -->
+        <div id="analytics-tab" class="tab-content is-hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📊 Sales Analytics & Comparison</h2>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <select id="analytics-period" class="btn btn-secondary" style="padding: 0.5rem 1rem;">
+                            <option value="7">Last 7 Days</option>
+                            <option value="14">Last 14 Days</option>
+                            <option value="30" selected>Last 30 Days</option>
+                            <option value="60">Last 60 Days</option>
+                            <option value="90">Last 90 Days</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadSalesAnalytics()">Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Summary Stats -->
+                <div id="analytics-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">My Total Sales</div>
+                        <div class="stat-value" id="stat-my-sales" style="color: white;">-</div>
+                        <div style="font-size: 0.8rem; color: rgba(255,255,255,0.8); margin-top: 0.5rem;">
+                            <span id="stat-my-revenue">-</span> revenue
+                        </div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">Competitor Sales (Est.)</div>
+                        <div class="stat-value" id="stat-competitor-sales" style="color: white;">-</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">Outperforming</div>
+                        <div class="stat-value" id="stat-outperforming" style="color: white;">-</div>
+                        <div style="font-size: 0.8rem; color: rgba(255,255,255,0.8); margin-top: 0.5rem;">
+                            products beating competitors
+                        </div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;">
+                        <div class="stat-label" style="color: rgba(255,255,255,0.9);">Market Share</div>
+                        <div class="stat-value" id="stat-market-share" style="color: white;">-</div>
+                    </div>
+                </div>
+
+                <!-- Sales Comparison Table -->
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem;">Product Sales Comparison</h3>
+                    <div class="table-container">
+                        <table id="analytics-table" class="table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>My Sales</th>
+                                    <th>My Stock</th>
+                                    <th>Competitor Sales (Est.)</th>
+                                    <th>Market Share</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analytics-table-body">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; padding: 2rem; color: #999;">
+                                        Click "Refresh" to load sales analytics
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>

@@ -22,6 +22,7 @@ from app.routers import (
     competitors,
     suppliers,
     history,
+    analytics,
 )
 from app.routers import settings as settings_router
 
@@ -61,6 +62,7 @@ app.include_router(booster_variants.router, prefix="/api/v1/booster-variants", t
 app.include_router(booster_inventory.router, prefix="/api/v1/booster-inventory", tags=["Booster Inventory"])
 app.include_router(mappings.router, prefix="/api/v1/mappings", tags=["Mappings"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
+app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
 app.include_router(history.router, tags=["History"])
 
 

@@ -261,9 +261,14 @@ function loadTabData(tabName) {
                 });
             }, 100);
             break;
-        case 'price-plans': 
+        case 'price-plans':
             setTimeout(() => {
                 loadPricePlans();
+            }, 100);
+            break;
+        case 'analytics':
+            setTimeout(() => {
+                loadSalesAnalytics();
             }, 100);
             break;
         case 'suppliers':
@@ -6495,3 +6500,134 @@ function updateFilterButtonStyles() {
     }
 }
 
+
+
+// Sales Analytics
+async function loadSalesAnalytics() {
+    try {
+        const period = document.getElementById('analytics-period')?.value || 30;
+
+        const response = await fetch(`${API_BASE}/analytics/sales-comparison?days_back=${period}`);
+        if (!response.ok) throw new Error('Failed to load analytics');
+
+        const data = await response.json();
+
+        // Update summary stats
+        document.getElementById('stat-my-sales').textContent = data.summary.my_total_sales || 0;
+        document.getElementById('stat-competitor-sales').textContent = data.summary.competitor_total_sales || 0;
+        document.getElementById('stat-outperforming').textContent = data.summary.products_outperforming || 0;
+
+        const totalSales = data.summary.my_total_sales + data.summary.competitor_total_sales;
+        const marketShare = totalSales > 0
+            ? ((data.summary.my_total_sales / totalSales) * 100).toFixed(1)
+            : 0;
+        document.getElementById('stat-market-share').textContent = `${marketShare}%`;
+
+        // Calculate revenue
+        const totalRevenue = data.products.reduce((sum, p) => {
+            return sum + (p.my_sales.total_units_sold * p.current_price);
+        }, 0);
+        document.getElementById('stat-my-revenue').textContent = `${totalRevenue.toFixed(0)} kr`;
+
+        // Populate table
+        const tbody = document.getElementById('analytics-table-body');
+        if (!data.products || data.products.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #999;">No sales data found for mapped products</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.products.map(product => {
+            const isOutperforming = product.comparison.outperforming;
+            const statusBadge = isOutperforming
+                ? '<span style="color: #22c55e; font-weight: 600;">✓ Winning</span>'
+                : '<span style="color: #ef4444; font-weight: 600;">✗ Behind</span>';
+
+            const marketSharePct = product.comparison.my_market_share_pct.toFixed(1);
+            const competitorCount = product.competitor_sales.competitors_count;
+
+            return `
+                <tr>
+                    <td>
+                        <div style="font-weight: 500;">${product.product_title}</div>
+                        <div style="font-size: 0.85rem; color: #666;">${product.variant_title}</div>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600; color: #2563eb;">${product.my_sales.total_units_sold} units</div>
+                        <div style="font-size: 0.85rem; color: #666;">${product.my_sales.avg_daily_sales.toFixed(1)}/day avg</div>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600;">${product.current_stock} units</div>
+                        <div style="font-size: 0.85rem; color: #666;">${product.current_price.toFixed(2)} kr</div>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600;">${product.competitor_sales.total_estimated_sales.toFixed(0)} units</div>
+                        <div style="font-size: 0.85rem; color: #666;">${competitorCount} competitor${competitorCount !== 1 ? 's' : ''}</div>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600; font-size: 1.1rem;">${marketSharePct}%</div>
+                    </td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="showProductDetails(${product.product_id}, ${period})">
+                            View Details
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        showAlert(`Analytics loaded for ${data.total_products} products`, 'success');
+
+    } catch (error) {
+        console.error('Analytics error:', error);
+        showAlert('Failed to load sales analytics: ' + error.message, 'error');
+    }
+}
+
+async function showProductDetails(productId, period) {
+    try {
+        const response = await fetch(`${API_BASE}/analytics/sales-trends/${productId}?days_back=${period}`);
+        if (!response.ok) throw new Error('Failed to load product details');
+
+        const data = await response.json();
+
+        let detailsHtml = `
+            <div style="padding: 1.5rem;">
+                <h3 style="margin-bottom: 1rem;">${data.product_title}</h3>
+                <div style="margin-bottom: 1rem;">
+                    <strong>Total Sales:</strong> ${data.total_sales} units over ${data.period_days} days
+                </div>
+                <h4>Daily Breakdown:</h4>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Units Sold</th>
+                                <th>Cumulative</th>
+                                <th>Stock Remaining</th>
+                                <th>Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.daily_data.map(day => `
+                                <tr>
+                                    <td>${day.date}</td>
+                                    <td>${day.units_sold}</td>
+                                    <td>${day.cumulative_sales}</td>
+                                    <td>${day.stock_remaining}</td>
+                                    <td>${day.price.toFixed(2)} kr</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        showAlert(detailsHtml, 'info', 10000);
+
+    } catch (error) {
+        showAlert('Failed to load product details: ' + error.message, 'error');
+    }
+}
