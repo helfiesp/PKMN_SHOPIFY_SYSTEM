@@ -6652,6 +6652,7 @@ async function loadCompetitorAnalytics() {
         document.getElementById('stat-total-comp-products').textContent = data.totals.total_products || 0;
         document.getElementById('stat-total-stock-added').textContent = data.totals.total_stock_added || 0;
         document.getElementById('stat-total-stock-sold').textContent = data.totals.total_stock_removed || 0;
+        document.getElementById('stat-total-revenue').textContent = `${(data.totals.total_estimated_revenue || 0).toLocaleString('no-NO', {minimumFractionDigits: 0, maximumFractionDigits: 0})} kr`;
         document.getElementById('stat-total-mapped').textContent = data.totals.total_mapped_products || 0;
         document.getElementById('stat-we-cheaper').textContent = data.totals.total_we_are_cheaper || 0;
         document.getElementById('stat-we-expensive').textContent = data.totals.total_we_are_expensive || 0;
@@ -6695,6 +6696,10 @@ async function loadCompetitorAnalytics() {
                         <div style="text-align: center;">
                             <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Stock Sold</div>
                             <div style="font-size: 1.25rem; font-weight: 600; color: #ef4444;">-${summary.stock_removed}</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Est. Revenue</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: #f59e0b;">${summary.estimated_revenue.toLocaleString('no-NO', {minimumFractionDigits: 0, maximumFractionDigits: 0})} kr</div>
                         </div>
                         <div style="text-align: center;">
                             <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Daily Sales</div>
@@ -6817,7 +6822,7 @@ async function loadCompetitorAnalytics() {
                                             </div>
 
                                             <!-- Stock & Activity Stats -->
-                                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; margin-bottom: 1rem;">
+                                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem; margin-bottom: 1rem;">
                                                 <div style="text-align: center; padding: 0.65rem; background: rgba(255,255,255,0.7); border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
                                                     <div style="color: #6b7280; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.2rem;">Their Stock</div>
                                                     <div style="font-weight: 800; color: #111827; font-size: 1.1rem;">${p.current_stock}</div>
@@ -6829,6 +6834,10 @@ async function loadCompetitorAnalytics() {
                                                 <div style="text-align: center; padding: 0.65rem; background: rgba(255,255,255,0.7); border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
                                                     <div style="color: #6b7280; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.2rem;">They Sold</div>
                                                     <div style="font-weight: 800; color: #ef4444; font-size: 1.1rem;">${p.stock_removed}</div>
+                                                </div>
+                                                <div style="text-align: center; padding: 0.65rem; background: rgba(255,255,255,0.7); border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+                                                    <div style="color: #6b7280; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.2rem;">Est. Revenue</div>
+                                                    <div style="font-weight: 800; color: #f59e0b; font-size: 1.1rem;">${p.estimated_revenue.toLocaleString('no-NO', {minimumFractionDigits: 0, maximumFractionDigits: 0})} kr</div>
                                                 </div>
                                             </div>
 

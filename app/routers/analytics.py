@@ -678,6 +678,10 @@ async def get_competitor_overview(
                                 'stock_advantage': (our_variant.inventory_quantity or 0) - (product.stock_amount or 0)
                             }
 
+                # Calculate estimated revenue from stock sold
+                current_price_nok = (product.price_ore / 100) if product.price_ore else 0
+                estimated_revenue = stock_removed * current_price_nok
+
                 products_detail.append({
                     'product_id': product.id,
                     'name': product.normalized_name or product.raw_name or 'Unknown',
@@ -686,9 +690,10 @@ async def get_competitor_overview(
                     'brand': product.brand,
                     'language': product.language,
                     'current_stock': product.stock_amount or 0,
-                    'current_price': (product.price_ore / 100) if product.price_ore else 0,
+                    'current_price': current_price_nok,
                     'stock_added': stock_added,
                     'stock_removed': stock_removed,
+                    'estimated_revenue': estimated_revenue,
                     'price_changes': price_changes,
                     'avg_daily_sales': velocity.avg_daily_sales if velocity and velocity.avg_daily_sales else 0,
                     'total_sales_estimate': velocity.total_sales_estimate if velocity and velocity.total_sales_estimate else 0,
@@ -698,9 +703,10 @@ async def get_competitor_overview(
                     'our_product': our_product_info
                 })
 
-            # Calculate website-level stock changes
+            # Calculate website-level stock changes and revenue
             website_stock_added = sum(p['stock_added'] for p in products_detail)
             website_stock_removed = sum(p['stock_removed'] for p in products_detail)
+            website_estimated_revenue = sum(p['estimated_revenue'] for p in products_detail)
 
             # Calculate mapping stats
             mapped_products = [p for p in products_detail if p['mapped_to_us']]
@@ -721,6 +727,7 @@ async def get_competitor_overview(
                     'current_stock': total_current_stock,
                     'stock_added': website_stock_added,
                     'stock_removed': website_stock_removed,
+                    'estimated_revenue': website_estimated_revenue,
                     'estimated_sales': total_sales_estimate,
                     'avg_daily_sales': total_daily_sales,
                     'total_price_changes': sum(p['price_changes'] for p in products_detail),
@@ -746,6 +753,7 @@ async def get_competitor_overview(
                 'total_stock': sum(w['summary']['current_stock'] for w in website_analytics),
                 'total_stock_added': sum(w['summary']['stock_added'] for w in website_analytics),
                 'total_stock_removed': sum(w['summary']['stock_removed'] for w in website_analytics),
+                'total_estimated_revenue': sum(w['summary']['estimated_revenue'] for w in website_analytics),
                 'total_estimated_sales': sum(w['summary']['estimated_sales'] for w in website_analytics),
                 'total_mapped_products': sum(w['summary']['num_mapped_products'] for w in website_analytics),
                 'total_we_are_cheaper': sum(w['summary']['num_we_are_cheaper'] for w in website_analytics),
