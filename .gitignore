@@ -31,6 +31,8 @@ env/
 
 # FastAPI / Uvicorn
 *.log
+logs/*.log
+logs/*.txt
 
 # Database
 *.db

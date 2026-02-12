@@ -485,10 +485,8 @@ class PricePlanService:
                     variant_input = {
                         "id": item.variant_shopify_id,
                         "price": str(item.new_price),
+                        "compareAtPrice": None  # Always clear compare at price
                     }
-                    
-                    if item.new_compare_at:
-                        variant_input["compareAtPrice"] = str(item.new_compare_at)
                     
                     variant_inputs.append(variant_input)
                     items_to_mark.append(item)

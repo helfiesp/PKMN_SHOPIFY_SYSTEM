@@ -174,7 +174,8 @@ async def update_variant_price(
                     "variants": [
                         {
                             "id": variant.shopify_id,
-                            "price": str(price)
+                            "price": str(price),
+                            "compareAtPrice": None
                         }
                     ]
                 }

@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: shopify_db
+    environment:
+      POSTGRES_USER: shopify
+      POSTGRES_PASSWORD: shopify_password
+      POSTGRES_DB: shopify_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  api:
+    build: .
+    container_name: shopify_api
+    environment:
+      # Database
+      DATABASE_URL: postgresql://shopify:shopify_password@db:5432/shopify_db
+      
+      # Shopify (set these in .env file or here)
+      SHOPIFY_SHOP: ${SHOPIFY_SHOP}
+      SHOPIFY_TOKEN: ${SHOPIFY_TOKEN}
+      SHOPIFY_API_VERSION: ${SHOPIFY_API_VERSION:-2026-01}
+      
+      # Google Translate
+      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY}
+      
+      # Application
+      DEBUG: ${DEBUG:-false}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data  # Mount data directory for local development
+    restart: unless-stopped
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: shopify_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+# Usage:
+# 1. Copy this file to docker-compose.yml
+# 2. Create .env file with your credentials
+# 3. Run: docker-compose up -d
+# 4. Access API at http://localhost:8000/docs
+# 5. Access pgAdmin at http://localhost:5050
