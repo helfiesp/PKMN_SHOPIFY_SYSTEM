@@ -1972,15 +1972,8 @@ function renderProductIntelTable(products) {
             </tr>
             <tr id="details-${index}" style="display: none; background: #f9fafb;">
                 <td colspan="8" style="padding: 1.5rem;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
-                        <!-- Sales Chart -->
-                        <div>
-                            <h4 style="margin: 0 0 1rem 0; color: #111;">📈 Sales Trend (Last 7 Days)</h4>
-                            <div id="mini-chart-${index}"></div>
-                        </div>
-                        <!-- Competitor Details -->
-                        <div>
-                            <h4 style="margin: 0 0 1rem 0; color: #111;">🏪 Competitor Pricing & Intel</h4>
+                    <div>
+                        <h4 style="margin: 0 0 1rem 0; color: #111;">🏪 Competitor Pricing & Intel</h4>
                             ${compCount > 0 ? `
                                 <!-- Price Summary -->
                                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
@@ -2077,19 +2070,11 @@ function renderProductIntelTable(products) {
                                     </button>
                                 </div>
                             `}
-                        </div>
                     </div>
                 </td>
             </tr>
         `;
     }).join('');
-
-    // Render mini charts for expanded rows
-    products.forEach((product, index) => {
-        if (product.my_sales.daily_breakdown && product.my_sales.daily_breakdown.length > 0) {
-            setTimeout(() => renderMiniChart(index, product.my_sales.daily_breakdown), 100);
-        }
-    });
 }
 
 function renderMiniChart(index, dailyData) {
