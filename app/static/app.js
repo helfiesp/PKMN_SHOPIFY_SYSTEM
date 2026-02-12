@@ -266,6 +266,11 @@ function loadTabData(tabName) {
                 loadPricePlans();
             }, 100);
             break;
+        case 'product-intel':
+            setTimeout(() => {
+                loadProductIntelligence();
+            }, 100);
+            break;
         case 'analytics':
             setTimeout(() => {
                 loadSalesAnalytics();
@@ -1794,6 +1799,246 @@ async function updateProductSalesData(productId) {
     document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">Loading...</div>';
 
     await loadProductDetailData(productId);
+}
+
+// ============================================================================
+// Product Intelligence (Consolidated View)
+// ============================================================================
+
+let allProductIntelData = [];
+
+async function loadProductIntelligence() {
+    const period = document.getElementById('intel-period')?.value || 30;
+
+    try {
+        // Show loading state
+        const tbody = document.getElementById('product-intel-tbody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 2rem; color: #999;">Loading comprehensive product data...</td></tr>';
+        }
+
+        // Fetch sales comparison data (includes everything we need)
+        const response = await fetch(`${API_BASE}/analytics/sales-comparison?days_back=${period}`);
+        if (!response.ok) throw new Error('Failed to load product intelligence');
+
+        const data = await response.json();
+        allProductIntelData = data.products || [];
+
+        // Update summary stats
+        const totalMySales = data.summary.my_total_sales || 0;
+        const totalCompSales = data.summary.competitor_total_sales || 0;
+        const totalSales = totalMySales + totalCompSales;
+        const marketShare = totalSales > 0 ? ((totalMySales / totalSales) * 100).toFixed(1) : 0;
+
+        document.getElementById('intel-my-sales').textContent = `${totalMySales} units`;
+        document.getElementById('intel-comp-sales').textContent = `${totalCompSales} units`;
+        document.getElementById('intel-market-share').textContent = `${marketShare}%`;
+        document.getElementById('intel-outperforming').textContent = `${data.summary.products_outperforming} winning`;
+        document.getElementById('intel-total-products').textContent = data.total_products;
+
+        // Calculate revenue
+        const myRevenue = allProductIntelData.reduce((sum, p) => sum + (p.my_sales.total_units_sold * p.current_price), 0);
+        const compRevenue = allProductIntelData.reduce((sum, p) => {
+            return sum + p.competitor_sales.by_competitor.reduce((s, c) => s + (c.total_sales_estimate * c.price), 0);
+        }, 0);
+
+        document.getElementById('intel-my-revenue').textContent = `${myRevenue.toFixed(0)} kr revenue`;
+        document.getElementById('intel-comp-revenue').textContent = `${compRevenue.toFixed(0)} kr revenue`;
+
+        const totalCompetitors = allProductIntelData.reduce((sum, p) => sum + p.competitor_sales.competitors_count, 0);
+        document.getElementById('intel-total-competitors').textContent = `${totalCompetitors} competitors`;
+
+        // Render table
+        renderProductIntelTable(allProductIntelData);
+
+    } catch (error) {
+        console.error('Error loading product intelligence:', error);
+        const tbody = document.getElementById('product-intel-tbody');
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 2rem; color: #dc2626;">Failed to load: ${error.message}</td></tr>`;
+        }
+    }
+}
+
+function renderProductIntelTable(products) {
+    const tbody = document.getElementById('product-intel-tbody');
+    if (!tbody) return;
+
+    if (!products || products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding: 2rem; color: #999;">No products found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = products.map((product, index) => {
+        const isWinning = product.comparison.outperforming;
+        const marketShare = product.comparison.my_market_share_pct.toFixed(1);
+        const compCount = product.competitor_sales.competitors_count;
+        const mySales = product.my_sales.total_units_sold;
+        const compSales = product.competitor_sales.total_estimated_sales;
+        const avgDaily = product.my_sales.avg_daily_sales.toFixed(1);
+
+        // Price comparison with competitors
+        const competitorPrices = product.competitor_sales.by_competitor.map(c => c.price);
+        const avgCompPrice = competitorPrices.length > 0 ? competitorPrices.reduce((a, b) => a + b, 0) / competitorPrices.length : 0;
+        const priceDiff = avgCompPrice > 0 ? product.current_price - avgCompPrice : 0;
+        const priceStatus = priceDiff < -10 ? 'cheaper' : priceDiff > 10 ? 'expensive' : 'competitive';
+        const priceColor = priceStatus === 'cheaper' ? '#059669' : priceStatus === 'expensive' ? '#dc2626' : '#f59e0b';
+
+        return `
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="text-align: center;">
+                    <button onclick="toggleProductDetails(${index})" style="background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                        <span id="expand-icon-${index}">▶</span>
+                    </button>
+                </td>
+                <td>
+                    <div style="font-weight: 600; color: #111;">${product.product_title}</div>
+                    <div style="font-size: 0.85rem; color: #666;">${product.variant_title}</div>
+                </td>
+                <td>
+                    <div style="font-weight: 600; font-size: 1.1rem; color: ${priceColor};">${product.current_price.toFixed(0)} NOK</div>
+                    <div style="font-size: 0.85rem; color: ${product.current_stock > 10 ? '#059669' : product.current_stock > 0 ? '#f59e0b' : '#dc2626'};">
+                        ${product.current_stock} units in stock
+                    </div>
+                </td>
+                <td>
+                    <div style="font-weight: 700; font-size: 1.2rem; color: #2563eb;">${mySales}</div>
+                    <div style="font-size: 0.85rem; color: #666;">${avgDaily}/day avg</div>
+                </td>
+                <td>
+                    <div style="font-weight: 700; font-size: 1.2rem; color: ${compSales > 0 ? '#dc2626' : '#999'};">${compSales.toFixed(0)}</div>
+                    <div style="font-size: 0.85rem; color: #666;">${compCount} source${compCount !== 1 ? 's' : ''}</div>
+                </td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        ${isWinning ?
+                            '<span style="color: #22c55e; font-size: 1.5rem;">✓</span>' :
+                            '<span style="color: #ef4444; font-size: 1.5rem;">✗</span>'
+                        }
+                        <div>
+                            <div style="font-weight: 700; font-size: 1.1rem;">${marketShare}%</div>
+                            <div style="font-size: 0.75rem; color: #666;">${isWinning ? 'Winning' : 'Behind'}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    ${compCount > 0 ? `
+                        <div style="font-size: 0.85rem;">
+                            ${product.competitor_sales.by_competitor.slice(0, 2).map(c => `
+                                <div style="color: #666; margin-bottom: 0.25rem;">
+                                    <strong>${c.website}:</strong> ${c.price.toFixed(0)} NOK
+                                </div>
+                            `).join('')}
+                            ${compCount > 2 ? `<div style="color: #999; font-size: 0.75rem;">+${compCount - 2} more</div>` : ''}
+                        </div>
+                    ` : '<span style="color: #999;">No competitors</span>'}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-secondary" onclick="viewProduct(${product.product_id})">
+                        View Details
+                    </button>
+                </td>
+            </tr>
+            <tr id="details-${index}" style="display: none; background: #f9fafb;">
+                <td colspan="8" style="padding: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                        <!-- Sales Chart -->
+                        <div>
+                            <h4 style="margin: 0 0 1rem 0; color: #111;">📈 Sales Trend (Last 7 Days)</h4>
+                            <div id="mini-chart-${index}"></div>
+                        </div>
+                        <!-- Competitor Details -->
+                        <div>
+                            <h4 style="margin: 0 0 1rem 0; color: #111;">🏪 Competitor Breakdown</h4>
+                            ${compCount > 0 ? `
+                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                    ${product.competitor_sales.by_competitor.map(c => `
+                                        <div style="padding: 0.75rem; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                                <strong style="color: #111;">${c.website}</strong>
+                                                <span style="font-size: 1.1rem; font-weight: 700; color: #2563eb;">${c.price.toFixed(0)} NOK</span>
+                                            </div>
+                                            <div style="font-size: 0.85rem; color: #666;">${c.product_name}</div>
+                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem;">
+                                                <div><strong>Sales:</strong> ${c.total_sales_estimate.toFixed(0)} units</div>
+                                                <div><strong>Stock:</strong> ${c.current_stock} units</div>
+                                                <div><strong>Daily Avg:</strong> ${c.avg_daily_sales.toFixed(1)}/day</div>
+                                                <div><strong>Weekly:</strong> ${c.weekly_sales_estimate.toFixed(0)} units</div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : '<div style="color: #999; text-align: center; padding: 2rem;">No competitor data available</div>'}
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    // Render mini charts for expanded rows
+    products.forEach((product, index) => {
+        if (product.my_sales.daily_breakdown && product.my_sales.daily_breakdown.length > 0) {
+            setTimeout(() => renderMiniChart(index, product.my_sales.daily_breakdown), 100);
+        }
+    });
+}
+
+function renderMiniChart(index, dailyData) {
+    const chartEl = document.getElementById(`mini-chart-${index}`);
+    if (!chartEl) return;
+
+    const maxSales = Math.max(...dailyData.map(d => d.units_sold), 1);
+
+    const chartHTML = dailyData.map(day => {
+        const barWidth = (day.units_sold / maxSales) * 100;
+        const date = new Date(day.date).toLocaleDateString('no-NO', { month: 'short', day: 'numeric' });
+
+        return `
+            <div style="margin-bottom: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.25rem; color: #666;">
+                    <span>${date}</span>
+                    <span style="font-weight: 600;">${day.units_sold} units</span>
+                </div>
+                <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, #3b82f6, #2563eb); height: 100%; width: ${barWidth}%; transition: width 0.3s;"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    chartEl.innerHTML = chartHTML;
+}
+
+function toggleProductDetails(index) {
+    const detailsRow = document.getElementById(`details-${index}`);
+    const icon = document.getElementById(`expand-icon-${index}`);
+
+    if (!detailsRow || !icon) return;
+
+    if (detailsRow.style.display === 'none') {
+        detailsRow.style.display = '';
+        icon.textContent = '▼';
+    } else {
+        detailsRow.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
+function filterProductIntel() {
+    const searchTerm = document.getElementById('intel-search')?.value.toLowerCase() || '';
+
+    if (!searchTerm) {
+        renderProductIntelTable(allProductIntelData);
+        return;
+    }
+
+    const filtered = allProductIntelData.filter(p =>
+        p.product_title.toLowerCase().includes(searchTerm) ||
+        p.variant_title.toLowerCase().includes(searchTerm)
+    );
+
+    renderProductIntelTable(filtered);
 }
 
 // Price Plans

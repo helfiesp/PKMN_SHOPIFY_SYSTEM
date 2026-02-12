@@ -35,12 +35,10 @@
                 <button class="nav-item" data-tab="competitors">Competitors</button>
             </div>
             <div class="nav-secondary">
+                <button class="nav-item" data-tab="product-intel">📊 Product Intelligence</button>
                 <button class="nav-item" data-tab="mappings">Mappings</button>
-                <button class="nav-item" data-tab="competitor-mappings">Competitor Maps</button>
-                <button class="nav-item" data-tab="analytics">Sales Analytics</button>
                 <button class="nav-item" data-tab="competitor-analytics">Competitor Intel</button>
                 <button class="nav-item" data-tab="reports">Reports</button>
-                <button class="nav-item" data-tab="price-monitoring">Price Monitoring</button>
                 <button class="nav-item" data-tab="settings">Settings</button>
             </div>
         </nav>
@@ -216,6 +214,84 @@
                         <div class="form-label">Default Collection ID</div>
                         <div id="config-collection" style="font-weight: 500; color: #111;">-</div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Intelligence Tab (Consolidated) -->
+        <div id="product-intel-tab" class="tab-content is-hidden">
+            <!-- Controls Bar -->
+            <div style="background: white; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Time Period</label>
+                            <select id="intel-period" onchange="loadProductIntelligence()" style="padding: 0.5rem 1rem; border: 1px solid #d1d5db; border-radius: 4px;">
+                                <option value="7">Last 7 days</option>
+                                <option value="14">Last 14 days</option>
+                                <option value="30" selected>Last 30 days</option>
+                                <option value="60">Last 60 days</option>
+                                <option value="90">Last 90 days</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Search Products</label>
+                            <input type="text" id="intel-search" placeholder="Search by name..." style="padding: 0.5rem 1rem; border: 1px solid #d1d5db; border-radius: 4px; width: 250px;" oninput="filterProductIntel()">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="loadProductIntelligence()" style="align-self: flex-end;">
+                        🔄 Refresh Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Stats -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div class="stat-label" style="color: rgba(255,255,255,0.9);">My Total Sales</div>
+                    <div class="stat-value" id="intel-my-sales" style="color: white;">-</div>
+                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.9); margin-top: 0.5rem;" id="intel-my-revenue">- kr revenue</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                    <div class="stat-label" style="color: rgba(255,255,255,0.9);">Competitor Sales (Est.)</div>
+                    <div class="stat-value" id="intel-comp-sales" style="color: white;">-</div>
+                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.9); margin-top: 0.5rem;" id="intel-comp-revenue">- kr revenue</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                    <div class="stat-label" style="color: rgba(255,255,255,0.9);">Market Share</div>
+                    <div class="stat-value" id="intel-market-share" style="color: white;">-</div>
+                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.9); margin-top: 0.5rem;" id="intel-outperforming">- products winning</div>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;">
+                    <div class="stat-label" style="color: rgba(255,255,255,0.9);">Tracked Products</div>
+                    <div class="stat-value" id="intel-total-products" style="color: white;">-</div>
+                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.9); margin-top: 0.5rem;" id="intel-total-competitors">- competitors</div>
+                </div>
+            </div>
+
+            <!-- Products Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📦 Product Intelligence Dashboard</h3>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="data-table" id="product-intel-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"></th>
+                                <th>Product</th>
+                                <th>My Price & Stock</th>
+                                <th>My Sales</th>
+                                <th>Competitor Sales</th>
+                                <th>Market Position</th>
+                                <th>Competitors</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="product-intel-tbody">
+                            <tr><td colspan="8" class="text-center" style="padding: 3rem; color: #999;">Loading products...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
