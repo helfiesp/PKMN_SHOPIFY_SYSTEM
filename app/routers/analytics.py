@@ -261,18 +261,19 @@ async def get_sales_comparison(
                     CompetitorSalesVelocity.competitor_product_id == competitor.id
                 ).first()
 
+                # Include competitor even if no velocity data exists yet
                 if velocity and velocity.total_sales_estimate:
                     total_competitor_sales += velocity.total_sales_estimate
 
-                    all_competitors_velocity.append({
-                        'website': competitor.website,
-                        'product_name': competitor.normalized_name or competitor.raw_name,
-                        'avg_daily_sales': velocity.avg_daily_sales or 0,
-                        'weekly_sales_estimate': velocity.weekly_sales_estimate or 0,
-                        'total_sales_estimate': velocity.total_sales_estimate or 0,
-                        'current_stock': competitor.stock_amount or 0,
-                        'price': competitor.price_ore / 100 if competitor.price_ore else 0
-                    })
+                all_competitors_velocity.append({
+                    'website': competitor.website,
+                    'product_name': competitor.normalized_name or competitor.raw_name,
+                    'avg_daily_sales': velocity.avg_daily_sales if velocity else 0,
+                    'weekly_sales_estimate': velocity.weekly_sales_estimate if velocity else 0,
+                    'total_sales_estimate': velocity.total_sales_estimate if velocity else 0,
+                    'current_stock': competitor.stock_amount or 0,
+                    'price': (competitor.price_ore / 100) if competitor.price_ore else 0
+                })
 
             sales_data.append({
                 'product_id': product.id,
