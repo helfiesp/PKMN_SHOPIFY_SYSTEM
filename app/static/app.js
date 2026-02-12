@@ -433,7 +433,7 @@ function formatOsloTime(dateString) {
 // Dashboard
 async function loadDashboard() {
     try {
-        const [stats, config, syncStatus, priceHistory] = await Promise.all([
+        const [stats, config, syncStatus, priceHistory, lowStockAlerts] = await Promise.all([
             fetch(`${API_BASE}/reports/statistics`).then(r => {
                 if (!r.ok) throw new Error(`Statistics endpoint returned ${r.status}`);
                 return r.json();
@@ -449,7 +449,11 @@ async function loadDashboard() {
             fetch(`${API_BASE}/shopify/price-change-history?limit=10`).then(r => {
                 if (!r.ok) return { logs: [] };
                 return r.json();
-            }).catch(() => ({ logs: [] }))
+            }).catch(() => ({ logs: [] })),
+            fetch(`${API_BASE}/competitors/low-stock-alerts`).then(r => {
+                if (!r.ok) return { total_alerts: 0, alerts: [] };
+                return r.json();
+            }).catch(() => ({ total_alerts: 0, alerts: [] }))
         ]);
         
         console.log('Dashboard data loaded:', {stats, config, syncStatus, priceHistory});
@@ -531,7 +535,58 @@ async function loadDashboard() {
         } else if (recentChangesEl) {
             recentChangesEl.innerHTML = '<div style="padding: 2rem; text-align: center; color: #999;">No recent price changes</div>';
         }
-        
+
+        // Load low stock alerts
+        const alertsContainer = document.getElementById('low-stock-alerts-container');
+        const alertsList = document.getElementById('low-stock-alerts-list');
+        const alertCountBadge = document.getElementById('alert-count-badge');
+
+        if (lowStockAlerts && lowStockAlerts.total_alerts > 0) {
+            alertsContainer.style.display = 'block';
+            alertCountBadge.textContent = lowStockAlerts.total_alerts;
+
+            alertsList.innerHTML = lowStockAlerts.alerts.map(alert => {
+                const severityColors = {
+                    'critical': { bg: '#fee2e2', border: '#ef4444', text: '#991b1b', icon: '❌' },
+                    'warning': { bg: '#fef3c7', border: '#f59e0b', text: '#92400e', icon: '⚠️' },
+                    'info': { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af', icon: '📦' }
+                };
+                const colors = severityColors[alert.severity] || severityColors.info;
+
+                return `
+                    <div style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 1rem;
+                        background: ${colors.bg};
+                        border-left: 3px solid ${colors.border};
+                        border-radius: 0.5rem;
+                    ">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
+                            <span style="font-size: 1.25rem;">${colors.icon}</span>
+                            <div>
+                                <div style="font-weight: 600; color: ${colors.text}; margin-bottom: 0.25rem;">${alert.product_title}</div>
+                                <div style="font-size: 0.85rem; color: #666;">
+                                    ${alert.variant_title} •
+                                    <strong style="color: ${colors.text};">${alert.stock} units remaining</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            class="btn btn-sm btn-secondary"
+                            onclick="switchTab('products')"
+                            style="background: ${colors.border}; border-color: ${colors.border}; color: white; white-space: nowrap;"
+                        >
+                            View Product
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            alertsContainer.style.display = 'none';
+        }
+
     } catch (error) {
         console.error('Dashboard error:', error);
         showAlert('Failed to load dashboard data: ' + error.message, 'error');

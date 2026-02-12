@@ -622,6 +622,63 @@ async def get_price_comparison(
     return comparison
 
 
+@router.get("/low-stock-alerts")
+async def get_low_stock_alerts(
+    db: Session = Depends(get_db)
+):
+    """
+    Get low stock alerts for products that are mapped to competitors.
+    Returns products with stock <= 10 that have competitor mappings.
+    """
+    from app.models import Product, Variant, CompetitorProductMapping
+    from sqlalchemy import and_
+
+    try:
+        # Query for products with low stock that have competitor mappings
+        low_stock_products = (
+            db.query(Product, Variant)
+            .join(Variant, Product.id == Variant.product_id)
+            .join(CompetitorProductMapping, CompetitorProductMapping.shopify_product_id == Product.id)
+            .filter(
+                and_(
+                    Product.status == 'ACTIVE',
+                    Variant.inventory_quantity <= 10
+                )
+            )
+            .distinct(Product.id)
+            .all()
+        )
+
+        alerts = []
+        for product, variant in low_stock_products:
+            stock_level = variant.inventory_quantity or 0
+            severity = 'critical' if stock_level == 0 else 'warning' if stock_level <= 5 else 'info'
+
+            alerts.append({
+                'product_id': product.id,
+                'product_title': product.title,
+                'product_handle': product.handle,
+                'variant_id': variant.id,
+                'variant_title': variant.title,
+                'stock': stock_level,
+                'severity': severity,
+                'message': f"{product.title} - {stock_level} units left"
+            })
+
+        # Sort by stock level (lowest first)
+        alerts.sort(key=lambda x: x['stock'])
+
+        return {
+            'total_alerts': len(alerts),
+            'critical': sum(1 for a in alerts if a['severity'] == 'critical'),
+            'warning': sum(1 for a in alerts if a['severity'] == 'warning'),
+            'alerts': alerts
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch low stock alerts: {str(e)}")
+
+
 @router.get("/price-changes")
 async def get_competitor_price_changes(
     days_back: int = 30,
