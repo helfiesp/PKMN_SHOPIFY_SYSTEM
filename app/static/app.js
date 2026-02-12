@@ -372,6 +372,11 @@ function loadTabData(tabName) {
                 loadCompetitorMappings();
             }, 100);
             break;
+        case 'competitor-analytics':
+            setTimeout(() => {
+                loadCompetitorAnalytics();
+            }, 100);
+            break;
         case 'price-monitoring':
             setTimeout(() => {
                 loadPriceMonitoring();
