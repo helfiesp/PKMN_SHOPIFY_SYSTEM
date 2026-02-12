@@ -1925,18 +1925,49 @@ function renderProductIntelTable(products) {
                     ${compCount > 0 ? `
                         <div style="font-size: 0.85rem;">
                             ${product.competitor_sales.by_competitor.slice(0, 2).map(c => `
-                                <div style="color: #666; margin-bottom: 0.25rem;">
-                                    <strong>${c.website}:</strong> ${c.price.toFixed(0)} NOK
+                                <div style="color: #666; margin-bottom: 0.25rem; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong>${c.website}:</strong>
+                                        <span style="color: ${c.price < product.current_price ? '#dc2626' : '#059669'};">${c.price.toFixed(0)} NOK</span>
+                                    </div>
+                                    ${c.price < product.current_price ? `
+                                        <button class="btn btn-xs" onclick="matchCompetitorPrice(${product.product_id}, ${c.price}, '${c.website}')"
+                                                style="font-size: 0.7rem; padding: 0.15rem 0.4rem; background: #dc2626; color: white; border: none;">
+                                            Match
+                                        </button>
+                                    ` : ''}
                                 </div>
                             `).join('')}
-                            ${compCount > 2 ? `<div style="color: #999; font-size: 0.75rem;">+${compCount - 2} more</div>` : ''}
+                            ${compCount > 2 ? `<div style="color: #999; font-size: 0.75rem; margin-top: 0.25rem;">+${compCount - 2} more</div>` : ''}
                         </div>
-                    ` : '<span style="color: #999;">No competitors</span>'}
+                    ` : `
+                        <div style="color: #999; font-size: 0.85rem;">
+                            <div>No competitors</div>
+                            <button class="btn btn-xs" onclick="mapCompetitors(${product.product_id})"
+                                    style="font-size: 0.7rem; padding: 0.15rem 0.4rem; margin-top: 0.25rem;">
+                                Map Competitors
+                            </button>
+                        </div>
+                    `}
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-secondary" onclick="viewProduct(${product.product_id})">
-                        View Details
-                    </button>
+                    <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                        <button class="btn btn-sm btn-secondary" onclick="viewProduct(${product.product_id})" style="font-size: 0.85rem; padding: 0.4rem 0.75rem;">
+                            📊 Details
+                        </button>
+                        ${compCount > 0 && avgCompPrice > 0 && avgCompPrice < product.current_price ? `
+                            <button class="btn btn-sm" onclick="matchAveragePrice(${product.product_id}, ${avgCompPrice.toFixed(2)})"
+                                    style="font-size: 0.85rem; padding: 0.4rem 0.75rem; background: #f59e0b; color: white; border: none;">
+                                💰 Match Avg (${avgCompPrice.toFixed(0)} NOK)
+                            </button>
+                        ` : ''}
+                        ${compCount > 0 && competitorPrices.length > 0 ? `
+                            <button class="btn btn-sm" onclick="undercut Lowest(${product.product_id}, ${Math.min(...competitorPrices).toFixed(2)})"
+                                    style="font-size: 0.85rem; padding: 0.4rem 0.75rem; background: #059669; color: white; border: none;">
+                                ⚡ Undercut (${(Math.min(...competitorPrices) - 10).toFixed(0)} NOK)
+                            </button>
+                        ` : ''}
+                    </div>
                 </td>
             </tr>
             <tr id="details-${index}" style="display: none; background: #f9fafb;">
@@ -2039,6 +2070,85 @@ function filterProductIntel() {
     );
 
     renderProductIntelTable(filtered);
+}
+
+// Product Intelligence Actions
+async function matchCompetitorPrice(productId, price, website) {
+    if (!confirm(`Match ${website}'s price of ${price.toFixed(0)} NOK?`)) return;
+
+    try {
+        // Create a price plan to match the competitor
+        const response = await fetch(`${API_BASE}/price-plans`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: productId,
+                new_price_nok: price,
+                reason: `Match ${website} price`
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to create price plan');
+
+        showAlert(`Price plan created to match ${website}`, 'success');
+        loadProductIntelligence(); // Refresh data
+    } catch (error) {
+        showAlert(`Failed to match price: ${error.message}`, 'error');
+    }
+}
+
+async function matchAveragePrice(productId, avgPrice) {
+    if (!confirm(`Match average competitor price of ${avgPrice.toFixed(0)} NOK?`)) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/price-plans`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: productId,
+                new_price_nok: avgPrice,
+                reason: 'Match average competitor price'
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to create price plan');
+
+        showAlert('Price plan created to match average', 'success');
+        loadProductIntelligence(); // Refresh data
+    } catch (error) {
+        showAlert(`Failed to match price: ${error.message}`, 'error');
+    }
+}
+
+async function undercutLowest(productId, lowestPrice) {
+    const undercutPrice = lowestPrice - 10;
+    if (!confirm(`Undercut lowest competitor price? Set to ${undercutPrice.toFixed(0)} NOK?`)) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/price-plans`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: productId,
+                new_price_nok: undercutPrice,
+                reason: 'Undercut lowest competitor by 10 NOK'
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to create price plan');
+
+        showAlert('Price plan created to undercut competition', 'success');
+        loadProductIntelligence(); // Refresh data
+    } catch (error) {
+        showAlert(`Failed to create price plan: ${error.message}`, 'error');
+    }
+}
+
+async function mapCompetitors(productId) {
+    showAlert('Opening competitor mapping interface...', 'info');
+    // Switch to competitor mappings tab with this product pre-selected
+    switchTab('competitor-mappings');
+    // TODO: Could add product filter/highlight here
 }
 
 // Price Plans
