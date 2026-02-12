@@ -656,7 +656,7 @@ async def get_competitor_overview(
                     'avg_daily_sales': velocity.avg_daily_sales if velocity and velocity.avg_daily_sales else 0,
                     'total_sales_estimate': velocity.total_sales_estimate if velocity and velocity.total_sales_estimate else 0,
                     'days_until_sellout': velocity.days_until_sellout if velocity and velocity.days_until_sellout else None,
-                    'last_updated': product.last_check_time.isoformat() if product.last_check_time else None
+                    'last_updated': product.last_scraped_at.isoformat() if product.last_scraped_at else None
                 })
 
             # Calculate website-level stock changes
