@@ -16,8 +16,104 @@ from app.models import (
     CompetitorSalesVelocity,
     CompetitorProductDaily
 )
+from app.config import settings
+import requests
 
 router = APIRouter()
+
+
+def fetch_shopify_orders(days_back: int = 30):
+    """Fetch orders from Shopify GraphQL API."""
+    shop = settings.get_shopify_shop()
+    token = settings.get_shopify_token()
+
+    if not shop or not token:
+        return []
+
+    cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+
+    query = """
+    query($first: Int!, $query: String, $after: String) {
+        orders(first: $first, query: $query, after: $after) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            edges {
+                node {
+                    id
+                    name
+                    createdAt
+                    lineItems(first: 100) {
+                        edges {
+                            node {
+                                id
+                                title
+                                quantity
+                                variant {
+                                    id
+                                    title
+                                    product {
+                                        id
+                                        title
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+
+    url = f"https://{shop}/admin/api/{settings.shopify_api_version}/graphql.json"
+    headers = {
+        "X-Shopify-Access-Token": token,
+        "Content-Type": "application/json"
+    }
+
+    all_orders = []
+    has_next = True
+    cursor = None
+
+    try:
+        while has_next:
+            variables = {
+                "first": 250,
+                "query": f"created_at:>={cutoff_date}",
+                "after": cursor
+            }
+
+            response = requests.post(
+                url,
+                json={"query": query, "variables": variables},
+                headers=headers,
+                timeout=60
+            )
+
+            if not response.ok:
+                break
+
+            data = response.json()
+
+            if "errors" in data:
+                break
+
+            orders_data = data.get("data", {}).get("orders", {})
+            edges = orders_data.get("edges", [])
+
+            for edge in edges:
+                all_orders.append(edge["node"])
+
+            page_info = orders_data.get("pageInfo", {})
+            has_next = page_info.get("hasNextPage", False)
+            cursor = page_info.get("endCursor")
+
+    except Exception as e:
+        print(f"Error fetching orders: {e}")
+
+    return all_orders
 
 
 @router.get("/sales-comparison")
@@ -32,51 +128,66 @@ async def get_sales_comparison(
     """
     try:
         # Get all products with competitor mappings
+        # Only get Booster Box variants, exclude packs
         query = (
             db.query(Product, Variant, CompetitorProductMapping)
             .join(Variant, Product.id == Variant.product_id)
             .join(CompetitorProductMapping, CompetitorProductMapping.shopify_product_id == Product.id)
-            .filter(Product.status == 'ACTIVE')
+            .filter(
+                and_(
+                    Product.status == 'ACTIVE',
+                    # Exclude Booster Pack variants
+                    ~Variant.title.ilike('%booster pack%')
+                )
+            )
         )
 
         if product_id:
             query = query.filter(Product.id == product_id)
 
-        mapped_products = query.all()
+        # Group by product to avoid duplicates (only take first variant per product)
+        seen_products = set()
+        mapped_products = []
+        for product, variant, mapping in query.all():
+            if product.id not in seen_products:
+                seen_products.add(product.id)
+                mapped_products.append((product, variant, mapping))
 
         cutoff_date = datetime.now() - timedelta(days=days_back)
+
+        # Fetch actual Shopify orders
+        orders = fetch_shopify_orders(days_back)
+
+        # Calculate sales from orders per variant
+        sales_by_variant = defaultdict(lambda: {'total': 0, 'daily': defaultdict(int)})
+
+        for order in orders:
+            order_date = datetime.fromisoformat(order['createdAt'].replace('Z', '+00:00')).date()
+
+            for item_edge in order.get('lineItems', {}).get('edges', []):
+                item = item_edge['node']
+                variant_gid = item.get('variant', {}).get('id') if item.get('variant') else None
+
+                if variant_gid:
+                    quantity = item.get('quantity', 0)
+                    sales_by_variant[variant_gid]['total'] += quantity
+                    sales_by_variant[variant_gid]['daily'][order_date.isoformat()] += quantity
+
         sales_data = []
 
         for product, variant, mapping in mapped_products:
-            # Calculate MY sales from inventory history
-            inventory_history = (
-                db.query(ProductPriceHistory)
-                .filter(
-                    ProductPriceHistory.variant_id == variant.id,
-                    ProductPriceHistory.recorded_at >= cutoff_date
-                )
-                .order_by(ProductPriceHistory.recorded_at.asc())
-                .all()
-            )
+            # Get sales from Shopify orders
+            variant_sales = sales_by_variant.get(variant.shopify_id, {'total': 0, 'daily': {}})
+            my_sales = variant_sales['total']
 
-            my_sales = 0
-            my_daily_sales = []
-
-            if len(inventory_history) >= 2:
-                for i in range(1, len(inventory_history)):
-                    prev = inventory_history[i-1]
-                    curr = inventory_history[i]
-
-                    # Inventory decreased = sales (ignore increases as they're restocks)
-                    if prev.inventory_quantity > curr.inventory_quantity:
-                        units_sold = prev.inventory_quantity - curr.inventory_quantity
-                        my_sales += units_sold
-
-                        my_daily_sales.append({
-                            'date': curr.recorded_at.date().isoformat(),
-                            'units_sold': units_sold,
-                            'remaining_stock': curr.inventory_quantity
-                        })
+            my_daily_sales = [
+                {
+                    'date': date,
+                    'units_sold': units,
+                    'remaining_stock': variant.inventory_quantity or 0
+                }
+                for date, units in sorted(variant_sales['daily'].items())
+            ]
 
             # Get competitor sales data
             competitor_sales_total = 0
@@ -203,37 +314,37 @@ async def get_product_sales_trend(
         if not variant:
             raise HTTPException(status_code=404, detail="No variant found for product")
 
-        cutoff_date = datetime.now() - timedelta(days=days_back)
+        # Fetch actual Shopify orders
+        orders = fetch_shopify_orders(days_back)
 
-        # Get inventory history
-        history = (
-            db.query(ProductPriceHistory)
-            .filter(
-                ProductPriceHistory.variant_id == variant.id,
-                ProductPriceHistory.recorded_at >= cutoff_date
-            )
-            .order_by(ProductPriceHistory.recorded_at.asc())
-            .all()
-        )
+        # Calculate sales from orders
+        daily_sales = defaultdict(int)
+
+        for order in orders:
+            order_date = datetime.fromisoformat(order['createdAt'].replace('Z', '+00:00')).date()
+
+            for item_edge in order.get('lineItems', {}).get('edges', []):
+                item = item_edge['node']
+                variant_gid = item.get('variant', {}).get('id') if item.get('variant') else None
+
+                if variant_gid == variant.shopify_id:
+                    quantity = item.get('quantity', 0)
+                    daily_sales[order_date.isoformat()] += quantity
 
         daily_data = []
         cumulative_sales = 0
 
-        for i in range(1, len(history)):
-            prev = history[i-1]
-            curr = history[i]
+        for date in sorted(daily_sales.keys()):
+            units_sold = daily_sales[date]
+            cumulative_sales += units_sold
 
-            if prev.inventory_quantity > curr.inventory_quantity:
-                units_sold = prev.inventory_quantity - curr.inventory_quantity
-                cumulative_sales += units_sold
-
-                daily_data.append({
-                    'date': curr.recorded_at.date().isoformat(),
-                    'units_sold': units_sold,
-                    'cumulative_sales': cumulative_sales,
-                    'stock_remaining': curr.inventory_quantity,
-                    'price': float(curr.price) if curr.price else 0
-                })
+            daily_data.append({
+                'date': date,
+                'units_sold': units_sold,
+                'cumulative_sales': cumulative_sales,
+                'stock_remaining': variant.inventory_quantity or 0,
+                'price': float(variant.price) if variant.price else 0
+            })
 
         return {
             'product_id': product_id,
@@ -257,14 +368,32 @@ async def get_top_sellers(
 ):
     """Get top selling products with competitor mappings."""
     try:
-        cutoff_date = datetime.now() - timedelta(days=days_back)
+        # Fetch actual Shopify orders
+        orders = fetch_shopify_orders(days_back)
 
-        # Get all products with competitor mappings
+        # Calculate sales from orders
+        sales_by_variant = defaultdict(int)
+
+        for order in orders:
+            for item_edge in order.get('lineItems', {}).get('edges', []):
+                item = item_edge['node']
+                variant_gid = item.get('variant', {}).get('id') if item.get('variant') else None
+
+                if variant_gid:
+                    quantity = item.get('quantity', 0)
+                    sales_by_variant[variant_gid] += quantity
+
+        # Get all products with competitor mappings (exclude packs)
         mapped_products = (
             db.query(Product, Variant)
             .join(Variant, Product.id == Variant.product_id)
             .join(CompetitorProductMapping, CompetitorProductMapping.shopify_product_id == Product.id)
-            .filter(Product.status == 'ACTIVE')
+            .filter(
+                and_(
+                    Product.status == 'ACTIVE',
+                    ~Variant.title.ilike('%booster pack%')
+                )
+            )
             .distinct(Product.id)
             .all()
         )
@@ -272,24 +401,7 @@ async def get_top_sellers(
         sellers = []
 
         for product, variant in mapped_products:
-            inventory_history = (
-                db.query(ProductPriceHistory)
-                .filter(
-                    ProductPriceHistory.variant_id == variant.id,
-                    ProductPriceHistory.recorded_at >= cutoff_date
-                )
-                .order_by(ProductPriceHistory.recorded_at.asc())
-                .all()
-            )
-
-            total_sales = 0
-            if len(inventory_history) >= 2:
-                for i in range(1, len(inventory_history)):
-                    prev = inventory_history[i-1]
-                    curr = inventory_history[i]
-
-                    if prev.inventory_quantity > curr.inventory_quantity:
-                        total_sales += prev.inventory_quantity - curr.inventory_quantity
+            total_sales = sales_by_variant.get(variant.shopify_id, 0)
 
             if total_sales > 0:
                 sellers.append({
