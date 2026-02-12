@@ -1259,11 +1259,413 @@ async function syncCollection() {
     }
 }
 
+// ============================================================================
+// Product Detail Modal
+// ============================================================================
+
+async function viewProduct(productId) {
+    try {
+        // Create modal
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        `;
+
+        modal.innerHTML = `
+            <div style="background: white; border-radius: 12px; max-width: 1400px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+                <div style="padding: 2rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 10;">
+                    <div>
+                        <h2 style="margin: 0; color: #111; font-size: 1.5rem;" id="modal-product-title">Loading...</h2>
+                        <div style="font-size: 0.9rem; color: #666; margin-top: 0.25rem;" id="modal-product-subtitle">Product ID: ${productId}</div>
+                    </div>
+                    <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: none; border: none; font-size: 2rem; cursor: pointer; color: #666; line-height: 1;">&times;</button>
+                </div>
+
+                <div style="padding: 2rem;">
+                    <!-- Time Range Selector -->
+                    <div style="margin-bottom: 2rem; padding: 1rem; background: #f9fafb; border-radius: 8px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Sales Time Range:</label>
+                        <select id="time-range-selector" onchange="updateProductSalesData(${productId})" style="padding: 0.5rem 1rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.9rem;">
+                            <option value="7">Last 7 days</option>
+                            <option value="14">Last 14 days</option>
+                            <option value="30" selected>Last 30 days</option>
+                            <option value="60">Last 60 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                    </div>
+
+                    <!-- Main Grid -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+                        <!-- Left Column: Product Info & Sales -->
+                        <div>
+                            <!-- Variant Info Card -->
+                            <div style="background: #f9fafb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                                <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #111;">📦 Booster Box Variant</h3>
+                                <div id="variant-info" style="color: #666;">Loading...</div>
+                            </div>
+
+                            <!-- Sales Data Card -->
+                            <div style="background: #eff6ff; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                                <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #111;">📊 Sales Performance</h3>
+                                <div id="sales-data" style="color: #666;">Loading...</div>
+                            </div>
+
+                            <!-- SNKRDUNK Price Card -->
+                            <div style="background: #f0fdf4; border-radius: 8px; padding: 1.5rem;">
+                                <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #111;">🏷️ SNKRDUNK Price</h3>
+                                <div id="snkrdunk-price-data" style="color: #666;">Loading...</div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Competitor Intel -->
+                        <div>
+                            <!-- Price Comparison Card -->
+                            <div style="background: #fef3c7; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                                <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #111;">⚔️ Competitor Pricing</h3>
+                                <div id="price-comparison-data" style="color: #666;">Loading...</div>
+                            </div>
+
+                            <!-- Competitor Sales Card -->
+                            <div style="background: #fce7f3; border-radius: 8px; padding: 1.5rem;">
+                                <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #111;">🔍 Competitor Sales Intelligence</h3>
+                                <div id="competitor-sales-data" style="color: #666;">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Full Width: Sales Chart -->
+                    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem;">
+                        <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #111;">📈 Sales Trend</h3>
+                        <div id="sales-chart" style="min-height: 200px;"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+
+        // Load all data
+        await loadProductDetailData(productId);
+
+    } catch (error) {
+        console.error('Error opening product view:', error);
+        showAlert('error', `Failed to load product: ${error.message}`);
+    }
+}
+
+async function loadProductDetailData(productId) {
+    const timeRange = document.getElementById('time-range-selector')?.value || 30;
+
+    try {
+        // Fetch product details
+        const productResp = await fetch(`${API_BASE}/shopify/products/${productId}`);
+        if (!productResp.ok) throw new Error('Failed to load product');
+        const product = await productResp.json();
+
+        // Update title
+        document.getElementById('modal-product-title').textContent = product.title || 'Product Details';
+        document.getElementById('modal-product-subtitle').textContent = `SKU: ${product.variants?.[0]?.sku || 'N/A'} | Status: ${product.status}`;
+
+        // Load variant info (first variant - booster box)
+        if (product.variants && product.variants.length > 0) {
+            const variant = product.variants[0];
+            document.getElementById('variant-info').innerHTML = `
+                <div style="display: grid; gap: 0.75rem;">
+                    <div><strong>Title:</strong> ${variant.title || 'Default'}</div>
+                    <div><strong>SKU:</strong> ${variant.sku || 'N/A'}</div>
+                    <div><strong>Current Price:</strong> <span style="font-size: 1.2rem; color: #059669; font-weight: 600;">${variant.price ? variant.price + ' NOK' : 'N/A'}</span></div>
+                    <div><strong>Stock:</strong> <span style="color: ${(variant.inventory_quantity || 0) > 10 ? '#059669' : (variant.inventory_quantity || 0) > 0 ? '#f59e0b' : '#dc2626'};">${variant.inventory_quantity || 0} units</span></div>
+                    <div><strong>Barcode:</strong> ${variant.barcode || 'N/A'}</div>
+                    <div><strong>Weight:</strong> ${variant.grams ? (variant.grams / 1000) + ' kg' : 'N/A'}</div>
+                </div>
+            `;
+        } else {
+            document.getElementById('variant-info').innerHTML = '<div style="color: #999;">No variant data available</div>';
+        }
+
+        // Load sales data
+        await loadSalesData(productId, timeRange);
+
+        // Load SNKRDUNK price
+        await loadSnkrdunkPrice(productId);
+
+        // Load competitor data
+        await loadCompetitorData(productId, timeRange);
+
+    } catch (error) {
+        console.error('Error loading product details:', error);
+        showAlert('error', `Error: ${error.message}`);
+    }
+}
+
+async function loadSalesData(productId, daysBack) {
+    try {
+        const resp = await fetch(`${API_BASE}/analytics/sales-trends/${productId}?days_back=${daysBack}`);
+        if (!resp.ok) {
+            document.getElementById('sales-data').innerHTML = '<div style="color: #999;">No sales data available</div>';
+            document.getElementById('sales-chart').innerHTML = '<div style="color: #999; text-align: center; padding: 2rem;">No sales data to display</div>';
+            return;
+        }
+
+        const data = await resp.json();
+
+        // Display summary
+        const totalSales = data.total_sales || 0;
+        const avgDailySales = totalSales / daysBack;
+        const recentDays = data.daily_data?.slice(-7) || [];
+        const recentSales = recentDays.reduce((sum, day) => sum + (day.units_sold || 0), 0);
+
+        document.getElementById('sales-data').innerHTML = `
+            <div style="display: grid; gap: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Total Sales (${daysBack} days):</span>
+                    <span style="font-size: 1.5rem; font-weight: 700; color: #2563eb;">${totalSales} units</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Average Daily Sales:</span>
+                    <span style="font-weight: 600; color: #059669;">${avgDailySales.toFixed(2)} units/day</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Last 7 Days Sales:</span>
+                    <span style="font-weight: 600; color: ${recentSales > 0 ? '#059669' : '#666'};">${recentSales} units</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Current Stock:</span>
+                    <span style="font-weight: 600;">${data.daily_data?.[data.daily_data.length - 1]?.stock_remaining || 0} units</span>
+                </div>
+            </div>
+        `;
+
+        // Simple text-based chart
+        if (data.daily_data && data.daily_data.length > 0) {
+            const chartData = data.daily_data;
+            const maxSales = Math.max(...chartData.map(d => d.units_sold || 0), 1);
+
+            const chartHTML = chartData.map(day => {
+                const barWidth = ((day.units_sold || 0) / maxSales) * 100;
+                return `
+                    <div style="margin-bottom: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.25rem;">
+                            <span>${day.date}</span>
+                            <span style="font-weight: 600;">${day.units_sold || 0} units</span>
+                        </div>
+                        <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #3b82f6, #2563eb); height: 100%; width: ${barWidth}%; transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('sales-chart').innerHTML = chartHTML || '<div style="color: #999; text-align: center;">No daily data</div>';
+        }
+
+    } catch (error) {
+        console.error('Error loading sales data:', error);
+        document.getElementById('sales-data').innerHTML = '<div style="color: #dc2626;">Error loading sales data</div>';
+    }
+}
+
+async function loadSnkrdunkPrice(productId) {
+    try {
+        // Check if product has SNKRDUNK mapping
+        const mappingResp = await fetch(`${API_BASE}/mappings/snkrdunk`);
+        if (!mappingResp.ok) {
+            document.getElementById('snkrdunk-price-data').innerHTML = '<div style="color: #999;">Not mapped to SNKRDUNK</div>';
+            return;
+        }
+
+        const mappings = await mappingResp.json();
+        const productResp = await fetch(`${API_BASE}/shopify/products/${productId}`);
+        const product = await productResp.json();
+
+        const mapping = mappings.find(m => m.product_shopify_id === product.shopify_id);
+
+        if (!mapping) {
+            document.getElementById('snkrdunk-price-data').innerHTML = '<div style="color: #999;">Not mapped to SNKRDUNK</div>';
+            return;
+        }
+
+        // Fetch SNKRDUNK product details
+        const snkrdunkResp = await fetch(`${API_BASE}/snkrdunk/products`);
+        if (!snkrdunkResp.ok) throw new Error('Failed to fetch SNKRDUNK products');
+
+        const snkrdunkProducts = await snkrdunkResp.json();
+        const snkrdunkProduct = snkrdunkProducts.find(p => p.id.toString() === mapping.snkrdunk_key);
+
+        if (snkrdunkProduct) {
+            const jpyPrice = snkrdunkProduct.lowestPriceJpy || snkrdunkProduct.lowestPrice || 0;
+            const nokPrice = snkrdunkProduct.calculatedNok || 0;
+
+            document.getElementById('snkrdunk-price-data').innerHTML = `
+                <div style="display: grid; gap: 0.75rem;">
+                    <div><strong>Product:</strong> ${snkrdunkProduct.nameEn || snkrdunkProduct.name}</div>
+                    <div><strong>SNKRDUNK Price (JPY):</strong> <span style="font-size: 1.2rem; color: #059669; font-weight: 600;">¥${jpyPrice.toLocaleString()}</span></div>
+                    <div><strong>Calculated NOK:</strong> ${nokPrice.toFixed(2)} NOK</div>
+                    <div><strong>Category:</strong> ${snkrdunkProduct.categoryName || 'N/A'}</div>
+                    <div><strong>Release Date:</strong> ${snkrdunkProduct.releaseDate || 'N/A'}</div>
+                </div>
+            `;
+        } else {
+            document.getElementById('snkrdunk-price-data').innerHTML = '<div style="color: #999;">SNKRDUNK product not found</div>';
+        }
+
+    } catch (error) {
+        console.error('Error loading SNKRDUNK price:', error);
+        document.getElementById('snkrdunk-price-data').innerHTML = '<div style="color: #999;">Unable to load SNKRDUNK data</div>';
+    }
+}
+
+async function loadCompetitorData(productId, daysBack) {
+    try {
+        // Load price comparison
+        const priceResp = await fetch(`${API_BASE}/competitors/price-comparison/${productId}`);
+        if (!priceResp.ok) {
+            document.getElementById('price-comparison-data').innerHTML = '<div style="color: #999;">No competitor pricing data</div>';
+            document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">No competitor sales data</div>';
+            return;
+        }
+
+        const priceData = await priceResp.json();
+
+        // Display price comparison
+        if (priceData.competitors && priceData.competitors.length > 0) {
+            const ourPrice = priceData.our_price || 0;
+
+            const competitorRows = priceData.competitors.map(comp => {
+                const priceDiff = ourPrice - comp.price;
+                const diffColor = priceDiff > 0 ? '#dc2626' : priceDiff < 0 ? '#059669' : '#666';
+                const diffText = priceDiff > 0 ? `+${priceDiff.toFixed(0)} NOK (we're higher)` : priceDiff < 0 ? `${priceDiff.toFixed(0)} NOK (we're cheaper)` : 'Same price';
+
+                return `
+                    <div style="padding: 1rem; background: white; border-radius: 6px; margin-bottom: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <strong style="color: #111;">${comp.website}</strong>
+                            <span style="font-size: 1.2rem; font-weight: 700; color: #2563eb;">${comp.price.toFixed(2)} NOK</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">${comp.product_name}</div>
+                        <div style="font-size: 0.85rem; color: ${diffColor};">${diffText}</div>
+                        <div style="font-size: 0.85rem; color: #666;">Stock: ${comp.stock_amount || 0} units | Status: ${comp.stock_status || 'Unknown'}</div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('price-comparison-data').innerHTML = `
+                <div style="margin-bottom: 1rem; padding: 1rem; background: white; border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <strong>Our Price:</strong>
+                        <span style="font-size: 1.3rem; font-weight: 700; color: #059669;">${ourPrice.toFixed(2)} NOK</span>
+                    </div>
+                </div>
+                ${competitorRows}
+            `;
+
+            // Load competitor sales intelligence
+            await loadCompetitorSalesIntel(priceData.competitors, daysBack);
+
+        } else {
+            document.getElementById('price-comparison-data').innerHTML = '<div style="color: #999;">No competitor pricing available</div>';
+            document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">No competitor sales data</div>';
+        }
+
+    } catch (error) {
+        console.error('Error loading competitor data:', error);
+        document.getElementById('price-comparison-data').innerHTML = '<div style="color: #dc2626;">Error loading competitor data</div>';
+        document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #dc2626;">Error loading sales data</div>';
+    }
+}
+
+async function loadCompetitorSalesIntel(competitors, daysBack) {
+    try {
+        // Fetch competitor overview to get sales velocity data
+        const overviewResp = await fetch(`${API_BASE}/analytics/competitor-overview?days_back=${daysBack}`);
+        if (!overviewResp.ok) {
+            document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">Sales intelligence not available</div>';
+            return;
+        }
+
+        const overview = await overviewResp.json();
+
+        // Match competitors with sales data
+        const salesData = competitors.map(comp => {
+            const website = overview.websites?.find(w => w.website === comp.website);
+            const productDetail = website?.products?.find(p => p.product_id === comp.id);
+
+            return {
+                website: comp.website,
+                product_name: comp.product_name,
+                stock_removed: productDetail?.stock_removed || 0,
+                stock_added: productDetail?.stock_added || 0,
+                estimated_sales: productDetail?.stock_removed || 0,
+                avg_daily_sales: productDetail?.avg_daily_sales || 0,
+                estimated_revenue: productDetail?.estimated_revenue || 0,
+                price_changes: productDetail?.price_changes || 0
+            };
+        }).filter(d => d.stock_removed > 0 || d.stock_added > 0);
+
+        if (salesData.length === 0) {
+            document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">No competitor sales activity detected</div>';
+            return;
+        }
+
+        const salesRows = salesData.map(data => `
+            <div style="padding: 1rem; background: white; border-radius: 6px; margin-bottom: 0.75rem;">
+                <div style="font-weight: 600; color: #111; margin-bottom: 0.5rem;">${data.website}</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.85rem;">
+                    <div><strong>Est. Sales:</strong> <span style="color: #dc2626; font-weight: 600;">${data.estimated_sales} units</span></div>
+                    <div><strong>Stock Added:</strong> <span style="color: #059669;">${data.stock_added} units</span></div>
+                    <div><strong>Avg Daily Sales:</strong> ${data.avg_daily_sales.toFixed(2)}/day</div>
+                    <div><strong>Price Changes:</strong> ${data.price_changes}</div>
+                    <div style="grid-column: 1 / -1;"><strong>Est. Revenue:</strong> <span style="font-weight: 600;">${data.estimated_revenue.toFixed(2)} NOK</span></div>
+                </div>
+            </div>
+        `).join('');
+
+        const totalCompetitorSales = salesData.reduce((sum, d) => sum + d.estimated_sales, 0);
+        const totalCompetitorRevenue = salesData.reduce((sum, d) => sum + d.estimated_revenue, 0);
+
+        document.getElementById('competitor-sales-data').innerHTML = `
+            <div style="padding: 1rem; background: #fef2f2; border-radius: 6px; margin-bottom: 1rem; border-left: 4px solid #dc2626;">
+                <div style="font-size: 0.9rem; margin-bottom: 0.5rem;">Total Competitor Activity (${daysBack} days):</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div><strong>Total Sales:</strong> <span style="color: #dc2626; font-weight: 700;">${totalCompetitorSales} units</span></div>
+                    <div><strong>Total Revenue:</strong> ${totalCompetitorRevenue.toFixed(2)} NOK</div>
+                </div>
+            </div>
+            ${salesRows}
+        `;
+
+    } catch (error) {
+        console.error('Error loading competitor sales intel:', error);
+        document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">Unable to load sales intelligence</div>';
+    }
+}
+
+async function updateProductSalesData(productId) {
+    document.getElementById('sales-data').innerHTML = '<div style="color: #999;">Loading...</div>';
+    document.getElementById('sales-chart').innerHTML = '<div style="color: #999;">Loading...</div>';
+    document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">Loading...</div>';
+
+    await loadProductDetailData(productId);
+}
+
 // Price Plans
 async function loadPricePlans() {
     // Small delay to ensure DOM is ready
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     showLoading('pending-plans-container');
     
     try {
