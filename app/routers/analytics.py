@@ -28,9 +28,11 @@ def fetch_shopify_orders(days_back: int = 30):
     token = settings.get_shopify_token()
 
     if not shop or not token:
+        print(f"[WARNING] Shopify credentials missing - shop: {shop}, token: {'set' if token else 'not set'}")
         return []
 
     cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+    print(f"[INFO] Fetching orders from {cutoff_date} onwards...")
 
     query = """
     query($first: Int!, $query: String, $after: String) {
@@ -93,11 +95,13 @@ def fetch_shopify_orders(days_back: int = 30):
             )
 
             if not response.ok:
+                print(f"[ERROR] Shopify API request failed: {response.status_code} - {response.text}")
                 break
 
             data = response.json()
 
             if "errors" in data:
+                print(f"[ERROR] Shopify GraphQL errors: {data['errors']}")
                 break
 
             orders_data = data.get("data", {}).get("orders", {})
@@ -111,7 +115,11 @@ def fetch_shopify_orders(days_back: int = 30):
             cursor = page_info.get("endCursor")
 
     except Exception as e:
-        print(f"Error fetching orders: {e}")
+        print(f"[ERROR] Exception while fetching orders: {e}")
+
+    print(f"[INFO] Fetched {len(all_orders)} total orders")
+    if all_orders:
+        print(f"[INFO] Sample order: {all_orders[0].get('name', 'N/A')} with {len(all_orders[0].get('lineItems', {}).get('edges', []))} items")
 
     return all_orders
 
@@ -157,6 +165,7 @@ async def get_sales_comparison(
 
         # Fetch actual Shopify orders
         orders = fetch_shopify_orders(days_back)
+        print(f"[INFO] Processing {len(orders)} orders for sales calculation")
 
         # Calculate sales from orders per variant
         sales_by_variant = defaultdict(lambda: {'total': 0, 'daily': defaultdict(int)})
@@ -172,6 +181,9 @@ async def get_sales_comparison(
                     quantity = item.get('quantity', 0)
                     sales_by_variant[variant_gid]['total'] += quantity
                     sales_by_variant[variant_gid]['daily'][order_date.isoformat()] += quantity
+
+        print(f"[INFO] Found {len(mapped_products)} mapped products (after deduplication)")
+        print(f"[INFO] Sales tracked for {len(sales_by_variant)} unique variants")
 
         sales_data = []
 
@@ -358,6 +370,83 @@ async def get_product_sales_trend(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get sales trend: {str(e)}")
+
+
+@router.get("/diagnostics")
+async def get_analytics_diagnostics(
+    days_back: int = Query(30, description="Number of days to look back"),
+    db: Session = Depends(get_db)
+):
+    """
+    Diagnostic endpoint to check analytics data sources and configuration.
+    Helps debug why analytics might not be showing data.
+    """
+    try:
+        diagnostics = {
+            'shopify_configured': False,
+            'orders_fetched': 0,
+            'sample_order': None,
+            'mapped_products_count': 0,
+            'variants_with_sales': 0,
+            'date_range': {
+                'start': (datetime.now() - timedelta(days=days_back)).date().isoformat(),
+                'end': datetime.now().date().isoformat()
+            }
+        }
+
+        # Check Shopify credentials
+        shop = settings.get_shopify_shop()
+        token = settings.get_shopify_token()
+        diagnostics['shopify_configured'] = bool(shop and token)
+        diagnostics['shop'] = shop if shop else 'NOT SET'
+
+        # Fetch orders
+        if diagnostics['shopify_configured']:
+            orders = fetch_shopify_orders(days_back)
+            diagnostics['orders_fetched'] = len(orders)
+
+            if orders:
+                # Include sample order (first one)
+                sample = orders[0]
+                diagnostics['sample_order'] = {
+                    'name': sample.get('name'),
+                    'created_at': sample.get('createdAt'),
+                    'line_items_count': len(sample.get('lineItems', {}).get('edges', []))
+                }
+
+            # Calculate sales per variant
+            sales_by_variant = defaultdict(int)
+            for order in orders:
+                for item_edge in order.get('lineItems', {}).get('edges', []):
+                    item = item_edge['node']
+                    variant_gid = item.get('variant', {}).get('id') if item.get('variant') else None
+                    if variant_gid:
+                        quantity = item.get('quantity', 0)
+                        sales_by_variant[variant_gid] += quantity
+
+            diagnostics['variants_with_sales'] = len(sales_by_variant)
+            diagnostics['total_units_sold'] = sum(sales_by_variant.values())
+
+        # Count mapped products
+        mapped_count = (
+            db.query(Product)
+            .join(Variant, Product.id == Variant.product_id)
+            .join(CompetitorProductMapping, CompetitorProductMapping.shopify_product_id == Product.id)
+            .filter(
+                and_(
+                    Product.status == 'ACTIVE',
+                    ~Variant.title.ilike('%booster pack%')
+                )
+            )
+            .distinct()
+            .count()
+        )
+        diagnostics['mapped_products_count'] = mapped_count
+
+        return diagnostics
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Diagnostics failed: {str(e)}")
 
 
 @router.get("/top-sellers")

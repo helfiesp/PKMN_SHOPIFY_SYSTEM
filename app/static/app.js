@@ -6631,3 +6631,62 @@ async function showProductDetails(productId, period) {
         showAlert('Failed to load product details: ' + error.message, 'error');
     }
 }
+
+async function showAnalyticsDiagnostics() {
+    try {
+        const period = document.getElementById('analytics-period')?.value || 30;
+        const response = await fetch(`${API_BASE}/analytics/diagnostics?days_back=${period}`);
+        if (!response.ok) throw new Error('Failed to load diagnostics');
+
+        const data = await response.json();
+
+        let html = `
+            <div style="padding: 1.5rem; max-width: 600px;">
+                <h3 style="margin-bottom: 1rem;">🔍 Analytics Diagnostics</h3>
+
+                <div style="background: ${data.shopify_configured ? '#dcfce7' : '#fee2e2'}; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>Shopify Configuration:</strong><br>
+                    ${data.shopify_configured ? '✅ Configured' : '❌ Not Configured'}<br>
+                    Shop: ${data.shop || 'Not set'}
+                </div>
+
+                <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>Date Range:</strong><br>
+                    ${data.date_range.start} to ${data.date_range.end} (${period} days)
+                </div>
+
+                <div style="background: ${data.orders_fetched > 0 ? '#dcfce7' : '#fef3c7'}; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>Orders Fetched:</strong> ${data.orders_fetched}<br>
+                    ${data.sample_order ? `Sample: Order ${data.sample_order.name} (${data.sample_order.line_items_count} items)<br>Created: ${data.sample_order.created_at}` : 'No orders found in this period'}
+                </div>
+
+                <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>Variants with Sales:</strong> ${data.variants_with_sales || 0}<br>
+                    <strong>Total Units Sold:</strong> ${data.total_units_sold || 0}
+                </div>
+
+                <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>Mapped Products:</strong> ${data.mapped_products_count}<br>
+                    <span style="font-size: 0.9rem; color: #666;">Active products with competitor mappings (excluding booster packs)</span>
+                </div>
+
+                <div style="margin-top: 1.5rem; padding: 1rem; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
+                    <strong>💡 Troubleshooting:</strong><br>
+                    ${!data.shopify_configured ? '⚠️ Shopify credentials are not configured. Check your .env file.<br>' : ''}
+                    ${data.orders_fetched === 0 ? '⚠️ No orders found in the selected period. Try a longer date range or verify orders exist in Shopify.<br>' : ''}
+                    ${data.variants_with_sales === 0 && data.orders_fetched > 0 ? '⚠️ Orders were fetched but no matching variants found. Check variant ID mappings.<br>' : ''}
+                    ${data.mapped_products_count === 0 ? '⚠️ No mapped products found. Create competitor mappings first.<br>' : ''}
+                    ${data.shopify_configured && data.orders_fetched > 0 && data.variants_with_sales > 0 && data.mapped_products_count > 0 ? '✅ Everything looks good! Analytics should display data.' : ''}
+                </div>
+
+                <button class="btn btn-primary" onclick="closeModal()" style="margin-top: 1rem; width: 100%;">Close</button>
+            </div>
+        `;
+
+        showModal(html);
+
+    } catch (error) {
+        console.error('Diagnostics error:', error);
+        showAlert('Failed to load diagnostics: ' + error.message, 'error');
+    }
+}
