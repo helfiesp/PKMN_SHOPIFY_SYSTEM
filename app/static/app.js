@@ -1502,7 +1502,8 @@ async function loadSnkrdunkPrice(productId) {
         const snkrdunkResp = await fetch(`${API_BASE}/snkrdunk/products`);
         if (!snkrdunkResp.ok) throw new Error('Failed to fetch SNKRDUNK products');
 
-        const snkrdunkProducts = await snkrdunkResp.json();
+        const snkrdunkData = await snkrdunkResp.json();
+        const snkrdunkProducts = snkrdunkData.items || [];
         const snkrdunkProduct = snkrdunkProducts.find(p => p.id.toString() === mapping.snkrdunk_key);
 
         if (snkrdunkProduct) {
@@ -1531,14 +1532,19 @@ async function loadSnkrdunkPrice(productId) {
 async function loadCompetitorData(productId, daysBack) {
     try {
         // Load price comparison
+        console.log(`[Competitor Data] Fetching price comparison for product ${productId}`);
         const priceResp = await fetch(`${API_BASE}/competitors/price-comparison/${productId}`);
+
         if (!priceResp.ok) {
-            document.getElementById('price-comparison-data').innerHTML = '<div style="color: #999;">No competitor pricing data</div>';
+            const errorText = await priceResp.text();
+            console.log(`[Competitor Data] Price comparison failed (${priceResp.status}):`, errorText);
+            document.getElementById('price-comparison-data').innerHTML = `<div style="color: #999;">No competitor pricing data (${priceResp.status})</div>`;
             document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">No competitor sales data</div>';
             return;
         }
 
         const priceData = await priceResp.json();
+        console.log('[Competitor Data] Price comparison response:', priceData);
 
         // Display price comparison
         if (priceData.competitors && priceData.competitors.length > 0) {
@@ -1590,13 +1596,18 @@ async function loadCompetitorData(productId, daysBack) {
 async function loadCompetitorSalesIntel(competitors, daysBack) {
     try {
         // Fetch competitor overview to get sales velocity data
+        console.log(`[Sales Intel] Fetching competitor overview for ${daysBack} days`);
         const overviewResp = await fetch(`${API_BASE}/analytics/competitor-overview?days_back=${daysBack}`);
+
         if (!overviewResp.ok) {
-            document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">Sales intelligence not available</div>';
+            const errorText = await overviewResp.text();
+            console.log(`[Sales Intel] Overview failed (${overviewResp.status}):`, errorText);
+            document.getElementById('competitor-sales-data').innerHTML = `<div style="color: #999;">Sales intelligence not available (${overviewResp.status})</div>`;
             return;
         }
 
         const overview = await overviewResp.json();
+        console.log('[Sales Intel] Overview response:', overview);
 
         // Match competitors with sales data
         const salesData = competitors.map(comp => {

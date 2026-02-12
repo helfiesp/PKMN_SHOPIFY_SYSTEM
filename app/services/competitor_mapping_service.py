@@ -304,36 +304,49 @@ class CompetitorMappingService:
     ) -> Dict[str, Any]:
         """
         Get price comparison between a Shopify product and competitors.
+        Returns individual competitor products with their details.
         """
         shopify_product = db.query(Product).filter(
             Product.id == shopify_product_id
         ).first()
-        
+
         if not shopify_product:
             raise ValueError(f"Shopify product {shopify_product_id} not found")
-        
+
         # Get our current price (use first variant as reference)
         our_price_nok = None
         if shopify_product.variants:
             our_price_nok = shopify_product.variants[0].price
-        
-        # Find competitor prices for this product
-        competitors = competitor_service.get_price_statistics(
-            db, 
-            shopify_product.title,
-            None,
-            None
-        )
-        
+
+        # Get competitor products mapped to this Shopify product
+        mappings = db.query(CompetitorProductMapping).filter(
+            CompetitorProductMapping.shopify_product_id == shopify_product_id
+        ).all()
+
+        competitor_details = []
+        for mapping in mappings:
+            comp_product = db.query(CompetitorProduct).filter(
+                CompetitorProduct.id == mapping.competitor_product_id
+            ).first()
+
+            if comp_product:
+                competitor_details.append({
+                    "id": comp_product.id,
+                    "website": comp_product.website,
+                    "product_name": comp_product.normalized_name or comp_product.raw_name,
+                    "price": (comp_product.price_ore / 100) if comp_product.price_ore else 0,
+                    "stock_amount": comp_product.stock_amount or 0,
+                    "stock_status": comp_product.stock_status or "Unknown",
+                    "product_link": comp_product.product_link,
+                    "last_updated": comp_product.last_scraped_at.isoformat() if comp_product.last_scraped_at else None
+                })
+
         return {
             "shopify_product_id": shopify_product_id,
             "shopify_product_name": shopify_product.title,
-            "our_price_nok": our_price_nok,
-            "competitor_prices": competitors,
-            "price_position": self._calculate_price_position(
-                our_price_nok,
-                competitors.get('prices_by_website', {})
-            )
+            "our_price": float(our_price_nok) if our_price_nok else 0,
+            "competitors": competitor_details,
+            "total_competitors": len(competitor_details)
         }
     
     def _calculate_price_position(self, our_price: Optional[float], competitor_prices: Dict[str, float]) -> str:
