@@ -555,6 +555,15 @@ async def get_analytics_diagnostics(
         raise HTTPException(status_code=500, detail=f"Diagnostics failed: {str(e)}")
 
 
+@router.get("/competitor-test")
+async def test_competitor_endpoint():
+    """Simple test endpoint"""
+    return {
+        "status": "working",
+        "message": "Competitor analytics endpoint is accessible"
+    }
+
+
 @router.get("/competitor-overview")
 async def get_competitor_overview(
     days_back: int = Query(30, description="Number of days to analyze"),
@@ -565,10 +574,20 @@ async def get_competitor_overview(
     Shows stock changes, sales velocity, and activity per website.
     """
     try:
+        print(f"[INFO] Starting competitor overview analysis for {days_back} days")
+
+        # First, let's test with a simple return
         cutoff_date = datetime.now() - timedelta(days=days_back)
 
         # Get all competitors grouped by website
-        websites = db.query(CompetitorProduct.website).distinct().all()
+        print(f"[INFO] Querying distinct websites...")
+        try:
+            websites = db.query(CompetitorProduct.website).distinct().all()
+            print(f"[INFO] Found {len(websites)} websites")
+        except Exception as e:
+            print(f"[ERROR] Failed to query websites: {str(e)}")
+            raise
+
         website_analytics = []
 
         for (website,) in websites:
