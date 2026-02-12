@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     shopify_shop: str = ""
     shopify_token: str = ""
     shopify_api_version: str = "2026-01"
+    shopify_client_id: str = ""
+    shopify_client_secret: str = ""
     
     # Google Translate - will be overridden by get_google_api_key
     google_translate_api_key: str = ""

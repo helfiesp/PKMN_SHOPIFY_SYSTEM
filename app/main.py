@@ -23,6 +23,7 @@ from app.routers import (
     suppliers,
     history,
     analytics,
+    oauth,
 )
 from app.routers import settings as settings_router
 
@@ -51,6 +52,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router, prefix="/api/v1", tags=["Health"])
+app.include_router(oauth.router, prefix="/api/v1/oauth", tags=["OAuth"])
 app.include_router(settings_router.router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(translations.router, prefix="/api/v1/translations", tags=["Translations"])
 app.include_router(competitors.router, prefix="/api/v1/competitors", tags=["Competitors"])

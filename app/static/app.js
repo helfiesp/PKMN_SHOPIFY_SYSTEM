@@ -2493,18 +2493,60 @@ function renderSettingsTab(containerId = 'dynamic-tab') {
 
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">🔐 API Keys</h3>
+                <h3 class="card-title">🔐 Shopify OAuth Setup</h3>
+                <button class="btn btn-sm btn-secondary" onclick="checkOAuthStatus()">🔍 Check Status</button>
+            </div>
+            <div style="padding: 1rem; background: #eff6ff; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">
+                <p style="margin: 0; color: #1e40af; font-size: 0.9rem;">
+                    <strong>📝 How to get OAuth credentials:</strong><br>
+                    Go to your Shopify Partner Dashboard → Apps → Your App → Configuration → Copy your Client ID and Secret
+                </p>
+            </div>
+            <div id="oauth-status-display" style="margin-bottom: 1rem;"></div>
+            <form id="oauth-credentials-form">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Client ID</label>
+                        <input type="text" class="form-input" id="oauth-client-id" placeholder="101eeef854...">
+                        <small style="color: var(--text-secondary);">From Shopify Partner Dashboard</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Client Secret</label>
+                        <input type="password" class="form-input" id="oauth-client-secret" placeholder="shpss_...">
+                        <small style="color: var(--text-secondary);">From Shopify Partner Dashboard</small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Shop Domain</label>
+                    <input type="text" class="form-input" id="oauth-shop" placeholder="yourstore.myshopify.com">
+                    <small style="color: var(--text-secondary);">Your Shopify store URL</small>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary">🔑 Get Access Token</button>
+                    <button type="button" class="btn btn-secondary" onclick="loadSettings()">🔄 Reload</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">🔐 Manual API Keys (Alternative)</h3>
+            </div>
+            <div style="padding: 1rem; background: #fef3c7; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #f59e0b;">
+                <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
+                    <strong>⚠️ Already have an access token?</strong> You can paste it directly below instead of using OAuth.
+                </p>
             </div>
             <form id="api-keys-form">
                 <div class="grid-2">
                     <div class="form-group">
                         <label class="form-label">Shopify Shop Domain</label>
-                        <input type="text" class="form-input" id="shopify-shop" placeholder="myshop.myshopify.com" required>
+                        <input type="text" class="form-input" id="shopify-shop" placeholder="myshop.myshopify.com">
                         <small style="color: var(--text-secondary);">Your Shopify store URL</small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Shopify Admin API Token</label>
-                        <input type="password" class="form-input" id="shopify-token" placeholder="shpat_..." required>
+                        <input type="password" class="form-input" id="shopify-token" placeholder="shpat_...">
                         <small style="color: var(--text-secondary);">Admin API access token from Shopify</small>
                     </div>
                 </div>
@@ -2530,6 +2572,11 @@ function renderSettingsTab(containerId = 'dynamic-tab') {
     const form = document.getElementById('api-keys-form');
     if (form) {
         form.addEventListener('submit', saveApiKeys);
+    }
+
+    const oauthForm = document.getElementById('oauth-credentials-form');
+    if (oauthForm) {
+        oauthForm.addEventListener('submit', exchangeOAuthToken);
     }
 }
 
@@ -2815,26 +2862,169 @@ async function loadCurrentSettings() {
         if (statusEl) {
             statusEl.textContent = 'Settings loaded.';
         }
-        
+
         // Populate form fields with masked values
         settings.forEach(setting => {
             if (setting.key === 'shopify_shop') {
-                document.getElementById('shopify-shop').value = setting.value || '';
+                const shopField = document.getElementById('shopify-shop');
+                const oauthShopField = document.getElementById('oauth-shop');
+                if (shopField) shopField.value = setting.value || '';
+                if (oauthShopField) oauthShopField.value = setting.value || '';
             } else if (setting.key === 'shopify_token') {
-                document.getElementById('shopify-token').placeholder = setting.value ? `Saved: ${setting.value}` : 'shpat_...';
-                document.getElementById('shopify-token').value = '';
+                const tokenField = document.getElementById('shopify-token');
+                if (tokenField) {
+                    tokenField.placeholder = setting.value ? `Saved: ${setting.value}` : 'shpat_...';
+                    tokenField.value = '';
+                }
             } else if (setting.key === 'google_translate_api_key') {
-                document.getElementById('google-api-key').placeholder = setting.value ? `Saved: ${setting.value}` : 'AIza...';
-                document.getElementById('google-api-key').value = '';
+                const apiKeyField = document.getElementById('google-api-key');
+                if (apiKeyField) {
+                    apiKeyField.placeholder = setting.value ? `Saved: ${setting.value}` : 'AIza...';
+                    apiKeyField.value = '';
+                }
+            } else if (setting.key === 'shopify_client_id') {
+                const clientIdField = document.getElementById('oauth-client-id');
+                if (clientIdField) {
+                    clientIdField.placeholder = setting.value ? `Saved: ${setting.value}` : '';
+                    clientIdField.value = '';
+                }
+            } else if (setting.key === 'shopify_client_secret') {
+                const clientSecretField = document.getElementById('oauth-client-secret');
+                if (clientSecretField) {
+                    clientSecretField.placeholder = setting.value ? 'Saved: ****' : '';
+                    clientSecretField.value = '';
+                }
             }
         });
-        
+
+        // Auto-check OAuth status
+        await checkOAuthStatus();
+
     } catch (error) {
         console.error('Failed to load settings:', error);
         const statusEl = document.getElementById('settings-status');
         if (statusEl) {
             statusEl.textContent = 'Failed to load settings.';
         }
+    }
+}
+
+async function checkOAuthStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/oauth/status`);
+        const status = await response.json();
+
+        const displayEl = document.getElementById('oauth-status-display');
+        if (!displayEl) return;
+
+        if (status.configured && status.has_token) {
+            displayEl.innerHTML = `
+                <div style="padding: 1rem; background: #dcfce7; border-radius: 8px; border-left: 4px solid #22c55e;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">✅</span>
+                        <div>
+                            <div style="font-weight: 600; color: #166534;">OAuth Configured Successfully!</div>
+                            <div style="font-size: 0.9rem; color: #166534; margin-top: 0.25rem;">
+                                Shop: <code>${status.shop}</code><br>
+                                Token: <code>${status.token_preview}</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (status.client_id_set && status.client_secret_set) {
+            displayEl.innerHTML = `
+                <div style="padding: 1rem; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">⚠️</span>
+                        <div>
+                            <div style="font-weight: 600; color: #92400e;">OAuth Credentials Saved</div>
+                            <div style="font-size: 0.9rem; color: #92400e; margin-top: 0.25rem;">
+                                Click "Get Access Token" button below to complete setup
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            displayEl.innerHTML = `
+                <div style="padding: 1rem; background: #fee2e2; border-radius: 8px; border-left: 4px solid #ef4444;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">❌</span>
+                        <div>
+                            <div style="font-weight: 600; color: #991b1b;">Not Configured</div>
+                            <div style="font-size: 0.9rem; color: #991b1b; margin-top: 0.25rem;">
+                                Enter your Client ID and Secret below to get started
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Failed to check OAuth status:', error);
+    }
+}
+
+async function exchangeOAuthToken(event) {
+    event.preventDefault();
+
+    const clientId = document.getElementById('oauth-client-id').value.trim();
+    const clientSecret = document.getElementById('oauth-client-secret').value.trim();
+    const shop = document.getElementById('oauth-shop').value.trim();
+
+    if (!clientId || !clientSecret || !shop) {
+        showAlert('Please fill in all OAuth fields', 'error');
+        return;
+    }
+
+    try {
+        showAlert('Initiating OAuth flow...', 'info');
+
+        const response = await fetch(`${API_BASE}/settings/exchange-oauth-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                client_id: clientId,
+                client_secret: clientSecret,
+                shop: shop
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to exchange OAuth token');
+        }
+
+        const result = await response.json();
+
+        // Show success message with authorization URL
+        showAlert(`OAuth credentials saved! Opening authorization page...`, 'success');
+
+        // Open OAuth authorization URL in new window
+        window.open(result.authorization_url, '_blank', 'width=800,height=600');
+
+        // Show instructions
+        setTimeout(() => {
+            showAlert(`
+                <div style="text-align: left;">
+                    <strong>Next Steps:</strong><br>
+                    1. A new window opened with Shopify authorization<br>
+                    2. Click "Install" to approve the app<br>
+                    3. You'll be redirected back with your access token<br>
+                    4. Come back here and click "Check Status" to verify
+                </div>
+            `, 'info', 15000);
+        }, 1000);
+
+        // Reload settings after a delay
+        setTimeout(() => {
+            loadSettings();
+        }, 2000);
+
+    } catch (error) {
+        console.error('OAuth exchange error:', error);
+        showAlert(`Failed to exchange OAuth token: ${error.message}`, 'error');
     }
 }
 

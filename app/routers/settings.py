@@ -158,3 +158,54 @@ async def initialize_defaults(db: Session = Depends(get_db)):
     """Initialize default settings."""
     settings_service.initialize_default_settings(db)
     return {"message": "Default settings initialized"}
+
+
+@router.post("/exchange-oauth-token")
+async def exchange_oauth_token(
+    shop: str,
+    client_id: str,
+    client_secret: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Exchange OAuth credentials for an access token.
+    This generates an installation URL that the user needs to visit.
+    """
+    import requests
+    from app.models import Setting
+
+    # Validate inputs
+    if not shop or not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail="Missing required fields: shop, client_id, client_secret")
+
+    # Ensure shop domain is valid
+    if not shop.endswith('.myshopify.com'):
+        shop = f"{shop}.myshopify.com"
+
+    # Save client credentials to database
+    settings_service.set_setting(db, "shopify_client_id", client_id, is_sensitive=True)
+    settings_service.set_setting(db, "shopify_client_secret", client_secret, is_sensitive=True)
+    settings_service.set_setting(db, "shopify_shop", shop, is_sensitive=False)
+
+    # Return OAuth installation URL
+    from urllib.parse import urlencode
+
+    # For now, we'll return the OAuth URL they need to visit
+    # In a real scenario, this would redirect them
+    scopes = "read_products,write_products,read_orders,read_inventory,read_analytics"
+    redirect_uri = f"http://192.168.0.100:8000/api/v1/oauth/callback"
+
+    auth_params = {
+        'client_id': client_id,
+        'scope': scopes,
+        'redirect_uri': redirect_uri,
+        'state': shop,
+    }
+
+    auth_url = f"https://{shop}/admin/oauth/authorize?{urlencode(auth_params)}"
+
+    return {
+        "message": "OAuth credentials saved. Visit the authorization URL to complete setup.",
+        "authorization_url": auth_url,
+        "next_steps": "Click the authorization URL, approve the app, and you'll be redirected back with your access token."
+    }
