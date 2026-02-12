@@ -17,6 +17,7 @@ from app.models import (
     CompetitorProductDaily
 )
 from app.config import settings
+from app.services.competitor_service import competitor_service
 import requests
 
 router = APIRouter()
@@ -261,16 +262,33 @@ async def get_sales_comparison(
                     CompetitorSalesVelocity.competitor_product_id == competitor.id
                 ).first()
 
-                # Include competitor even if no velocity data exists yet
-                if velocity and velocity.total_sales_estimate:
-                    total_competitor_sales += velocity.total_sales_estimate
+                # If no velocity in DB, calculate on-the-fly from daily snapshots
+                if not velocity:
+                    try:
+                        velocity_calc = competitor_service.calculate_sales_velocity(
+                            db, competitor.id, days_back=days_back
+                        )
+                        avg_daily = velocity_calc.get('avg_daily_sales', 0)
+                        weekly_est = velocity_calc.get('weekly_sales_estimate', 0)
+                        total_est = velocity_calc.get('total_units_sold', 0)
+                    except Exception as e:
+                        print(f"[WARNING] Failed to calculate velocity for competitor {competitor.id}: {e}")
+                        avg_daily = weekly_est = total_est = 0
+                else:
+                    avg_daily = velocity.avg_daily_sales or 0
+                    weekly_est = velocity.weekly_sales_estimate or 0
+                    total_est = velocity.total_sales_estimate or 0
+
+                # Include competitor sales in total
+                if total_est:
+                    total_competitor_sales += total_est
 
                 all_competitors_velocity.append({
                     'website': competitor.website,
                     'product_name': competitor.normalized_name or competitor.raw_name,
-                    'avg_daily_sales': velocity.avg_daily_sales if velocity else 0,
-                    'weekly_sales_estimate': velocity.weekly_sales_estimate if velocity else 0,
-                    'total_sales_estimate': velocity.total_sales_estimate if velocity else 0,
+                    'avg_daily_sales': avg_daily,
+                    'weekly_sales_estimate': weekly_est,
+                    'total_sales_estimate': total_est,
                     'current_stock': competitor.stock_amount or 0,
                     'price': (competitor.price_ore / 100) if competitor.price_ore else 0
                 })
