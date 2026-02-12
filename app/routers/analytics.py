@@ -182,6 +182,16 @@ async def get_sales_comparison(
                     sales_by_variant[variant_gid]['total'] += quantity
                     sales_by_variant[variant_gid]['daily'][order_date.isoformat()] += quantity
 
+        # Debug: Show sample variant IDs from orders vs database
+        if sales_by_variant:
+            sample_order_variant = list(sales_by_variant.keys())[0]
+            print(f"[DEBUG] Sample variant ID from orders: {sample_order_variant}")
+
+        if mapped_products:
+            sample_db_variant = mapped_products[0][1].shopify_id
+            print(f"[DEBUG] Sample variant ID from database: {sample_db_variant}")
+            print(f"[DEBUG] Variant IDs match format: {sample_order_variant == sample_db_variant if sales_by_variant and mapped_products else 'N/A'}")
+
         print(f"[INFO] Found {len(mapped_products)} mapped products (after deduplication)")
         print(f"[INFO] Sales tracked for {len(sales_by_variant)} unique variants")
 

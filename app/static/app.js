@@ -6640,8 +6640,13 @@ async function showAnalyticsDiagnostics() {
 
         const data = await response.json();
 
-        let html = `
-            <div style="padding: 1.5rem; max-width: 600px;">
+        // Create modal dynamically
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;';
+
+        modal.innerHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
                 <h3 style="margin-bottom: 1rem;">🔍 Analytics Diagnostics</h3>
 
                 <div style="background: ${data.shopify_configured ? '#dcfce7' : '#fee2e2'}; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
@@ -6679,11 +6684,21 @@ async function showAnalyticsDiagnostics() {
                     ${data.shopify_configured && data.orders_fetched > 0 && data.variants_with_sales > 0 && data.mapped_products_count > 0 ? '✅ Everything looks good! Analytics should display data.' : ''}
                 </div>
 
-                <button class="btn btn-primary" onclick="closeModal()" style="margin-top: 1rem; width: 100%;">Close</button>
+                <button class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Close</button>
             </div>
         `;
 
-        showModal(html);
+        document.body.appendChild(modal);
+
+        // Close modal on button click or background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal || e.target.classList.contains('btn-primary')) {
+                modal.remove();
+            }
+        });
+
+        // Log to console for debugging
+        console.log('Analytics Diagnostics:', data);
 
     } catch (error) {
         console.error('Diagnostics error:', error);
