@@ -645,9 +645,46 @@ async def get_competitor_overview(
                     if prev.price != curr.price and prev.price and curr.price:
                         price_changes += 1
 
+                # Check if this product is mapped to our Shopify products
+                mapping = db.query(CompetitorProductMapping).filter(
+                    CompetitorProductMapping.competitor_product_id == product.id
+                ).first()
+
+                our_product_info = None
+                if mapping:
+                    our_product = db.query(Product).filter(Product.id == mapping.shopify_product_id).first()
+                    if our_product:
+                        # Get primary variant
+                        our_variant = db.query(Variant).filter(
+                            Variant.product_id == our_product.id
+                        ).first()
+
+                        if our_variant:
+                            our_price = float(our_variant.price) if our_variant.price else 0
+                            competitor_price = (product.price_ore / 100) if product.price_ore else 0
+                            price_diff = our_price - competitor_price
+                            price_diff_pct = (price_diff / competitor_price * 100) if competitor_price > 0 else 0
+
+                            our_product_info = {
+                                'product_id': our_product.id,
+                                'title': our_product.title,
+                                'variant_title': our_variant.title,
+                                'price': our_price,
+                                'stock': our_variant.inventory_quantity or 0,
+                                'sku': our_variant.sku,
+                                'price_difference': price_diff,
+                                'price_difference_pct': price_diff_pct,
+                                'we_are_cheaper': price_diff < 0,
+                                'stock_advantage': (our_variant.inventory_quantity or 0) - (product.stock_amount or 0)
+                            }
+
                 products_detail.append({
                     'product_id': product.id,
                     'name': product.normalized_name or product.raw_name or 'Unknown',
+                    'url': product.product_link,
+                    'category': product.category,
+                    'brand': product.brand,
+                    'language': product.language,
                     'current_stock': product.stock_amount or 0,
                     'current_price': (product.price_ore / 100) if product.price_ore else 0,
                     'stock_added': stock_added,
@@ -656,12 +693,26 @@ async def get_competitor_overview(
                     'avg_daily_sales': velocity.avg_daily_sales if velocity and velocity.avg_daily_sales else 0,
                     'total_sales_estimate': velocity.total_sales_estimate if velocity and velocity.total_sales_estimate else 0,
                     'days_until_sellout': velocity.days_until_sellout if velocity and velocity.days_until_sellout else None,
-                    'last_updated': product.last_scraped_at.isoformat() if product.last_scraped_at else None
+                    'last_updated': product.last_scraped_at.isoformat() if product.last_scraped_at else None,
+                    'mapped_to_us': our_product_info is not None,
+                    'our_product': our_product_info
                 })
 
             # Calculate website-level stock changes
             website_stock_added = sum(p['stock_added'] for p in products_detail)
             website_stock_removed = sum(p['stock_removed'] for p in products_detail)
+
+            # Calculate mapping stats
+            mapped_products = [p for p in products_detail if p['mapped_to_us']]
+            num_mapped = len(mapped_products)
+            num_we_are_cheaper = sum(1 for p in mapped_products if p['our_product'] and p['our_product']['we_are_cheaper'])
+            num_we_are_expensive = num_mapped - num_we_are_cheaper if num_mapped > 0 else 0
+
+            # Calculate average price difference for mapped products
+            avg_price_diff = 0
+            if num_mapped > 0:
+                price_diffs = [p['our_product']['price_difference_pct'] for p in mapped_products if p['our_product']]
+                avg_price_diff = sum(price_diffs) / len(price_diffs) if price_diffs else 0
 
             website_analytics.append({
                 'website': website,
@@ -672,7 +723,11 @@ async def get_competitor_overview(
                     'stock_removed': website_stock_removed,
                     'estimated_sales': total_sales_estimate,
                     'avg_daily_sales': total_daily_sales,
-                    'total_price_changes': sum(p['price_changes'] for p in products_detail)
+                    'total_price_changes': sum(p['price_changes'] for p in products_detail),
+                    'num_mapped_products': num_mapped,
+                    'num_we_are_cheaper': num_we_are_cheaper,
+                    'num_we_are_expensive': num_we_are_expensive,
+                    'avg_price_difference_pct': avg_price_diff
                 },
                 'products': sorted(products_detail, key=lambda x: x['stock_removed'], reverse=True)
             })
@@ -691,7 +746,10 @@ async def get_competitor_overview(
                 'total_stock': sum(w['summary']['current_stock'] for w in website_analytics),
                 'total_stock_added': sum(w['summary']['stock_added'] for w in website_analytics),
                 'total_stock_removed': sum(w['summary']['stock_removed'] for w in website_analytics),
-                'total_estimated_sales': sum(w['summary']['estimated_sales'] for w in website_analytics)
+                'total_estimated_sales': sum(w['summary']['estimated_sales'] for w in website_analytics),
+                'total_mapped_products': sum(w['summary']['num_mapped_products'] for w in website_analytics),
+                'total_we_are_cheaper': sum(w['summary']['num_we_are_cheaper'] for w in website_analytics),
+                'total_we_are_expensive': sum(w['summary']['num_we_are_expensive'] for w in website_analytics)
             }
         }
 

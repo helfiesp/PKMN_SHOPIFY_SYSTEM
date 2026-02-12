@@ -6647,7 +6647,9 @@ async function loadCompetitorAnalytics() {
         document.getElementById('stat-total-comp-products').textContent = data.totals.total_products || 0;
         document.getElementById('stat-total-stock-added').textContent = data.totals.total_stock_added || 0;
         document.getElementById('stat-total-stock-sold').textContent = data.totals.total_stock_removed || 0;
-        document.getElementById('stat-total-sales-estimate').textContent = `${(data.totals.total_estimated_sales || 0).toFixed(0)} units`;
+        document.getElementById('stat-total-mapped').textContent = data.totals.total_mapped_products || 0;
+        document.getElementById('stat-we-cheaper').textContent = data.totals.total_we_are_cheaper || 0;
+        document.getElementById('stat-we-expensive').textContent = data.totals.total_we_are_expensive || 0;
 
         // Render per-website sections
         const container = document.getElementById('competitor-websites-container');
@@ -6659,76 +6661,165 @@ async function loadCompetitorAnalytics() {
         container.innerHTML = data.websites.map((website, index) => {
             const summary = website.summary;
             const products = website.products;
+            const mappedProducts = products.filter(p => p.mapped_to_us);
+            const unmappedProducts = products.filter(p => !p.mapped_to_us);
 
             return `
                 <div class="card" style="margin-bottom: 1.5rem;">
                     <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; cursor: pointer;" onclick="toggleWebsiteProducts('website-${index}')">
-                        <h3 style="color: white; margin: 0; font-size: 1.25rem;">🏪 ${website.website}</h3>
-                        <div style="display: flex; gap: 1rem; align-items: center;">
-                            <span style="font-size: 0.9rem;">${summary.total_products} products tracked</span>
+                        <h3 style="color: white; margin: 0; font-size: 1.25rem;">🏪 ${website.website.toUpperCase().replace(/_/g, ' ')}</h3>
+                        <div style="display: flex; gap: 1.5rem; align-items: center;">
+                            <span style="font-size: 0.9rem;">${summary.total_products} products</span>
+                            <span style="font-size: 0.9rem; background: rgba(255,255,255,0.2); padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                ${summary.num_mapped_products} mapped
+                            </span>
                             <span style="font-size: 0.9rem;">▼</span>
                         </div>
                     </div>
 
                     <!-- Website Summary Stats -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; padding: 1.5rem; background: #f9fafb;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; padding: 1.5rem; background: #f9fafb;">
                         <div style="text-align: center;">
-                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Current Stock</div>
-                            <div style="font-size: 1.5rem; font-weight: 600; color: #2563eb;">${summary.current_stock}</div>
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Current Stock</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: #2563eb;">${summary.current_stock}</div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Stock Added</div>
-                            <div style="font-size: 1.5rem; font-weight: 600; color: #10b981;">+${summary.stock_added}</div>
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Stock Added</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: #10b981;">+${summary.stock_added}</div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Stock Sold</div>
-                            <div style="font-size: 1.5rem; font-weight: 600; color: #ef4444;">-${summary.stock_removed}</div>
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Stock Sold</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: #ef4444;">-${summary.stock_removed}</div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Avg Daily Sales</div>
-                            <div style="font-size: 1.5rem; font-weight: 600; color: #8b5cf6;">${summary.avg_daily_sales.toFixed(1)}/day</div>
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Daily Sales</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: #8b5cf6;">${summary.avg_daily_sales.toFixed(1)}/day</div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">Price Changes</div>
-                            <div style="font-size: 1.5rem; font-weight: 600; color: #f59e0b;">${summary.total_price_changes}</div>
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Price Changes</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: #f59e0b;">${summary.total_price_changes}</div>
                         </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">We're Cheaper</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: #10b981;">${summary.num_we_are_cheaper}</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">We're Expensive</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: #ef4444;">${summary.num_we_are_expensive}</div>
+                        </div>
+                        ${summary.avg_price_difference_pct !== 0 ? `
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Avg Price Diff</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; color: ${summary.avg_price_difference_pct > 0 ? '#ef4444' : '#10b981'};">
+                                ${summary.avg_price_difference_pct > 0 ? '+' : ''}${summary.avg_price_difference_pct.toFixed(1)}%
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
 
-                    <!-- Product Details Table (collapsible) -->
+                    <!-- Product Details (collapsible) -->
                     <div id="website-${index}" style="display: none; padding: 1.5rem; padding-top: 0;">
-                        <h4 style="margin-bottom: 1rem; color: #374151;">Product Breakdown</h4>
-                        <div class="table-container">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Product</th>
-                                        <th>Current Stock</th>
-                                        <th>Price</th>
-                                        <th>Stock Added</th>
-                                        <th>Stock Sold</th>
-                                        <th>Price Changes</th>
-                                        <th>Daily Sales Avg</th>
-                                        <th>Est. Total Sales</th>
-                                        <th>Days to Sellout</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${products.map(p => `
+                        ${mappedProducts.length > 0 ? `
+                        <div style="margin-bottom: 2rem;">
+                            <h4 style="margin-bottom: 1rem; color: #374151; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="background: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem;">
+                                    ${mappedProducts.length}
+                                </span>
+                                Products We Also Sell
+                            </h4>
+                            <div class="table-container">
+                                <table class="data-table" style="font-size: 0.875rem;">
+                                    <thead>
                                         <tr>
-                                            <td><strong>${p.name}</strong></td>
-                                            <td>${p.current_stock}</td>
-                                            <td>${p.current_price.toFixed(2)} kr</td>
-                                            <td style="color: #10b981; font-weight: 600;">+${p.stock_added}</td>
-                                            <td style="color: #ef4444; font-weight: 600;">-${p.stock_removed}</td>
-                                            <td>${p.price_changes}</td>
-                                            <td>${p.avg_daily_sales.toFixed(1)}</td>
-                                            <td>${p.total_sales_estimate.toFixed(0)}</td>
-                                            <td>${p.days_until_sellout ? p.days_until_sellout.toFixed(0) + ' days' : 'N/A'}</td>
+                                            <th>Competitor Product</th>
+                                            <th>Their Price</th>
+                                            <th>Their Stock</th>
+                                            <th>Stock Sold</th>
+                                            <th>Our Product</th>
+                                            <th>Our Price</th>
+                                            <th>Our Stock</th>
+                                            <th>Price Advantage</th>
+                                            <th>Stock Advantage</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        ${mappedProducts.map(p => {
+                                            const our = p.our_product;
+                                            const priceDiffBadge = our.we_are_cheaper
+                                                ? `<span style="background: #10b981; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">-${Math.abs(our.price_difference_pct).toFixed(1)}%</span>`
+                                                : `<span style="background: #ef4444; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">+${Math.abs(our.price_difference_pct).toFixed(1)}%</span>`;
+                                            const stockBadge = our.stock_advantage >= 0
+                                                ? `<span style="color: #10b981; font-weight: 600;">+${our.stock_advantage}</span>`
+                                                : `<span style="color: #ef4444; font-weight: 600;">${our.stock_advantage}</span>`;
+                                            return `
+                                                <tr style="background: ${our.we_are_cheaper ? '#f0fdf4' : '#fef2f2'};">
+                                                    <td>
+                                                        <strong>${p.name}</strong><br>
+                                                        <small style="color: #666;">${p.category || ''} ${p.brand || ''}</small>
+                                                    </td>
+                                                    <td><strong>${p.current_price.toFixed(2)} kr</strong></td>
+                                                    <td>${p.current_stock}</td>
+                                                    <td style="color: #ef4444; font-weight: 600;">-${p.stock_removed}</td>
+                                                    <td>
+                                                        <strong>${our.title}</strong><br>
+                                                        <small style="color: #666;">${our.variant_title}</small>
+                                                    </td>
+                                                    <td><strong>${our.price.toFixed(2)} kr</strong></td>
+                                                    <td>${our.stock}</td>
+                                                    <td>${priceDiffBadge}</td>
+                                                    <td>${stockBadge}</td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
+                        ` : ''}
+
+                        ${unmappedProducts.length > 0 ? `
+                        <div>
+                            <h4 style="margin-bottom: 1rem; color: #374151; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="background: #6b7280; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem;">
+                                    ${unmappedProducts.length}
+                                </span>
+                                Products We Don't Sell
+                            </h4>
+                            <div class="table-container">
+                                <table class="data-table" style="font-size: 0.875rem;">
+                                    <thead>
+                                        <tr>
+                                            <th>Product</th>
+                                            <th>Category</th>
+                                            <th>Price</th>
+                                            <th>Stock</th>
+                                            <th>Stock Added</th>
+                                            <th>Stock Sold</th>
+                                            <th>Daily Sales</th>
+                                            <th>Sellout</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${unmappedProducts.map(p => `
+                                            <tr>
+                                                <td>
+                                                    <strong>${p.name}</strong><br>
+                                                    <small style="color: #666;">${p.brand || ''} ${p.language || ''}</small>
+                                                </td>
+                                                <td><small>${p.category || 'N/A'}</small></td>
+                                                <td>${p.current_price.toFixed(2)} kr</td>
+                                                <td>${p.current_stock}</td>
+                                                <td style="color: #10b981; font-weight: 600;">+${p.stock_added}</td>
+                                                <td style="color: #ef4444; font-weight: 600;">-${p.stock_removed}</td>
+                                                <td>${p.avg_daily_sales.toFixed(1)}</td>
+                                                <td><small>${p.days_until_sellout ? p.days_until_sellout.toFixed(0) + 'd' : 'N/A'}</small></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
