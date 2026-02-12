@@ -1980,26 +1980,103 @@ function renderProductIntelTable(products) {
                         </div>
                         <!-- Competitor Details -->
                         <div>
-                            <h4 style="margin: 0 0 1rem 0; color: #111;">🏪 Competitor Breakdown</h4>
+                            <h4 style="margin: 0 0 1rem 0; color: #111;">🏪 Competitor Pricing & Intel</h4>
                             ${compCount > 0 ? `
-                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                    ${product.competitor_sales.by_competitor.map(c => `
-                                        <div style="padding: 0.75rem; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                                <strong style="color: #111;">${c.website}</strong>
-                                                <span style="font-size: 1.1rem; font-weight: 700; color: #2563eb;">${c.price.toFixed(0)} NOK</span>
-                                            </div>
-                                            <div style="font-size: 0.85rem; color: #666;">${c.product_name}</div>
-                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem;">
-                                                <div><strong>Sales:</strong> ${c.total_sales_estimate.toFixed(0)} units</div>
-                                                <div><strong>Stock:</strong> ${c.current_stock} units</div>
-                                                <div><strong>Daily Avg:</strong> ${c.avg_daily_sales.toFixed(1)}/day</div>
-                                                <div><strong>Weekly:</strong> ${c.weekly_sales_estimate.toFixed(0)} units</div>
-                                            </div>
+                                <!-- Price Summary -->
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.9rem;">
+                                        <div>
+                                            <div style="opacity: 0.9;">Your Price</div>
+                                            <div style="font-size: 1.5rem; font-weight: 700;">${product.current_price.toFixed(0)} NOK</div>
                                         </div>
-                                    `).join('')}
+                                        <div>
+                                            <div style="opacity: 0.9;">Avg Competitor</div>
+                                            <div style="font-size: 1.5rem; font-weight: 700;">${avgCompPrice.toFixed(0)} NOK</div>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.3); display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-size: 0.85rem;">
+                                            ${priceDiff > 0 ? `You're ${priceDiff.toFixed(0)} NOK higher` : priceDiff < 0 ? `You're ${Math.abs(priceDiff).toFixed(0)} NOK cheaper` : 'Same price'}
+                                        </span>
+                                        ${avgCompPrice > 0 && avgCompPrice < product.current_price ? `
+                                            <button onclick="matchAveragePrice(${product.product_id}, ${avgCompPrice.toFixed(2)})"
+                                                    style="background: white; color: #667eea; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                                                Match Average
+                                            </button>
+                                        ` : ''}
+                                    </div>
                                 </div>
-                            ` : '<div style="color: #999; text-align: center; padding: 2rem;">No competitor data available</div>'}
+
+                                <!-- Individual Competitors -->
+                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                    ${product.competitor_sales.by_competitor.map(c => {
+                                        const priceDiff = product.current_price - c.price;
+                                        const isExpensive = priceDiff > 0;
+                                        return `
+                                        <div style="padding: 1rem; background: ${isExpensive ? '#fef2f2' : '#f0fdf4'}; border-radius: 6px; border-left: 4px solid ${isExpensive ? '#dc2626' : '#059669'};">
+                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                                                <div style="flex: 1;">
+                                                    <div style="font-weight: 700; color: #111; font-size: 1rem; margin-bottom: 0.25rem;">${c.website}</div>
+                                                    <div style="font-size: 0.85rem; color: #666;">${c.product_name}</div>
+                                                </div>
+                                                <div style="text-align: right;">
+                                                    <div style="font-size: 1.3rem; font-weight: 700; color: ${isExpensive ? '#dc2626' : '#059669'};">${c.price.toFixed(0)} NOK</div>
+                                                    <div style="font-size: 0.75rem; color: ${isExpensive ? '#dc2626' : '#059669'};">
+                                                        ${isExpensive ? `${priceDiff.toFixed(0)} NOK cheaper` : `${Math.abs(priceDiff).toFixed(0)} NOK higher`}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-bottom: 0.75rem; font-size: 0.85rem;">
+                                                <div style="background: white; padding: 0.5rem; border-radius: 4px;">
+                                                    <div style="color: #666; font-size: 0.75rem;">Estimated Sales</div>
+                                                    <div style="font-weight: 600; color: #111;">${c.total_sales_estimate.toFixed(0)} units</div>
+                                                </div>
+                                                <div style="background: white; padding: 0.5rem; border-radius: 4px;">
+                                                    <div style="color: #666; font-size: 0.75rem;">Current Stock</div>
+                                                    <div style="font-weight: 600; color: #111;">${c.current_stock} units</div>
+                                                </div>
+                                                <div style="background: white; padding: 0.5rem; border-radius: 4px;">
+                                                    <div style="color: #666; font-size: 0.75rem;">Daily Average</div>
+                                                    <div style="font-weight: 600; color: #111;">${c.avg_daily_sales.toFixed(1)}/day</div>
+                                                </div>
+                                                <div style="background: white; padding: 0.5rem; border-radius: 4px;">
+                                                    <div style="color: #666; font-size: 0.75rem;">Weekly Sales</div>
+                                                    <div style="font-weight: 600; color: #111;">${c.weekly_sales_estimate.toFixed(0)} units</div>
+                                                </div>
+                                            </div>
+
+                                            ${isExpensive ? `
+                                                <div style="display: flex; gap: 0.5rem;">
+                                                    <button onclick="matchCompetitorPrice(${product.product_id}, ${c.price}, '${c.website}')"
+                                                            style="flex: 1; background: #dc2626; color: white; border: none; padding: 0.5rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                                                        💰 Match ${c.price.toFixed(0)} NOK
+                                                    </button>
+                                                    <button onclick="matchCompetitorPrice(${product.product_id}, ${c.price - 10}, '${c.website} -10')"
+                                                            style="flex: 1; background: #059669; color: white; border: none; padding: 0.5rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                                                        ⚡ Undercut ${(c.price - 10).toFixed(0)} NOK
+                                                    </button>
+                                                </div>
+                                            ` : `
+                                                <div style="padding: 0.5rem; background: rgba(5, 150, 105, 0.1); border-radius: 4px; text-align: center; font-size: 0.85rem; color: #059669; font-weight: 600;">
+                                                    ✓ You're already cheaper than this competitor
+                                                </div>
+                                            `}
+                                        </div>
+                                    `;
+                                    }).join('')}
+                                </div>
+                            ` : `
+                                <div style="text-align: center; padding: 3rem 1rem; color: #999;">
+                                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
+                                    <div style="font-size: 1.1rem; margin-bottom: 0.5rem;">No competitor data available</div>
+                                    <div style="font-size: 0.9rem; margin-bottom: 1.5rem;">Map competitors to see pricing intelligence</div>
+                                    <button onclick="mapCompetitors(${product.product_id})"
+                                            style="background: #667eea; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                                        Map Competitors
+                                    </button>
+                                </div>
+                            `}
                         </div>
                     </div>
                 </td>
