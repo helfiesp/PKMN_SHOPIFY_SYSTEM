@@ -1,6 +1,7 @@
 """Competitor products router."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -853,8 +854,73 @@ async def get_competitor_price_changes(
         
         # Sort by most recent changes first
         changes.sort(key=lambda x: x['changed_at'], reverse=True)
-        
+
         return changes
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch price changes: {str(e)}")
+
+
+@router.get("/{competitor_product_id}/daily-snapshots")
+async def get_competitor_daily_snapshots(
+    competitor_product_id: int,
+    days_back: int = 30,
+    db: Session = Depends(get_db)
+):
+    """
+    Get daily stock/price snapshots for a specific competitor product.
+    Returns chronological data showing stock levels, prices, and changes over time.
+    """
+    from app.models import CompetitorProductDaily
+    from datetime import timedelta, date
+
+    try:
+        # Verify competitor product exists
+        competitor_product = db.query(CompetitorProduct).filter(
+            CompetitorProduct.id == competitor_product_id
+        ).first()
+
+        if not competitor_product:
+            raise HTTPException(status_code=404, detail=f"Competitor product {competitor_product_id} not found")
+
+        # Calculate cutoff date
+        cutoff_date = date.today() - timedelta(days=days_back)
+
+        # Fetch daily snapshots
+        snapshots = db.query(CompetitorProductDaily).filter(
+            and_(
+                CompetitorProductDaily.competitor_product_id == competitor_product_id,
+                CompetitorProductDaily.day >= cutoff_date.isoformat()
+            )
+        ).order_by(CompetitorProductDaily.day).all()
+
+        if not snapshots:
+            return []
+
+        # Convert to list of dicts with parsed prices
+        result = []
+        for snapshot in snapshots:
+            # Parse price string to int
+            price_ore = None
+            if snapshot.price:
+                try:
+                    price_ore = int(snapshot.price) if isinstance(snapshot.price, str) else snapshot.price
+                except (ValueError, TypeError):
+                    price_ore = competitor_product.price_ore
+            else:
+                price_ore = competitor_product.price_ore
+
+            result.append({
+                'day': snapshot.day,
+                'stock_amount': snapshot.stock_amount or 0,
+                'price': (price_ore / 100) if price_ore else 0,
+                'price_ore': price_ore,
+                'stock_status': snapshot.stock_status
+            })
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch daily snapshots: {str(e)}")

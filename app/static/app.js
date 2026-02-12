@@ -1595,72 +1595,196 @@ async function loadCompetitorData(productId, daysBack) {
 
 async function loadCompetitorSalesIntel(competitors, daysBack) {
     try {
-        // Fetch competitor overview to get sales velocity data
-        console.log(`[Sales Intel] Fetching competitor overview for ${daysBack} days`);
-        const overviewResp = await fetch(`${API_BASE}/analytics/competitor-overview?days_back=${daysBack}`);
-
-        if (!overviewResp.ok) {
-            const errorText = await overviewResp.text();
-            console.log(`[Sales Intel] Overview failed (${overviewResp.status}):`, errorText);
-            document.getElementById('competitor-sales-data').innerHTML = `<div style="color: #999;">Sales intelligence not available (${overviewResp.status})</div>`;
+        if (competitors.length === 0) {
+            document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">No competitors mapped to this product</div>';
             return;
         }
 
-        const overview = await overviewResp.json();
-        console.log('[Sales Intel] Overview response:', overview);
+        console.log(`[Sales Intel] Fetching detailed stock history for ${competitors.length} competitors`);
 
-        // Match competitors with sales data
-        const salesData = competitors.map(comp => {
-            const website = overview.websites?.find(w => w.website === comp.website);
-            const productDetail = website?.products?.find(p => p.product_id === comp.id);
+        // Fetch detailed stock history for each competitor
+        const competitorHistories = await Promise.all(
+            competitors.map(async (comp) => {
+                try {
+                    // Fetch daily snapshots for this competitor product
+                    const resp = await fetch(`${API_BASE}/competitors/${comp.id}/daily-snapshots?days_back=${daysBack}`);
 
-            return {
-                website: comp.website,
-                product_name: comp.product_name,
-                stock_removed: productDetail?.stock_removed || 0,
-                stock_added: productDetail?.stock_added || 0,
-                estimated_sales: productDetail?.stock_removed || 0,
-                avg_daily_sales: productDetail?.avg_daily_sales || 0,
-                estimated_revenue: productDetail?.estimated_revenue || 0,
-                price_changes: productDetail?.price_changes || 0
-            };
-        }).filter(d => d.stock_removed > 0 || d.stock_added > 0);
+                    if (!resp.ok) {
+                        console.log(`[Sales Intel] No daily data for ${comp.website} (${resp.status})`);
+                        return null;
+                    }
 
-        if (salesData.length === 0) {
-            document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">No competitor sales activity detected</div>';
+                    const dailyData = await resp.json();
+
+                    // Calculate stock changes and sales
+                    const stockHistory = [];
+                    let totalSales = 0;
+                    let totalRestocked = 0;
+                    let priceChanges = 0;
+
+                    for (let i = 1; i < dailyData.length; i++) {
+                        const prev = dailyData[i - 1];
+                        const curr = dailyData[i];
+
+                        const stockChange = curr.stock_amount - prev.stock_amount;
+                        const priceChange = prev.price !== curr.price;
+
+                        if (priceChange) priceChanges++;
+
+                        stockHistory.push({
+                            date: curr.day,
+                            stock: curr.stock_amount,
+                            stock_change: stockChange,
+                            sold: stockChange < 0 ? Math.abs(stockChange) : 0,
+                            restocked: stockChange > 0 ? stockChange : 0,
+                            price: curr.price || comp.price
+                        });
+
+                        if (stockChange < 0) {
+                            totalSales += Math.abs(stockChange);
+                        } else if (stockChange > 0) {
+                            totalRestocked += stockChange;
+                        }
+                    }
+
+                    return {
+                        competitor: comp,
+                        stockHistory,
+                        totalSales,
+                        totalRestocked,
+                        priceChanges,
+                        currentStock: dailyData[dailyData.length - 1]?.stock_amount || comp.stock_amount,
+                        avgDailySales: totalSales / daysBack
+                    };
+
+                } catch (error) {
+                    console.error(`Error fetching history for ${comp.website}:`, error);
+                    return null;
+                }
+            })
+        );
+
+        // Filter out null results
+        const validHistories = competitorHistories.filter(h => h !== null && h.totalSales > 0);
+
+        if (validHistories.length === 0) {
+            document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">No competitor sales activity detected in this period</div>';
             return;
         }
 
-        const salesRows = salesData.map(data => `
-            <div style="padding: 1rem; background: white; border-radius: 6px; margin-bottom: 0.75rem;">
-                <div style="font-weight: 600; color: #111; margin-bottom: 0.5rem;">${data.website}</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.85rem;">
-                    <div><strong>Est. Sales:</strong> <span style="color: #dc2626; font-weight: 600;">${data.estimated_sales} units</span></div>
-                    <div><strong>Stock Added:</strong> <span style="color: #059669;">${data.stock_added} units</span></div>
-                    <div><strong>Avg Daily Sales:</strong> ${data.avg_daily_sales.toFixed(2)}/day</div>
-                    <div><strong>Price Changes:</strong> ${data.price_changes}</div>
-                    <div style="grid-column: 1 / -1;"><strong>Est. Revenue:</strong> <span style="font-weight: 600;">${data.estimated_revenue.toFixed(2)} NOK</span></div>
+        // Sort by total sales (highest first)
+        validHistories.sort((a, b) => b.totalSales - a.totalSales);
+
+        // Calculate totals
+        const totalSales = validHistories.reduce((sum, h) => sum + h.totalSales, 0);
+        const totalRevenue = validHistories.reduce((sum, h) => sum + (h.totalSales * h.competitor.price), 0);
+
+        // Generate HTML for each competitor with timeline
+        const competitorCards = validHistories.map(history => {
+            const comp = history.competitor;
+            const estimatedRevenue = history.totalSales * comp.price;
+
+            // Create mini timeline chart
+            const maxSales = Math.max(...history.stockHistory.map(d => d.sold), 1);
+            const maxRestocked = Math.max(...history.stockHistory.map(d => d.restocked), 1);
+            const maxChange = Math.max(maxSales, maxRestocked);
+
+            const timelineHTML = history.stockHistory.slice(-14).map(day => {
+                const soldBarWidth = (day.sold / maxChange) * 100;
+                const restockedBarWidth = (day.restocked / maxChange) * 100;
+                const dateShort = new Date(day.date).toLocaleDateString('no-NO', { month: 'short', day: 'numeric' });
+
+                return `
+                    <div style="margin-bottom: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 0.2rem; color: #666;">
+                            <span>${dateShort}</span>
+                            <span>${day.sold > 0 ? `-${day.sold}` : day.restocked > 0 ? `+${day.restocked}` : '0'} | Stock: ${day.stock}</span>
+                        </div>
+                        ${day.sold > 0 ? `
+                            <div style="background: #fee; border-radius: 3px; height: 6px; overflow: hidden; margin-bottom: 2px;">
+                                <div style="background: #dc2626; height: 100%; width: ${soldBarWidth}%;"></div>
+                            </div>
+                        ` : ''}
+                        ${day.restocked > 0 ? `
+                            <div style="background: #efe; border-radius: 3px; height: 6px; overflow: hidden;">
+                                <div style="background: #059669; height: 100%; width: ${restockedBarWidth}%;"></div>
+                            </div>
+                        ` : ''}
+                        ${day.sold === 0 && day.restocked === 0 ? `
+                            <div style="background: #f5f5f5; border-radius: 3px; height: 4px;"></div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; border-left: 4px solid #dc2626;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <div>
+                            <div style="font-weight: 700; color: #111; font-size: 1rem;">${comp.website}</div>
+                            <div style="font-size: 0.8rem; color: #666;">${comp.product_name}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626;">${history.totalSales}</div>
+                            <div style="font-size: 0.75rem; color: #666;">units sold</div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <div>
+                            <div style="color: #666; font-size: 0.75rem;">Avg Daily</div>
+                            <div style="font-weight: 600;">${history.avgDailySales.toFixed(2)}/day</div>
+                        </div>
+                        <div>
+                            <div style="color: #666; font-size: 0.75rem;">Restocked</div>
+                            <div style="font-weight: 600; color: #059669;">+${history.totalRestocked}</div>
+                        </div>
+                        <div>
+                            <div style="color: #666; font-size: 0.75rem;">Current Stock</div>
+                            <div style="font-weight: 600;">${history.currentStock} units</div>
+                        </div>
+                        <div>
+                            <div style="color: #666; font-size: 0.75rem;">Est. Revenue</div>
+                            <div style="font-weight: 600;">${estimatedRevenue.toFixed(0)} NOK</div>
+                        </div>
+                        <div>
+                            <div style="color: #666; font-size: 0.75rem;">Price Changes</div>
+                            <div style="font-weight: 600;">${history.priceChanges}</div>
+                        </div>
+                        <div>
+                            <div style="color: #666; font-size: 0.75rem;">Current Price</div>
+                            <div style="font-weight: 600;">${comp.price.toFixed(0)} NOK</div>
+                        </div>
+                    </div>
+
+                    <div style="border-top: 1px solid #e5e7eb; padding-top: 0.75rem;">
+                        <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem; color: #111;">
+                            Stock Timeline (Last ${Math.min(14, history.stockHistory.length)} days)
+                        </div>
+                        <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.5rem;">
+                            <span style="color: #dc2626;">■</span> Sold &nbsp;
+                            <span style="color: #059669;">■</span> Restocked
+                        </div>
+                        ${timelineHTML}
+                    </div>
                 </div>
-            </div>
-        `).join('');
-
-        const totalCompetitorSales = salesData.reduce((sum, d) => sum + d.estimated_sales, 0);
-        const totalCompetitorRevenue = salesData.reduce((sum, d) => sum + d.estimated_revenue, 0);
+            `;
+        }).join('');
 
         document.getElementById('competitor-sales-data').innerHTML = `
             <div style="padding: 1rem; background: #fef2f2; border-radius: 6px; margin-bottom: 1rem; border-left: 4px solid #dc2626;">
-                <div style="font-size: 0.9rem; margin-bottom: 0.5rem;">Total Competitor Activity (${daysBack} days):</div>
+                <div style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem;">Total Competitor Activity (${daysBack} days):</div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                    <div><strong>Total Sales:</strong> <span style="color: #dc2626; font-weight: 700;">${totalCompetitorSales} units</span></div>
-                    <div><strong>Total Revenue:</strong> ${totalCompetitorRevenue.toFixed(2)} NOK</div>
+                    <div><strong>Total Sales:</strong> <span style="color: #dc2626; font-weight: 700;">${totalSales} units</span></div>
+                    <div><strong>Est. Revenue:</strong> <span style="font-weight: 700;">${totalRevenue.toFixed(0)} NOK</span></div>
                 </div>
             </div>
-            ${salesRows}
+            ${competitorCards}
         `;
 
     } catch (error) {
         console.error('Error loading competitor sales intel:', error);
-        document.getElementById('competitor-sales-data').innerHTML = '<div style="color: #999;">Unable to load sales intelligence</div>';
+        document.getElementById('competitor-sales-data').innerHTML = `<div style="color: #dc2626;">Error loading sales intelligence: ${error.message}</div>`;
     }
 }
 
