@@ -6721,58 +6721,119 @@ async function loadCompetitorAnalytics() {
                     <div id="website-${index}" style="display: none; padding: 1.5rem; padding-top: 0;">
                         ${mappedProducts.length > 0 ? `
                         <div style="margin-bottom: 2rem;">
-                            <h4 style="margin-bottom: 1rem; color: #374151; display: flex; align-items: center; gap: 0.5rem;">
-                                <span style="background: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem;">
-                                    ${mappedProducts.length}
-                                </span>
-                                Products We Also Sell
-                            </h4>
-                            <div class="table-container">
-                                <table class="data-table" style="font-size: 0.875rem;">
-                                    <thead>
-                                        <tr>
-                                            <th>Competitor Product</th>
-                                            <th>Their Price</th>
-                                            <th>Their Stock</th>
-                                            <th>Stock Sold</th>
-                                            <th>Our Product</th>
-                                            <th>Our Price</th>
-                                            <th>Our Stock</th>
-                                            <th>Price Advantage</th>
-                                            <th>Stock Advantage</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${mappedProducts.map(p => {
-                                            const our = p.our_product;
-                                            const priceDiffBadge = our.we_are_cheaper
-                                                ? `<span style="background: #10b981; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">-${Math.abs(our.price_difference_pct).toFixed(1)}%</span>`
-                                                : `<span style="background: #ef4444; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">+${Math.abs(our.price_difference_pct).toFixed(1)}%</span>`;
-                                            const stockBadge = our.stock_advantage >= 0
-                                                ? `<span style="color: #10b981; font-weight: 600;">+${our.stock_advantage}</span>`
-                                                : `<span style="color: #ef4444; font-weight: 600;">${our.stock_advantage}</span>`;
-                                            return `
-                                                <tr style="background: ${our.we_are_cheaper ? '#f0fdf4' : '#fef2f2'};">
-                                                    <td>
-                                                        <strong>${p.name}</strong><br>
-                                                        <small style="color: #666;">${p.category || ''} ${p.brand || ''}</small>
-                                                    </td>
-                                                    <td><strong>${p.current_price.toFixed(2)} kr</strong></td>
-                                                    <td>${p.current_stock}</td>
-                                                    <td style="color: #ef4444; font-weight: 600;">-${p.stock_removed}</td>
-                                                    <td>
-                                                        <strong>${our.title}</strong><br>
-                                                        <small style="color: #666;">${our.variant_title}</small>
-                                                    </td>
-                                                    <td><strong>${our.price.toFixed(2)} kr</strong></td>
-                                                    <td>${our.stock}</td>
-                                                    <td>${priceDiffBadge}</td>
-                                                    <td>${stockBadge}</td>
-                                                </tr>
-                                            `;
-                                        }).join('')}
-                                    </tbody>
-                                </table>
+                            <!-- Filter Tabs -->
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; flex-wrap: wrap;">
+                                <button class="filter-btn-${index}" data-filter="all" onclick="filterCompetitorProducts(${index}, 'all')" style="padding: 0.75rem 1.5rem; border: none; background: none; cursor: pointer; border-bottom: 3px solid #667eea; color: #667eea; font-weight: 700; font-size: 0.9rem;">
+                                    All Products (${mappedProducts.length})
+                                </button>
+                                <button class="filter-btn-${index}" data-filter="expensive" onclick="filterCompetitorProducts(${index}, 'expensive')" style="padding: 0.75rem 1.5rem; border: none; background: none; cursor: pointer; color: #6b7280; font-size: 0.9rem; font-weight: 600;">
+                                    ⚠️ We're Expensive (${mappedProducts.filter(p => !p.our_product.we_are_cheaper).length})
+                                </button>
+                                <button class="filter-btn-${index}" data-filter="cheaper" onclick="filterCompetitorProducts(${index}, 'cheaper')" style="padding: 0.75rem 1.5rem; border: none; background: none; cursor: pointer; color: #6b7280; font-size: 0.9rem; font-weight: 600;">
+                                    ✅ We're Cheaper (${mappedProducts.filter(p => p.our_product.we_are_cheaper).length})
+                                </button>
+                            </div>
+
+                            <!-- Card Grid -->
+                            <div id="products-grid-${index}" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 1.25rem;">
+                                ${mappedProducts.sort((a, b) => (a.our_product.we_are_cheaper ? 1 : 0) - (b.our_product.we_are_cheaper ? 1 : 0)).map(p => {
+                                    const our = p.our_product;
+                                    const weAreCheaper = our.we_are_cheaper;
+                                    const priceDiff = Math.abs(our.price_difference_pct);
+                                    const isDanger = !weAreCheaper && priceDiff > 5;
+                                    const isWarning = !weAreCheaper && priceDiff <= 5 && priceDiff > 0;
+
+                                    return `
+                                        <div class="product-card-${index}" data-filter="${weAreCheaper ? 'cheaper' : 'expensive'}" style="
+                                            border: 3px solid ${isDanger ? '#dc2626' : isWarning ? '#f59e0b' : '#10b981'};
+                                            border-radius: 12px;
+                                            padding: 1.25rem;
+                                            background: ${isDanger ? '#fef2f2' : isWarning ? '#fffbeb' : '#f0fdf4'};
+                                            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                                            transition: all 0.2s;
+                                        ">
+                                            <!-- Header with Status -->
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                                <div style="
+                                                    background: ${isDanger ? '#dc2626' : isWarning ? '#f59e0b' : '#10b981'};
+                                                    color: white;
+                                                    padding: 0.6rem 1.25rem;
+                                                    border-radius: 8px;
+                                                    font-weight: 800;
+                                                    font-size: 0.9rem;
+                                                    letter-spacing: 0.5px;
+                                                ">
+                                                    ${weAreCheaper ? '✅ WINNING' : isDanger ? '🚨 LOSING' : '⚠️ WATCH'}
+                                                </div>
+                                                <div style="text-align: right;">
+                                                    <div style="
+                                                        font-size: 2rem;
+                                                        font-weight: 900;
+                                                        color: ${isDanger ? '#dc2626' : isWarning ? '#f59e0b' : '#10b981'};
+                                                        line-height: 1;
+                                                    ">
+                                                        ${weAreCheaper ? '-' : '+'}${priceDiff.toFixed(1)}%
+                                                    </div>
+                                                    <div style="font-size: 0.7rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">price diff</div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Product Name -->
+                                            <div style="margin-bottom: 1.25rem;">
+                                                <div style="font-size: 1.1rem; font-weight: 700; color: #111827; margin-bottom: 0.35rem; line-height: 1.3;">
+                                                    ${p.name}
+                                                </div>
+                                                <div style="font-size: 0.85rem; color: #6b7280; font-weight: 500;">
+                                                    ${[p.category, p.brand, p.language].filter(x => x).join(' • ')}
+                                                </div>
+                                            </div>
+
+                                            <!-- Price Comparison - Large and Clear -->
+                                            <div style="
+                                                display: grid;
+                                                grid-template-columns: 1fr auto 1fr;
+                                                gap: 1rem;
+                                                align-items: center;
+                                                margin-bottom: 1.25rem;
+                                                padding: 1rem;
+                                                background: white;
+                                                border-radius: 8px;
+                                                box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+                                            ">
+                                                <div style="text-align: center;">
+                                                    <div style="font-size: 0.7rem; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem;">Competitor</div>
+                                                    <div style="font-size: 1.75rem; font-weight: 900; color: #111827;">${p.current_price.toFixed(0)}<span style="font-size: 1rem; font-weight: 600; color: #6b7280;"> kr</span></div>
+                                                </div>
+                                                <div style="font-size: 1.25rem; font-weight: 800; color: #9ca3af;">VS</div>
+                                                <div style="text-align: center;">
+                                                    <div style="font-size: 0.7rem; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem;">Our Price</div>
+                                                    <div style="font-size: 1.75rem; font-weight: 900; color: ${weAreCheaper ? '#10b981' : '#dc2626'};">${our.price.toFixed(0)}<span style="font-size: 1rem; font-weight: 600; color: #6b7280;"> kr</span></div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Stock & Activity Stats -->
+                                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.65rem; margin-bottom: 1rem;">
+                                                <div style="text-align: center; padding: 0.65rem; background: rgba(255,255,255,0.7); border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+                                                    <div style="color: #6b7280; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.2rem;">Their Stock</div>
+                                                    <div style="font-weight: 800; color: #111827; font-size: 1.1rem;">${p.current_stock}</div>
+                                                </div>
+                                                <div style="text-align: center; padding: 0.65rem; background: rgba(255,255,255,0.7); border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+                                                    <div style="color: #6b7280; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.2rem;">Our Stock</div>
+                                                    <div style="font-weight: 800; color: #111827; font-size: 1.1rem;">${our.stock}</div>
+                                                </div>
+                                                <div style="text-align: center; padding: 0.65rem; background: rgba(255,255,255,0.7); border-radius: 6px; border: 1px solid rgba(0,0,0,0.05);">
+                                                    <div style="color: #6b7280; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.2rem;">They Sold</div>
+                                                    <div style="font-weight: 800; color: #ef4444; font-size: 1.1rem;">${p.stock_removed}</div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Our Product Name (smaller, at bottom) -->
+                                            <div style="padding-top: 1rem; border-top: 2px solid rgba(0,0,0,0.06); font-size: 0.8rem; color: #6b7280;">
+                                                <span style="font-weight: 600; color: #374151;">Our Product:</span> ${our.title} - ${our.variant_title}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
                         ` : ''}
@@ -6838,6 +6899,32 @@ function toggleWebsiteProducts(id) {
     if (element) {
         element.style.display = element.style.display === 'none' ? 'block' : 'none';
     }
+}
+
+function filterCompetitorProducts(websiteIndex, filter) {
+    // Update button styles
+    const buttons = document.querySelectorAll(`.filter-btn-${websiteIndex}`);
+    buttons.forEach(btn => {
+        if (btn.dataset.filter === filter) {
+            btn.style.borderBottom = '3px solid #667eea';
+            btn.style.color = '#667eea';
+            btn.style.fontWeight = '700';
+        } else {
+            btn.style.borderBottom = 'none';
+            btn.style.color = '#6b7280';
+            btn.style.fontWeight = '600';
+        }
+    });
+
+    // Filter products
+    const cards = document.querySelectorAll(`.product-card-${websiteIndex}`);
+    cards.forEach(card => {
+        if (filter === 'all') {
+            card.style.display = 'block';
+        } else {
+            card.style.display = card.dataset.filter === filter ? 'block' : 'none';
+        }
+    });
 }
 
 async function showAnalyticsDiagnostics() {
