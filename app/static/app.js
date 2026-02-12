@@ -2992,8 +2992,14 @@ async function exchangeOAuthToken(event) {
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to exchange OAuth token');
+            let errorMessage = 'Failed to exchange OAuth token';
+            try {
+                const error = await response.json();
+                errorMessage = error.detail || error.message || JSON.stringify(error);
+            } catch (e) {
+                errorMessage = await response.text() || errorMessage;
+            }
+            throw new Error(errorMessage);
         }
 
         const result = await response.json();

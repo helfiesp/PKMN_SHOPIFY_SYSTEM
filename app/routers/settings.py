@@ -162,9 +162,7 @@ async def initialize_defaults(db: Session = Depends(get_db)):
 
 @router.post("/exchange-oauth-token")
 async def exchange_oauth_token(
-    shop: str,
-    client_id: str,
-    client_secret: str,
+    request: dict,
     db: Session = Depends(get_db)
 ):
     """
@@ -173,6 +171,11 @@ async def exchange_oauth_token(
     """
     import requests
     from app.models import Setting
+
+    # Extract parameters from request body
+    shop = request.get('shop', '').strip()
+    client_id = request.get('client_id', '').strip()
+    client_secret = request.get('client_secret', '').strip()
 
     # Validate inputs
     if not shop or not client_id or not client_secret:
