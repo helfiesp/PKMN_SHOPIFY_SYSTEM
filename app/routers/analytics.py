@@ -621,20 +621,22 @@ async def get_competitor_overview(
                     elif stock_diff < 0:
                         stock_removed += abs(stock_diff)
 
-                    if prev.price_ore != curr.price_ore:
+                    prev_price = prev.price_ore if prev.price_ore is not None else 0
+                    curr_price = curr.price_ore if curr.price_ore is not None else 0
+                    if prev_price != curr_price:
                         price_changes += 1
 
                 products_detail.append({
                     'product_id': product.id,
-                    'name': product.normalized_name or product.raw_name,
+                    'name': product.normalized_name or product.raw_name or 'Unknown',
                     'current_stock': product.stock_amount or 0,
-                    'current_price': product.price_ore / 100 if product.price_ore else 0,
+                    'current_price': (product.price_ore / 100) if product.price_ore else 0,
                     'stock_added': stock_added,
                     'stock_removed': stock_removed,
                     'price_changes': price_changes,
-                    'avg_daily_sales': velocity.avg_daily_sales if velocity else 0,
-                    'total_sales_estimate': velocity.total_sales_estimate if velocity else 0,
-                    'days_until_sellout': velocity.days_until_sellout if velocity else None,
+                    'avg_daily_sales': velocity.avg_daily_sales if velocity and velocity.avg_daily_sales else 0,
+                    'total_sales_estimate': velocity.total_sales_estimate if velocity and velocity.total_sales_estimate else 0,
+                    'days_until_sellout': velocity.days_until_sellout if velocity and velocity.days_until_sellout else None,
                     'last_updated': product.last_check_time.isoformat() if product.last_check_time else None
                 })
 
@@ -675,6 +677,9 @@ async def get_competitor_overview(
         }
 
     except Exception as e:
+        import traceback
+        print(f"[ERROR] Competitor overview failed: {str(e)}")
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to generate competitor overview: {str(e)}")
 
 
