@@ -641,9 +641,8 @@ async def get_competitor_overview(
                     elif stock_diff < 0:
                         stock_removed += abs(stock_diff)
 
-                    prev_price = prev.price_ore if prev.price_ore is not None else 0
-                    curr_price = curr.price_ore if curr.price_ore is not None else 0
-                    if prev_price != curr_price:
+                    # Track price changes (price is a string in daily snapshots)
+                    if prev.price != curr.price and prev.price and curr.price:
                         price_changes += 1
 
                 products_detail.append({
