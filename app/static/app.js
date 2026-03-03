@@ -897,6 +897,9 @@ async function autoMatchAll() {
             const candidates = await api(`/marketintel/competitor-products?search=${encodeURIComponent(p.title)}&limit=50`);
             const good = candidates.filter(c => {
                 if (c.price == null) return false;
+                // Exclude Korean editions
+                const tl = (c.title || '').toLowerCase();
+                if (tl.includes('koreansk') || tl.includes('korean')) return false;
                 // Price: 40%–200% of ours (filters out single packs and wildly different items)
                 const ratio = +c.price / +ourPrice;
                 if (ratio < 0.4 || ratio > 2.0) return false;
@@ -1099,25 +1102,28 @@ function renderProductDetail(p) {
     const displayVariants = boxVariants.length ? boxVariants : variants;
     const refVariant      = displayVariants[0];
 
-    // Variant rows — box only, with editable stock qty
-    const variantRows = displayVariants.map(v => {
+    // Left panel — vertical card per box variant
+    const boxCards = displayVariants.map(v => {
         const qty = v.inventory_quantity ?? 0;
-        const sc = qty <= 0 ? 'pdd-qty-zero' : qty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
+        const sc  = qty <= 0 ? 'pdd-qty-zero' : qty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
         return `
-        <div class="pdd-variant">
-            <span class="pdd-var-name">${v.title || 'Default'}</span>
-            <span class="pdd-var-price">${fmtNok(v.price)}</span>
-            <input type="number" class="qty-input ${sc}" value="${qty}" min="0" step="1"
-                   data-orig="${qty}" title="Click to edit stock"
-                   onkeydown="if(event.key==='Enter'){this.blur()}"
-                   onblur="setInventory(${v.id},this.value,this)">
+        <div class="pdd-box-card">
+            <div class="pdd-box-label">${v.title || 'Booster Box'}</div>
+            <div class="pdd-box-price">${fmtNok(v.price)}</div>
+            <div class="pdd-box-stock-row">
+                <span class="pdd-box-stock-label">Stock</span>
+                <input type="number" class="qty-input ${sc}" value="${qty}" min="0" step="1"
+                       data-orig="${qty}" title="Click to edit stock"
+                       onkeydown="if(event.key==='Enter'){this.blur()}"
+                       onblur="setInventory(${v.id},this.value,this)">
+            </div>
+            ${snkRec ? `
+            <div class="pdd-box-snk">
+                <span class="pdd-box-snk-label">SNK RRP</span>
+                <span class="pdd-box-snk-price" title="¥${fmt(snkJpy)}">${fmtNok(snkRec)}</span>
+            </div>` : ''}
         </div>`;
     }).join('');
-
-    // SNK pill for header (info only)
-    const snkPill = snkItem
-        ? `<span class="pdd-snk-pill" title="SNKRDUNK RRP · ¥${fmt(snkJpy)}">SNK RRP ${fmtNok(snkRec)}</span>`
-        : '';
 
     // Find cheapest competitor — in-stock takes priority, fallback to any priced
     const inStockLinks    = links.filter(l => l.mi_in_stock === true && l.mi_price != null);
@@ -1141,8 +1147,8 @@ function renderProductDetail(p) {
         ? sortedLinks.map(lnk => {
             const inStock    = lnk.mi_in_stock === true;
             const oos        = lnk.mi_in_stock === false;
-            const isCheapest = cheapestLink && lnk.id === cheapestLink.id;
-            const delta      = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
+            const isCheapest    = !weCheapest && cheapestLink && lnk.id === cheapestLink.id;
+            const delta         = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
             return `
             <div class="pdd-comp-row${isCheapest ? ' pdd-comp-cheapest' : ''}">
                 <span class="pdd-comp-domain">${lnk.mi_domain || '—'}</span>
@@ -1172,7 +1178,6 @@ function renderProductDetail(p) {
     <div class="pdd-header">
         <div class="pdd-header-left">
             <h3 class="pdd-title">${p.title}</h3>
-            ${snkPill}
             ${weCheapest ? '<span class="pdd-cheapest-pill" title="Our price is the lowest among in-stock competitors">★ Lowest price</span>' : ''}
         </div>
         <div class="pdd-header-actions">
@@ -1184,8 +1189,7 @@ function renderProductDetail(p) {
     </div>
     <div class="pdd-body">
         <div class="pdd-left">
-            <div class="pdd-label">Booster Box</div>
-            <div class="pdd-variants">${variantRows}</div>
+            ${boxCards}
         </div>
         <div class="pdd-right">
             <div class="pdd-section-head">
