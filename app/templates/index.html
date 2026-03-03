@@ -3,279 +3,333 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pokémon Price & Stock Monitor</title>
+    <title>Pokelageret — Price &amp; Stock Monitor</title>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 
-<!-- Header -->
-<header class="header">
-    <div class="header-left">
-        <h1>Pokémon Price &amp; Stock Monitor</h1>
-    </div>
-    <div class="header-right">
-        <div class="status-indicator">
-            <div class="status-dot"></div>
-            <span>API: <strong id="api-status">Checking…</strong></span>
-        </div>
-    </div>
-</header>
-
 <!-- Toast container -->
 <div id="toast-container"></div>
 
-<!-- Main -->
-<div class="container">
+<!-- Mobile menu toggle -->
+<button class="mobile-menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
 
-    <!-- Navigation -->
-    <nav class="navbar">
-        <div class="nav-primary">
-            <button class="nav-item active"  data-tab="dashboard">Dashboard</button>
-            <button class="nav-item"          data-tab="price-monitor">Price Monitor</button>
-            <button class="nav-item"          data-tab="products">Products</button>
-            <button class="nav-item"          data-tab="snkrdunk">SNKRDUNK</button>
-            <button class="nav-item"          data-tab="competitor-intel">Competitor Intel</button>
-            <button class="nav-item"          data-tab="price-plans">Price Plans</button>
-            <button class="nav-item"          data-tab="settings">Settings</button>
-        </div>
-    </nav>
+<div class="app-layout">
 
-    <!-- ─── DASHBOARD ─────────────────────────────────────────────────────── -->
-    <div id="tab-dashboard" class="tab-panel active">
-        <div class="section-header" style="margin-top:1.5rem">
-            <h2>Overview</h2>
-            <span class="muted" id="dash-last-updated"></span>
-        </div>
-
-        <!-- Stat cards -->
-        <div class="stat-grid">
-            <div class="stat-card">
-                <div class="stat-value" id="stat-products">—</div>
-                <div class="stat-label">Products</div>
-            </div>
-            <div class="stat-card stat-danger">
-                <div class="stat-value" id="stat-out-of-stock">—</div>
-                <div class="stat-label">Out of Stock</div>
-            </div>
-            <div class="stat-card stat-warning">
-                <div class="stat-value" id="stat-price-alerts">—</div>
-                <div class="stat-label">Overpriced vs Competitors</div>
-            </div>
-            <div class="stat-card stat-success">
-                <div class="stat-value" id="stat-mi-alerts">—</div>
-                <div class="stat-label">Unread Competitor Alerts</div>
+    <!-- ─── SIDEBAR ────────────────────────────────────────────────────────── -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="12" r="3"/>
+                <line x1="2" y1="12" x2="9" y2="12"/>
+                <line x1="15" y1="12" x2="22" y2="12"/>
+            </svg>
+            <div class="sidebar-brand-text">
+                Pokelageret
+                <small>Price &amp; Stock Monitor</small>
             </div>
         </div>
 
-        <!-- Two-column: attention + recent alerts -->
-        <div class="dash-grid">
-            <div class="card">
-                <div class="card-header"><h3>Needs Attention</h3></div>
-                <div id="dash-attention"><div class="loading-spinner">Loading…</div></div>
-            </div>
-            <div class="card">
-                <div class="card-header"><h3>Recent Competitor Alerts</h3></div>
-                <div id="dash-alerts"><div class="loading-spinner">Loading…</div></div>
-            </div>
-        </div>
-    </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-nav-section">
+                <div class="sidebar-nav-label">Overview</div>
 
-    <!-- ─── PRICE MONITOR ──────────────────────────────────────────────────── -->
-    <div id="tab-price-monitor" class="tab-panel">
-        <div class="section-header" style="margin-top:1.5rem">
-            <h2>Price Monitor</h2>
-            <span class="muted" id="pm-count"></span>
-        </div>
-        <p class="muted" style="margin-bottom:1rem">
-            Side-by-side comparison of your Shopify prices vs. competitor prices from MarketIntel.
-            Overpriced = your price is more than 10% above the competitor.
-        </p>
+                <button class="nav-item active" data-tab="dashboard">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                    <span class="nav-label">Dashboard</span>
+                </button>
 
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem">
-            <div class="filter-group">
-                <button class="btn pm-filter-btn active" data-filter="all">All</button>
-                <button class="btn pm-filter-btn" data-filter="overpriced">Overpriced (&gt;5%)</button>
-                <button class="btn pm-filter-btn" data-filter="underpriced">Underpriced (&lt;-5%)</button>
-                <button class="btn pm-filter-btn" data-filter="ok">Competitive</button>
-            </div>
-            <button class="btn btn-primary" onclick="loadPriceMonitor()">Refresh</button>
-        </div>
+                <button class="nav-item" data-tab="price-monitor">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                    <span class="nav-label">Price Monitor</span>
+                </button>
 
-        <div id="pm-table-wrap"><div class="loading-spinner">Loading…</div></div>
-    </div>
+                <button class="nav-item" data-tab="products">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                    <span class="nav-label">Products</span>
+                </button>
 
-    <!-- ─── PRODUCTS ──────────────────────────────────────────────────────── -->
-    <div id="tab-products" class="tab-panel">
-        <div class="section-header" style="margin-top:1.5rem">
-            <h2>Products</h2>
-            <span class="muted" id="products-count"></span>
-        </div>
+                <div class="sidebar-nav-label">Intelligence</div>
 
-        <!-- Controls -->
-        <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
-            <input type="search" id="product-search" class="input-sm"
-                placeholder="Search products or SKU…" style="min-width:220px" />
-            <select id="product-stock-filter" class="input-sm" style="min-width:160px">
-                <option value="all">All products</option>
-                <option value="out">Out of stock</option>
-                <option value="low">Low stock (≤ 10)</option>
-            </select>
-            <button class="btn btn-primary" onclick="loadProducts()">Refresh</button>
-        </div>
+                <button class="nav-item" data-tab="snkrdunk">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 8l-3 5-3-5"/><line x1="9" y1="14" x2="15" y2="14"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+                    <span class="nav-label">SNKRDUNK</span>
+                </button>
 
-        <div id="products-list"><div class="loading-spinner">Loading…</div></div>
-    </div>
+                <button class="nav-item" data-tab="competitor-intel">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span class="nav-label">Competitor Intel</span>
+                </button>
 
-    <!-- ─── SNKRDUNK ───────────────────────────────────────────────────────── -->
-    <div id="tab-snkrdunk" class="tab-panel">
-        <div class="section-header" style="margin-top:1.5rem">
-            <h2>SNKRDUNK Intelligence</h2>
-        </div>
+                <div class="sidebar-nav-label">Actions</div>
 
-        <!-- Controls bar -->
-        <div class="snk-controls">
-            <button class="btn btn-primary" id="btn-fetch-snkrdunk" onclick="fetchSnkrdunk()">
-                Refresh SNKRDUNK Data
-            </button>
-            <label>
-                JPY→NOK rate
-                <input type="number" id="snk-rate" value="0.063" step="0.001" min="0.01" />
-            </label>
-            <label>
-                Shipping (JPY)
-                <input type="number" id="snk-shipping" value="500" step="100" min="0" />
-            </label>
-            <label>
-                Min margin %
-                <input type="number" id="snk-margin" value="20" step="1" min="0" max="80" />
-            </label>
-            <label style="display:flex;align-items:center;gap:.35rem;font-size:.85rem">
-                <input type="checkbox" id="snk-spikes-only" />
-                Spikes only
-            </label>
-        </div>
-
-        <div id="snkrdunk-table-wrap"><div class="loading-spinner">Loading…</div></div>
-
-        <!-- Scan logs -->
-        <div class="card" style="margin-top:2rem">
-            <div class="card-header"><h3>Recent Scans</h3></div>
-            <div id="snkrdunk-logs" style="padding:.5rem 0"></div>
-        </div>
-    </div>
-
-    <!-- ─── COMPETITOR INTEL ───────────────────────────────────────────────── -->
-    <div id="tab-competitor-intel" class="tab-panel">
-        <div class="section-header" style="margin-top:1.5rem">
-            <h2>Competitor Intelligence</h2>
-        </div>
-
-        <!-- Alerts section -->
-        <div class="card" style="margin-bottom:1.5rem">
-            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
-                <h3>Alerts Feed</h3>
-                <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-                    <select id="ci-type-filter" class="input-sm">
-                        <option value="">All types</option>
-                        <option value="price_change">Price change</option>
-                        <option value="stock_change">Stock change</option>
-                        <option value="new_product">New product</option>
-                    </select>
-                    <button class="btn" onclick="loadCiAlerts()">Refresh</button>
-                </div>
-            </div>
-            <div id="ci-alerts" class="ci-alerts-feed" style="padding:.75rem">
-                <div class="loading-spinner">Loading…</div>
-            </div>
-        </div>
-
-        <!-- Competitor product browser -->
-        <div class="card">
-            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
-                <h3>Competitor Products</h3>
-                <div style="display:flex;gap:.5rem;align-items:center">
-                    <select id="ci-domain-filter" class="input-sm">
-                        <option value="">All competitors</option>
-                    </select>
-                </div>
-            </div>
-            <div id="ci-products-wrap" style="padding:.5rem 0">
-                <div class="loading-spinner">Loading…</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ─── PRICE PLANS ────────────────────────────────────────────────────── -->
-    <div id="tab-price-plans" class="tab-panel">
-        <div class="section-header" style="margin-top:1.5rem">
-            <h2>Price Plans</h2>
-        </div>
-
-        <!-- Generate form -->
-        <div class="card" style="margin-bottom:1.5rem">
-            <div class="card-header"><h3>Generate New Plan</h3></div>
-            <div style="padding:1rem;display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end">
-                <div>
-                    <label style="display:block;font-size:.8rem;margin-bottom:.25rem">Variant Type</label>
-                    <select id="pp-variant-type" class="input-sm">
-                        <option value="box">Booster Box</option>
-                        <option value="pack">Booster Pack</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display:block;font-size:.8rem;margin-bottom:.25rem">Min change threshold %</label>
-                    <input type="number" id="pp-min-change" class="input-sm" value="5" min="0" max="100" style="min-width:100px" />
-                </div>
-                <button class="btn btn-primary" id="btn-generate-plan" onclick="generatePlan()">
-                    Generate from SNKRDUNK
+                <button class="nav-item" data-tab="price-plans">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                    <span class="nav-label">Price Plans</span>
                 </button>
             </div>
-        </div>
+        </nav>
 
-        <!-- Plans list -->
-        <div id="pp-plans-list"><div class="loading-spinner">Loading…</div></div>
-    </div>
-
-    <!-- ─── SETTINGS ───────────────────────────────────────────────────────── -->
-    <div id="tab-settings" class="tab-panel">
-        <div class="section-header" style="margin-top:1.5rem">
-            <h2>Settings</h2>
-        </div>
-
-        <!-- Shopify sync -->
-        <div class="card" style="margin-bottom:1.5rem">
-            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-                <h3>Shopify Sync</h3>
-                <button class="btn btn-primary" id="btn-sync-shopify" onclick="syncShopify()">
-                    Sync Products from Shopify
+        <div class="sidebar-footer">
+            <div class="sidebar-nav-section">
+                <button class="nav-item" data-tab="settings">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span class="nav-label">Settings</span>
                 </button>
             </div>
-            <p class="muted" style="padding:.75rem 1rem 0">
-                Pull the latest product and inventory data from your Shopify store.
-            </p>
+            <div class="sidebar-status">
+                <div class="status-dot"></div>
+                <span>API: <strong id="api-status">Checking&hellip;</strong></span>
+            </div>
         </div>
+    </aside>
 
-        <!-- Settings list -->
-        <div class="card">
-            <div class="card-header"><h3>Configuration</h3></div>
-            <div id="settings-list" style="padding:0 1rem"><div class="loading-spinner">Loading…</div></div>
-        </div>
-    </div>
+    <!-- ─── MAIN CONTENT ───────────────────────────────────────────────────── -->
+    <main class="main-content">
+        <div class="content-wrapper">
 
-</div><!-- /container -->
+            <!-- ─── DASHBOARD ──────────────────────────────────────────────── -->
+            <div id="tab-dashboard" class="tab-panel active">
+                <div class="section-header">
+                    <h2>Dashboard</h2>
+                    <span class="muted" id="dash-last-updated"></span>
+                </div>
+
+                <!-- Stat cards -->
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-products">&mdash;</div>
+                        <div class="stat-label">Products</div>
+                    </div>
+                    <div class="stat-card stat-danger">
+                        <div class="stat-value" id="stat-out-of-stock">&mdash;</div>
+                        <div class="stat-label">Out of Stock</div>
+                    </div>
+                    <div class="stat-card stat-warning">
+                        <div class="stat-value" id="stat-price-alerts">&mdash;</div>
+                        <div class="stat-label">Overpriced vs Competitors</div>
+                    </div>
+                    <div class="stat-card stat-success">
+                        <div class="stat-value" id="stat-mi-alerts">&mdash;</div>
+                        <div class="stat-label">Unread Competitor Alerts</div>
+                    </div>
+                </div>
+
+                <!-- Two-column: attention + recent alerts -->
+                <div class="dash-grid">
+                    <div class="card">
+                        <div class="card-header"><h3>Needs Attention</h3></div>
+                        <div id="dash-attention"><div class="loading-spinner">Loading&hellip;</div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3>Recent Competitor Alerts</h3></div>
+                        <div id="dash-alerts"><div class="loading-spinner">Loading&hellip;</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── PRICE MONITOR ──────────────────────────────────────────── -->
+            <div id="tab-price-monitor" class="tab-panel">
+                <div class="section-header">
+                    <h2>Price Monitor</h2>
+                    <span class="muted" id="pm-count"></span>
+                </div>
+                <p class="muted" style="margin-bottom:1rem;font-size:.8125rem">
+                    Side-by-side comparison of your Shopify prices vs. competitor prices from MarketIntel.
+                    Overpriced = your price is more than 10 % above the competitor.
+                </p>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+                    <div class="filter-group">
+                        <button class="btn pm-filter-btn active" data-filter="all">All</button>
+                        <button class="btn pm-filter-btn" data-filter="overpriced">Overpriced (&gt;5 %)</button>
+                        <button class="btn pm-filter-btn" data-filter="underpriced">Underpriced (&lt;-5 %)</button>
+                        <button class="btn pm-filter-btn" data-filter="ok">Competitive</button>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="loadPriceMonitor()">Refresh</button>
+                </div>
+
+                <div id="pm-table-wrap"><div class="loading-spinner">Loading&hellip;</div></div>
+            </div>
+
+            <!-- ─── PRODUCTS ───────────────────────────────────────────────── -->
+            <div id="tab-products" class="tab-panel">
+                <div class="section-header">
+                    <h2>Products</h2>
+                    <span class="muted" id="products-count"></span>
+                </div>
+
+                <!-- Controls -->
+                <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
+                    <input type="search" id="product-search" class="input-sm"
+                        placeholder="Search products or SKU&hellip;" style="min-width:220px" />
+                    <select id="product-stock-filter" class="input-sm" style="min-width:160px">
+                        <option value="all">All products</option>
+                        <option value="out">Out of stock</option>
+                        <option value="low">Low stock (&le; 10)</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="loadProducts()">Refresh</button>
+                </div>
+
+                <div id="products-list"><div class="loading-spinner">Loading&hellip;</div></div>
+            </div>
+
+            <!-- ─── SNKRDUNK ───────────────────────────────────────────────── -->
+            <div id="tab-snkrdunk" class="tab-panel">
+                <div class="section-header">
+                    <h2>SNKRDUNK Intelligence</h2>
+                </div>
+
+                <!-- Controls bar -->
+                <div class="snk-controls">
+                    <button class="btn btn-primary" id="btn-fetch-snkrdunk" onclick="fetchSnkrdunk()">
+                        Refresh SNKRDUNK Data
+                    </button>
+                    <label>
+                        JPY&rarr;NOK rate
+                        <input type="number" id="snk-rate" value="0.063" step="0.001" min="0.01" />
+                    </label>
+                    <label>
+                        Shipping (JPY)
+                        <input type="number" id="snk-shipping" value="500" step="100" min="0" />
+                    </label>
+                    <label>
+                        Min margin %
+                        <input type="number" id="snk-margin" value="20" step="1" min="0" max="80" />
+                    </label>
+                    <label style="display:flex;align-items:center;gap:.35rem;font-size:.8125rem">
+                        <input type="checkbox" id="snk-spikes-only" />
+                        Spikes only
+                    </label>
+                </div>
+
+                <div id="snkrdunk-table-wrap"><div class="loading-spinner">Loading&hellip;</div></div>
+
+                <!-- Scan logs -->
+                <div class="card" style="margin-top:2rem">
+                    <div class="card-header"><h3>Recent Scans</h3></div>
+                    <div id="snkrdunk-logs" style="padding:.5rem 0"></div>
+                </div>
+            </div>
+
+            <!-- ─── COMPETITOR INTEL ───────────────────────────────────────── -->
+            <div id="tab-competitor-intel" class="tab-panel">
+                <div class="section-header">
+                    <h2>Competitor Intelligence</h2>
+                </div>
+
+                <!-- Alerts section -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+                        <h3>Alerts Feed</h3>
+                        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                            <select id="ci-type-filter" class="input-sm" style="min-width:140px">
+                                <option value="">All types</option>
+                                <option value="price_change">Price change</option>
+                                <option value="stock_change">Stock change</option>
+                                <option value="new_product">New product</option>
+                            </select>
+                            <button class="btn btn-sm" onclick="loadCiAlerts()">Refresh</button>
+                        </div>
+                    </div>
+                    <div id="ci-alerts" class="ci-alerts-feed">
+                        <div class="loading-spinner">Loading&hellip;</div>
+                    </div>
+                </div>
+
+                <!-- Competitor product browser -->
+                <div class="card">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+                        <h3>Competitor Products</h3>
+                        <div style="display:flex;gap:.5rem;align-items:center">
+                            <select id="ci-domain-filter" class="input-sm" style="min-width:160px">
+                                <option value="">All competitors</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="ci-products-wrap" style="padding:.5rem 0">
+                        <div class="loading-spinner">Loading&hellip;</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── PRICE PLANS ────────────────────────────────────────────── -->
+            <div id="tab-price-plans" class="tab-panel">
+                <div class="section-header">
+                    <h2>Price Plans</h2>
+                </div>
+
+                <!-- Generate form -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header"><h3>Generate New Plan</h3></div>
+                    <div style="padding:1rem 1.25rem;display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end">
+                        <div>
+                            <label class="form-label">Variant Type</label>
+                            <select id="pp-variant-type" class="input-sm" style="min-width:140px">
+                                <option value="box">Booster Box</option>
+                                <option value="pack">Booster Pack</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Min change threshold %</label>
+                            <input type="number" id="pp-min-change" class="input-sm" value="5" min="0" max="100" style="min-width:100px" />
+                        </div>
+                        <button class="btn btn-primary" id="btn-generate-plan" onclick="generatePlan()">
+                            Generate from SNKRDUNK
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Plans list -->
+                <div id="pp-plans-list"><div class="loading-spinner">Loading&hellip;</div></div>
+            </div>
+
+            <!-- ─── SETTINGS ───────────────────────────────────────────────── -->
+            <div id="tab-settings" class="tab-panel">
+                <div class="section-header">
+                    <h2>Settings</h2>
+                </div>
+
+                <!-- Shopify sync -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3>Shopify Sync</h3>
+                        <button class="btn btn-primary btn-sm" id="btn-sync-shopify" onclick="syncShopify()">
+                            Sync Products from Shopify
+                        </button>
+                    </div>
+                    <p class="muted" style="padding:.75rem 1.25rem;font-size:.8125rem">
+                        Pull the latest product and inventory data from your Shopify store.
+                    </p>
+                </div>
+
+                <!-- Settings list -->
+                <div class="card">
+                    <div class="card-header"><h3>Configuration</h3></div>
+                    <div id="settings-list"><div class="loading-spinner">Loading&hellip;</div></div>
+                </div>
+            </div>
+
+        </div><!-- /content-wrapper -->
+    </main>
+
+</div><!-- /app-layout -->
 
 <!-- Competitor link modal -->
 <div id="link-modal" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close-btn" onclick="closeLinkModal()">✕</button>
+        <button class="modal-close-btn" onclick="closeLinkModal()">&times;</button>
         <h3 id="link-modal-title" style="margin-bottom:1rem">Link competitor</h3>
         <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
             <input type="search" id="link-search-input" class="input-sm"
-                placeholder="Search by product name, domain…" style="flex:1"
+                placeholder="Search by product name, domain&hellip;" style="flex:1;min-width:0"
                 oninput="searchLinkProducts()" />
         </div>
         <div id="link-search-results" style="max-height:400px;overflow-y:auto">
-            <p class="muted">Type to search competitor products…</p>
+            <p class="muted" style="padding:1rem;text-align:center">Type to search competitor products&hellip;</p>
         </div>
     </div>
 </div>
@@ -283,7 +337,7 @@
 <!-- Plan detail modal -->
 <div id="plan-modal" class="modal-overlay">
     <div class="modal-box">
-        <button class="modal-close-btn" onclick="closeModal()">✕</button>
+        <button class="modal-close-btn" onclick="closeModal()">&times;</button>
         <div id="plan-modal-body"></div>
     </div>
 </div>
