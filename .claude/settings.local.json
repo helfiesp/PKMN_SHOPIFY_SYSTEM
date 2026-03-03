@@ -5,7 +5,9 @@
       "Bash(do)",
       "Bash(echo \"OK: $cls\")",
       "Bash(echo \"MISSING: $cls\")",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(curl -s \"http://192.168.0.100/api/v1/competitor-products?limit=5\" -H \"Authorization: Bearer mw_1dab7febe614d9189824c93fd614d532ce2f0a47083a07f7\")",
+      "Bash(curl -s \"http://192.168.0.100/api/v1/competitor-products?search=mega+dream&limit=10\" -H \"Authorization: Bearer mw_1dab7febe614d9189824c93fd614d532ce2f0a47083a07f7\")"
     ]
   }
 }

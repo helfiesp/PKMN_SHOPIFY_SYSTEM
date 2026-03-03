@@ -16,6 +16,15 @@ def list_competitors():
         raise HTTPException(status_code=502, detail=f"MarketIntel error: {e}")
 
 
+@router.get("/competitor-products/{competitor_product_id}")
+def get_competitor_product(competitor_product_id: int):
+    """Fetch a single competitor product by ID."""
+    try:
+        return marketintel_service.get_competitor_product_by_id(competitor_product_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"MarketIntel error: {e}")
+
+
 @router.get("/competitor-products")
 def list_competitor_products(
     domain: Optional[str] = None,

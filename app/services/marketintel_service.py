@@ -39,6 +39,17 @@ def get_competitor_products(
     return r.json()
 
 
+def get_competitor_product_by_id(competitor_product_id: int) -> dict:
+    """Return a single competitor product by ID."""
+    r = requests.get(
+        f"{_base()}/competitor-products/{competitor_product_id}",
+        headers=_headers(),
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
 def get_price_history(competitor_product_id: int, limit: int = 100) -> list:
     """Return price/stock snapshots for a single competitor product, newest first."""
     r = requests.get(

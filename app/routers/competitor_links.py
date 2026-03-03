@@ -121,42 +121,21 @@ def refresh_prices(db: Session = Depends(get_db)):
     if not links:
         return {"updated": 0, "errors": 0}
 
-    # Group by domain to minimise API calls — fetch per domain then map by id
-    domain_ids: dict = {}
-    for link in links:
-        d = link.mi_domain or ""
-        domain_ids.setdefault(d, set()).add(link.mi_product_id)
-
-    # Build a lookup: mi_product_id → {price, in_stock, source_url}
-    product_lookup: dict = {}
-    errors = 0
-    for domain, ids in domain_ids.items():
-        try:
-            kwargs = {"limit": 200}
-            if domain:
-                kwargs["domain"] = domain
-            products = marketintel_service.get_competitor_products(**kwargs)
-            for p in products:
-                if p["id"] in ids:
-                    product_lookup[p["id"]] = {
-                        "price":      p.get("price"),
-                        "in_stock":   p.get("in_stock"),
-                        "source_url": p.get("source_url"),
-                    }
-        except Exception:
-            errors += 1
-
     updated = 0
+    errors = 0
     now = datetime.now(timezone.utc)
+
     for link in links:
-        info = product_lookup.get(link.mi_product_id)
-        if info:
-            link.mi_price      = info["price"]
-            link.mi_in_stock   = info["in_stock"]
-            if info["source_url"]:
-                link.mi_source_url = info["source_url"]
+        try:
+            p = marketintel_service.get_competitor_product_by_id(link.mi_product_id)
+            link.mi_price      = p.get("price")
+            link.mi_in_stock   = p.get("in_stock")
+            if p.get("source_url"):
+                link.mi_source_url = p["source_url"]
             link.mi_updated_at = now
             updated += 1
+        except Exception:
+            errors += 1
 
     db.commit()
     return {"updated": updated, "errors": errors, "total_links": len(links)}

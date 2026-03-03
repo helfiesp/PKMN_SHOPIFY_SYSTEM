@@ -21,7 +21,8 @@ let productStockFilter  = 'all';
 
 // Link-modal state
 let linkModalProductId  = null;
-let _linkSearchTimer    = null; // debounce handle
+let _linkSearchTimer    = null;
+let _linkStaged         = [];  // [{id, domain, title, price, inStock, url}, ...]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -982,21 +983,31 @@ function renderProductCard(p) {
             </div>`).join('')
         : '<div class="pc-comp-empty">No competitors linked yet. Click + Link to add one.</div>';
 
+    // Header summary (visible when collapsed)
+    const totalStock = variants.reduce((s, v) => s + (v.inventory_quantity ?? 0), 0);
+    const prices = variants.map(v => v.price).filter(Boolean);
+    const priceLabel = prices.length > 1
+        ? `${fmtNok(Math.min(...prices))} – ${fmtNok(Math.max(...prices))}`
+        : prices.length ? fmtNok(prices[0]) : '';
+    const compSummary = links.length
+        ? links.map(l => `${l.mi_domain}${l.mi_price != null ? ' ' + fmtNok(l.mi_price) : ''}`).join(' · ')
+        : '';
+
     return `
     <div class="product-card" id="pcard-${idSafe}">
         <div class="product-card-header" onclick="toggleProductCard('${idSafe}')">
             <div class="product-card-title">
                 <span class="pc-name">${p.title}</span>
-                <span class="pc-variants-count">${variants.length} variant${variants.length !== 1 ? 's' : ''}</span>
+                <span class="pc-meta">${priceLabel}${totalStock > 0 ? ' · ' + totalStock + ' pcs' : ''}</span>
             </div>
             <div class="pc-header-right">
                 ${stockBadge}
                 ${snkItem ? '<span class="pc-snk-dot" title="SNKRDUNK mapped">SNK</span>' : ''}
-                ${links.length ? `<span class="pc-comp-dot" title="${links.length} competitor${links.length !== 1 ? 's' : ''} linked">${links.length}C</span>` : ''}
-                <svg class="pc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                ${links.length ? `<span class="pc-comp-dot" title="${compSummary}">${links.length} comp</span>` : ''}
+                <svg class="pc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(-90deg)"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
         </div>
-        <div class="product-card-body" id="pbody-${idSafe}">
+        <div class="product-card-body" id="pbody-${idSafe}" style="display:none">
 
             <!-- Variants table -->
             <div class="pc-section">
@@ -1042,10 +1053,12 @@ function toggleProductCard(idSafe) {
 
 function openLinkModal(shopifyProductId, productTitle) {
     linkModalProductId = shopifyProductId;
-    document.getElementById('link-modal-title').textContent = `Link competitor — ${productTitle}`;
+    _linkStaged = [];
+    document.getElementById('link-modal-title').textContent = `Link competitors — ${productTitle}`;
     document.getElementById('link-search-input').value = '';
     document.getElementById('link-search-results').innerHTML =
-        '<p class="muted" style="padding:1rem;text-align:center">Type to search competitor products…</p>';
+        '<p class="muted" style="padding:1.25rem;text-align:center">Search to find competitor products to link…</p>';
+    _renderStaging();
     document.getElementById('link-modal').classList.add('open');
     document.getElementById('link-search-input').focus();
 }
@@ -1053,92 +1066,156 @@ function openLinkModal(shopifyProductId, productTitle) {
 function closeLinkModal() {
     document.getElementById('link-modal')?.classList.remove('open');
     linkModalProductId = null;
+    _linkStaged = [];
+}
+
+function _renderStaging() {
+    const stagingEl = document.getElementById('link-staging');
+    const footerEl  = document.getElementById('link-modal-footer');
+    const countEl   = document.getElementById('link-staged-count');
+    if (!stagingEl) return;
+
+    if (!_linkStaged.length) {
+        stagingEl.innerHTML = '';
+        if (footerEl) footerEl.style.display = 'none';
+        return;
+    }
+
+    if (footerEl) footerEl.style.display = '';
+    if (countEl) countEl.textContent = _linkStaged.length;
+
+    stagingEl.innerHTML = `
+        <div class="link-staging-bar">
+            <span class="link-staging-label">${_linkStaged.length} queued:</span>
+            <div class="link-staging-chips">
+                ${_linkStaged.map(s => `
+                    <span class="link-staged-chip">
+                        <span class="link-result-domain">${s.domain}</span>
+                        <span class="link-staged-chip-title">${s.title}</span>
+                        <button class="link-staged-remove" onclick="unstageLink(${s.id})">×</button>
+                    </span>`).join('')}
+            </div>
+        </div>`;
+
+    // Re-mark result buttons
+    document.querySelectorAll('[data-link-id]').forEach(btn => {
+        const id = parseInt(btn.dataset.linkId);
+        const staged = _linkStaged.some(s => s.id === id);
+        btn.textContent = staged ? '✓ Added' : 'Add';
+        btn.classList.toggle('btn-staged', staged);
+        btn.classList.toggle('btn-primary', !staged);
+    });
+}
+
+function stageLinkProduct(id, domain, title, price, inStock, url) {
+    if (_linkStaged.some(s => s.id === id)) {
+        unstageLink(id);
+        return;
+    }
+    _linkStaged.push({ id, domain, title, price, inStock, url });
+    _renderStaging();
+}
+
+function unstageLink(id) {
+    _linkStaged = _linkStaged.filter(s => s.id !== id);
+    _renderStaging();
+}
+
+async function commitStagedLinks() {
+    if (!linkModalProductId || !_linkStaged.length) return;
+
+    const btn = document.getElementById('link-modal-footer')?.querySelector('button');
+    if (btn) { btn.disabled = true; btn.textContent = 'Linking…'; }
+
+    const staged = [..._linkStaged];
+    let added = 0, skipped = 0;
+
+    for (const s of staged) {
+        try {
+            const link = await api('/competitor-links', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    shopify_product_id: linkModalProductId,
+                    mi_product_id:  s.id,
+                    mi_domain:      s.domain,
+                    mi_title:       s.title,
+                    mi_price:       s.price,
+                    mi_in_stock:    s.inStock,
+                    mi_source_url:  s.url,
+                }),
+            });
+            (productCompLinks[linkModalProductId] ||= []).push(link);
+            added++;
+        } catch (e) {
+            if (e.message.includes('409')) skipped++;
+        }
+    }
+
+    // Update card in-place — keep modal open
+    const pid  = linkModalProductId;
+    const safe = pid.replace(/\W/g, '_');
+    const product = shopifyProducts.find(p => p.shopify_id === pid);
+    if (product) {
+        const card = document.getElementById(`pcard-${safe}`);
+        if (card) {
+            const wasOpen = document.getElementById(`pbody-${safe}`)?.style.display !== 'none';
+            card.outerHTML = renderProductCard(product);
+            if (wasOpen) {
+                const body    = document.getElementById(`pbody-${safe}`);
+                const chevron = document.querySelector(`#pcard-${safe} .pc-chevron`);
+                if (body)    body.style.display = '';
+                if (chevron) chevron.style.transform = '';
+            }
+        }
+    }
+
+    _linkStaged = [];
+    _renderStaging();
+    toast(added ? `Linked ${added} competitor${added !== 1 ? 's' : ''}${skipped ? ` (${skipped} already linked)` : ''}` : 'Already linked.', added ? 'success' : 'info');
 }
 
 function searchLinkProducts() {
-    const q  = document.getElementById('link-search-input')?.value.trim();
+    const q  = (document.getElementById('link-search-input')?.value || '').trim();
     const el = document.getElementById('link-search-results');
 
     if (!q || q.length < 2) {
-        el.innerHTML = '<p class="muted" style="padding:1rem;text-align:center">Type at least 2 characters…</p>';
+        el.innerHTML = '<p class="muted" style="padding:1.25rem;text-align:center">Type to search…</p>';
         return;
     }
 
     clearTimeout(_linkSearchTimer);
-    el.innerHTML = '<div class="loading-spinner" style="padding:1rem">Searching…</div>';
+    el.innerHTML = '<div class="loading-spinner" style="padding:1rem;text-align:center">Searching…</div>';
 
     _linkSearchTimer = setTimeout(async () => {
         try {
-            // Fetch with the search hint (API may or may not honour it).
-            // Always client-side filter too so we only show genuinely matching rows.
-            const raw = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=200`);
-            const qLower = q.toLowerCase();
-            const results = raw
-                .filter(r =>
-                    (r.title || '').toLowerCase().includes(qLower) ||
-                    (r.competitor_domain || r.domain || '').toLowerCase().includes(qLower) ||
-                    (r.sku || '').toLowerCase().includes(qLower)
-                )
-                .slice(0, 50);
-
+            const results = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=50`);
             if (!results.length) {
-                el.innerHTML = '<p class="muted" style="padding:1rem;text-align:center">No matching results. Try a different search term.</p>';
+                el.innerHTML = '<p class="muted" style="padding:1.25rem;text-align:center">No matches found.</p>';
                 return;
             }
-            el.innerHTML = results.map(r => `
+            el.innerHTML = results.map(r => {
+                const staged = _linkStaged.some(s => s.id === r.id);
+                return `
                 <div class="link-result-row">
                     <div class="link-result-info">
-                        <span class="link-result-domain">${r.competitor_domain || r.domain || '—'}</span>
-                        <strong>${r.title}</strong>
-                        <span class="mono" style="font-size:.82rem">${fmtNok(r.price)}</span>
-                        ${r.in_stock === true  ? '<span class="badge badge-success" style="font-size:.7rem">In stock</span>'
-                        : r.in_stock === false ? '<span class="badge badge-danger"  style="font-size:.7rem">OOS</span>' : ''}
+                        <span class="link-result-domain">${r.competitor_domain || '—'}</span>
+                        <span class="link-result-title"><strong>${r.title}</strong></span>
+                        <span class="mono link-result-price">${fmtNok(r.price)}</span>
+                        ${r.in_stock === true  ? '<span class="badge badge-success badge-sm">In stock</span>'
+                        : r.in_stock === false ? '<span class="badge badge-danger badge-sm">OOS</span>' : ''}
                     </div>
-                    <button class="btn btn-sm btn-primary"
-                        onclick="confirmLink(${r.id},'${esc(r.competitor_domain || r.domain || '')}','${esc(r.title)}',${r.price ?? 'null'},${!!r.in_stock},'${esc(r.source_url || '')}')">
-                        Link
+                    <button class="btn btn-sm ${staged ? 'btn-staged' : 'btn-primary'}"
+                        data-link-id="${r.id}"
+                        onclick="stageLinkProduct(${r.id},'${esc(r.competitor_domain||'')}','${esc(r.title)}',${r.price??'null'},${!!r.in_stock},'${esc(r.source_url||'')}')">
+                        ${staged ? '✓ Added' : 'Add'}
                     </button>
-                </div>`).join('');
+                </div>`;
+            }).join('');
         } catch (e) {
             el.innerHTML = `<p class="error" style="padding:1rem">Search failed: ${e.message}</p>`;
         }
     }, 300);
-}
-
-async function confirmLink(miId, domain, title, price, inStock, sourceUrl) {
-    if (!linkModalProductId) return;
-    try {
-        const link = await api('/competitor-links', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                shopify_product_id: linkModalProductId,
-                mi_product_id:      miId,
-                mi_domain:          domain,
-                mi_title:           title,
-                mi_price:           price,
-                mi_in_stock:        inStock,
-                mi_source_url:      sourceUrl,
-            }),
-        });
-        // Update local cache
-        (productCompLinks[linkModalProductId] ||= []).push(link);
-        toast(`Linked: ${title} (${domain})`, 'success');
-        closeLinkModal();
-        // Re-render the affected card
-        const safe = linkModalProductId?.replace(/\W/g, '_');
-        const product = shopifyProducts.find(p => p.shopify_id === linkModalProductId);
-        if (product) {
-            const card = document.getElementById(`pcard-${safe}`);
-            if (card) card.outerHTML = renderProductCard(product);
-        }
-    } catch (e) {
-        if (e.message.includes('409')) {
-            toast('Already linked.', 'info');
-        } else {
-            toast(`Failed: ${e.message}`, 'error');
-        }
-    }
 }
 
 async function unlinkCompetitor(linkId) {
