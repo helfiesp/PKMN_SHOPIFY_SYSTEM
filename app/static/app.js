@@ -19,6 +19,7 @@ let snkrdunkMappings    = [];  // SnkrdunkMapping rows
 let productSearchQuery  = '';
 let productStockFilter  = 'all';
 let selectedProductId   = null;
+let hiddenProductIds    = new Set(JSON.parse(localStorage.getItem('hiddenProducts') || '[]'));
 
 // Link-modal state
 let linkModalProductId  = null;
@@ -873,17 +874,36 @@ function _filterProducts() {
     const q   = productSearchQuery.trim().toLowerCase();
     const stf = productStockFilter;
     let products = shopifyProducts;
+
+    // Hidden filter
+    if (stf === 'hidden') {
+        products = products.filter(p => hiddenProductIds.has(p.shopify_id));
+    } else {
+        products = products.filter(p => !hiddenProductIds.has(p.shopify_id));
+        if (stf === 'out') products = products.filter(p =>
+            (p.variants || []).some(v => v.inventory_quantity <= 0));
+        else if (stf === 'low') products = products.filter(p =>
+            (p.variants || []).some(v => v.inventory_quantity > 0 && v.inventory_quantity <= 10));
+    }
+
     if (q) products = products.filter(p =>
         p.title.toLowerCase().includes(q) ||
         (p.variants || []).some(v => (v.sku || '').toLowerCase().includes(q))
     );
-    if (stf !== 'all') products = products.filter(p => {
-        const vs = p.variants || [];
-        if (stf === 'out') return vs.some(v => v.inventory_quantity <= 0);
-        if (stf === 'low') return vs.some(v => v.inventory_quantity > 0 && v.inventory_quantity <= 10);
-        return true;
-    });
     return products;
+}
+
+function hideProduct(shopifyId) {
+    hiddenProductIds.add(shopifyId);
+    localStorage.setItem('hiddenProducts', JSON.stringify([...hiddenProductIds]));
+    if (selectedProductId === shopifyId) selectedProductId = null;
+    renderProducts();
+}
+
+function unhideProduct(shopifyId) {
+    hiddenProductIds.delete(shopifyId);
+    localStorage.setItem('hiddenProducts', JSON.stringify([...hiddenProductIds]));
+    renderProducts();
 }
 
 function renderProducts() {
@@ -962,65 +982,76 @@ function renderProductDetail(p) {
     const snkItem    = mapping ? snkrdunkItems.find(i => String(i.id) === String(mapping.snkrdunk_key)) : null;
     const snkJpy     = snkItem ? (snkItem.minPrice || snkItem.minPriceJpy) : null;
     const snkRec     = snkJpy  ? calcSnkrdunkRec(snkJpy) : null;
-    const refVariant = variants.find(v => (v.option_value || v.title || '').toLowerCase().includes('box')) || variants[0];
+    const isHidden   = hiddenProductIds.has(p.shopify_id);
 
-    // Variant rows
-    const variantRows = variants.map(v => {
+    // Only show box variants; fall back to all if none
+    const boxVariants    = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+    const displayVariants = boxVariants.length ? boxVariants : variants;
+    const refVariant      = displayVariants[0];
+
+    // Variant rows — box only
+    const variantRows = displayVariants.map(v => {
         const sc = v.inventory_quantity <= 0 ? 'pdd-qty-zero' : v.inventory_quantity <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
         return `
         <div class="pdd-variant">
             <span class="pdd-var-name">${v.title || 'Default'}</span>
-            <span class="pdd-var-price mono">${fmtNok(v.price)}</span>
+            <span class="pdd-var-price">${fmtNok(v.price)}</span>
             <span class="pdd-var-qty ${sc}">${v.inventory_quantity ?? 0}</span>
         </div>`;
     }).join('');
 
-    // SNKRDUNK — info only, no button
-    const snkRow = snkItem
-        ? `<div class="pdd-snk-row">
-            <span class="pdd-snk-tag">SNK</span>
-            <span class="pdd-snk-name">${snkItem.nameEn || snkItem.name || ''}</span>
-            <span class="pdd-snk-price mono">¥${fmt(snkJpy)} → <strong>${fmtNok(snkRec)}</strong></span>
-           </div>`
-        : `<div class="pdd-snk-row pdd-snk-empty">
-            <span class="pdd-snk-tag pdd-snk-tag-muted">SNK</span>
-            <span class="pdd-snk-unmapped">Not mapped — <a href="#" onclick="switchTab('snkrdunk');return false">set up →</a></span>
-           </div>`;
+    // SNK pill for header (info only)
+    const snkPill = snkItem
+        ? `<span class="pdd-snk-pill" title="SNKRDUNK RRP · ¥${fmt(snkJpy)}">SNK RRP ${fmtNok(snkRec)}</span>`
+        : '';
 
-    // Competitor rows
+    // Competitor rows — single clean row per competitor
     const compRows = links.length
-        ? links.map(lnk => `
+        ? links.map(lnk => {
+            const inStock = lnk.mi_in_stock === true;
+            const oos     = lnk.mi_in_stock === false;
+            const delta   = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
+            return `
             <div class="pdd-comp-row">
-                <div class="pdd-comp-info">
-                    <span class="pdd-comp-domain">${lnk.mi_domain || '—'}</span>
-                    <span class="pdd-comp-title">${lnk.mi_title || '—'}</span>
-                </div>
-                <div class="pdd-comp-actions">
-                    <span class="pdd-comp-price mono">${fmtNok(lnk.mi_price)}</span>
-                    ${lnk.mi_in_stock === true  ? '<span class="pdd-stock-dot pdd-stock-in" title="In stock"></span>'
-                    : lnk.mi_in_stock === false ? '<span class="pdd-stock-dot pdd-stock-oos" title="Out of stock"></span>' : ''}
-                    ${refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : ''}
-                    ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs">↗</a>` : ''}
+                <span class="pdd-comp-domain">${lnk.mi_domain || '—'}</span>
+                <span class="pdd-comp-title">${lnk.mi_title || '—'}</span>
+                <span class="pdd-comp-price">${fmtNok(lnk.mi_price)}</span>
+                <span class="pdd-stock-dot ${inStock ? 'pdd-stock-in' : oos ? 'pdd-stock-oos' : 'pdd-stock-unknown'}"
+                      title="${inStock ? 'In stock' : oos ? 'Out of stock' : 'Unknown'}"></span>
+                ${delta}
+                <div class="pdd-comp-btns">
+                    ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs" title="Open listing">↗</a>` : ''}
                     ${refVariant && lnk.mi_price != null
                         ? `<button class="btn btn-xs btn-primary"
                             onclick="matchPriceComp('${p.shopify_id}','${refVariant.shopify_id}',${lnk.mi_price},'${esc(p.title)}','${esc(refVariant.title || 'Default')}',${refVariant.price},'${esc(lnk.mi_domain)}')">
                             Match</button>`
                         : ''}
-                    <button class="btn btn-xs btn-danger" onclick="unlinkCompetitor(${lnk.id})" title="Remove">×</button>
+                    <button class="btn btn-xs btn-danger" onclick="unlinkCompetitor(${lnk.id})" title="Unlink">×</button>
                 </div>
-            </div>`).join('')
-        : '<div class="pdd-comp-empty">No competitors linked yet.</div>';
+            </div>`;
+        }).join('')
+        : `<div class="pdd-comp-empty">No competitors linked yet.<br>
+           <button class="btn btn-sm btn-primary" style="margin-top:.75rem"
+               onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link a competitor</button>
+           </div>`;
 
     return `
     <div class="pdd-header">
-        <h3 class="pdd-title">${p.title}</h3>
-        <button class="btn btn-xs" onclick="refreshSingleProduct('${p.shopify_id}')">↻ Refresh prices</button>
+        <div class="pdd-header-left">
+            <h3 class="pdd-title">${p.title}</h3>
+            ${snkPill}
+        </div>
+        <div class="pdd-header-actions">
+            ${isHidden
+                ? `<button class="btn btn-xs btn-warning" onclick="unhideProduct('${p.shopify_id}')">Unhide</button>`
+                : `<button class="btn btn-xs" onclick="hideProduct('${p.shopify_id}')" title="Hide from list">Hide</button>`}
+            <button class="btn btn-xs" onclick="refreshSingleProduct('${p.shopify_id}')">↻ Refresh</button>
+        </div>
     </div>
     <div class="pdd-body">
         <div class="pdd-left">
-            <div class="pdd-label">Variants</div>
+            <div class="pdd-label">Booster Box</div>
             <div class="pdd-variants">${variantRows}</div>
-            ${snkRow}
         </div>
         <div class="pdd-right">
             <div class="pdd-section-head">
