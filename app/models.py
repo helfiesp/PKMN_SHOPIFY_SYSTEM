@@ -830,3 +830,35 @@ class SupplierAlert(Base):
     __table_args__ = (
         Index('idx_supplier_alert_type_read', 'alert_type', 'is_read'),
     )
+
+
+class LocalCompetitorLink(Base):
+    """Manual link: a Shopify product ↔ a MarketIntel competitor product.
+
+    Stores a cached snapshot of the competitor's price/stock so the products
+    page can display it without an extra MarketIntel API call every time.
+    Refresh the cache via POST /api/v1/competitor-links/refresh-prices.
+    """
+    __tablename__ = "local_competitor_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Our side
+    shopify_product_id = Column(String(255), nullable=False, index=True)
+
+    # Competitor side (MarketIntel)
+    mi_product_id  = Column(Integer, nullable=False, index=True)
+    mi_domain      = Column(String(255))
+    mi_title       = Column(String(500))
+    mi_source_url  = Column(String(1000))
+
+    # Cached prices — refreshed on demand
+    mi_price       = Column(Float)
+    mi_in_stock    = Column(Boolean)
+    mi_updated_at  = Column(DateTime(timezone=True))
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('shopify_product_id', 'mi_product_id', name='uq_lcl_shopify_mi'),
+    )

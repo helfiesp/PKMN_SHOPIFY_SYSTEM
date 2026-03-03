@@ -984,3 +984,128 @@ tr.row-spike { background: #fef9c3 !important; }
 /* Competitor Intel alert feed */
 .ci-alerts-feed { display: flex; flex-direction: column; gap: 0; }
 
+/* ── Product Cards ─────────────────────────────────────────────────────────── */
+.product-card {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    margin-bottom: .75rem;
+    overflow: hidden;
+}
+
+.product-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .75rem 1rem;
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
+    gap: .75rem;
+    cursor: pointer;
+}
+.product-card-header:hover { background: var(--gray-100); }
+
+.product-card-title {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.product-card-body {
+    padding: 0;
+}
+
+.product-section {
+    padding: .75rem 1rem;
+    border-bottom: 1px solid var(--gray-100);
+}
+.product-section:last-child { border-bottom: none; }
+
+.product-section-label {
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--gray-600);
+    margin-bottom: .4rem;
+}
+
+/* Compact table inside product cards */
+.compact-table { font-size: .82rem; }
+.compact-table th, .compact-table td { padding: .3rem .5rem; }
+.compact-table th { font-size: .75rem; }
+
+/* SNKRDUNK price row */
+.snk-price-row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    padding: .2rem 0;
+}
+.snk-price-row .arrow { color: var(--gray-600); }
+.rec-price { color: var(--primary); font-weight: 600; }
+
+/* Competitor link rows */
+.comp-links-list {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    padding-top: .2rem;
+}
+
+.comp-link-row {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    padding: .35rem .5rem;
+    background: var(--gray-50);
+    border-radius: 5px;
+    font-size: .83rem;
+}
+.comp-link-row:hover { background: var(--gray-100); }
+
+.comp-domain {
+    font-weight: 600;
+    color: var(--gray-700);
+    min-width: 120px;
+    font-size: .8rem;
+}
+.comp-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Link search modal results */
+.link-result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .75rem;
+    padding: .5rem .25rem;
+    border-bottom: 1px solid var(--gray-100);
+}
+.link-result-row:last-child { border-bottom: none; }
+.link-result-info {
+    flex: 1;
+    min-width: 0;
+    font-size: .83rem;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+}
+
+/* Danger button variant */
+.btn-danger {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+.btn-danger:hover { background: #dc2626; border-color: #dc2626; }
+

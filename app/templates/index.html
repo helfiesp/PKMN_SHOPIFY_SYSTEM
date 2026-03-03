@@ -32,7 +32,7 @@
         <div class="nav-primary">
             <button class="nav-item active"  data-tab="dashboard">Dashboard</button>
             <button class="nav-item"          data-tab="price-monitor">Price Monitor</button>
-            <button class="nav-item"          data-tab="stock">Stock</button>
+            <button class="nav-item"          data-tab="products">Products</button>
             <button class="nav-item"          data-tab="snkrdunk">SNKRDUNK</button>
             <button class="nav-item"          data-tab="competitor-intel">Competitor Intel</button>
             <button class="nav-item"          data-tab="price-plans">Price Plans</button>
@@ -104,36 +104,26 @@
         <div id="pm-table-wrap"><div class="loading-spinner">Loading…</div></div>
     </div>
 
-    <!-- ─── STOCK MONITOR ─────────────────────────────────────────────────── -->
-    <div id="tab-stock" class="tab-panel">
+    <!-- ─── PRODUCTS ──────────────────────────────────────────────────────── -->
+    <div id="tab-products" class="tab-panel">
         <div class="section-header" style="margin-top:1.5rem">
-            <h2>Stock Monitor</h2>
+            <h2>Products</h2>
+            <span class="muted" id="products-count"></span>
         </div>
 
-        <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap">
-            <select id="stock-filter" class="input-sm" style="min-width:160px">
+        <!-- Controls -->
+        <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
+            <input type="search" id="product-search" class="input-sm"
+                placeholder="Search products or SKU…" style="min-width:220px" />
+            <select id="product-stock-filter" class="input-sm" style="min-width:160px">
                 <option value="all">All products</option>
-                <option value="out">Out of stock only</option>
-                <option value="low">Low stock (≤ 15)</option>
+                <option value="out">Out of stock</option>
+                <option value="low">Low stock (≤ 10)</option>
             </select>
-            <button class="btn btn-primary" onclick="loadStock()">Refresh</button>
+            <button class="btn btn-primary" onclick="loadProducts()">Refresh</button>
         </div>
 
-        <div id="stock-table-wrap"><div class="loading-spinner">Loading…</div></div>
-
-        <!-- Booster Inventory -->
-        <div class="card" style="margin-top:2rem">
-            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-                <h3>Booster Inventory Conversion</h3>
-                <button class="btn btn-secondary" id="btn-booster-plan" onclick="generateBoosterInventoryPlan()">
-                    Generate Booster Plan
-                </button>
-            </div>
-            <p class="muted" style="padding:.75rem 1rem 0">
-                Convert sealed booster boxes into individual packs in your Shopify inventory.
-            </p>
-            <div id="booster-plan-result" style="padding:1rem"></div>
-        </div>
+        <div id="products-list"><div class="loading-spinner">Loading…</div></div>
     </div>
 
     <!-- ─── SNKRDUNK ───────────────────────────────────────────────────────── -->
@@ -273,6 +263,22 @@
     </div>
 
 </div><!-- /container -->
+
+<!-- Competitor link modal -->
+<div id="link-modal" class="modal-overlay">
+    <div class="modal-box">
+        <button class="modal-close-btn" onclick="closeLinkModal()">✕</button>
+        <h3 id="link-modal-title" style="margin-bottom:1rem">Link competitor</h3>
+        <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
+            <input type="search" id="link-search-input" class="input-sm"
+                placeholder="Search by product name, domain…" style="flex:1"
+                oninput="searchLinkProducts()" />
+        </div>
+        <div id="link-search-results" style="max-height:400px;overflow-y:auto">
+            <p class="muted">Type to search competitor products…</p>
+        </div>
+    </div>
+</div>
 
 <!-- Plan detail modal -->
 <div id="plan-modal" class="modal-overlay">

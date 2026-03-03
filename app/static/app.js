@@ -6,12 +6,23 @@ const API = '/api/v1';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentTab = 'dashboard';
-let shopifyProducts = [];      // flat list of products (each has .variants)
+let shopifyProducts = [];      // products (each has .variants)
 let matchedProducts = [];      // MarketIntel matched-products
 let miAlerts = [];             // MarketIntel alerts
 let snkrdunkItems = [];        // cached SNKRDUNK products
 let snkrdunkPrevItems = [];    // previous scan for spike detection
 let competitors = [];          // MarketIntel competitor list
+
+// Products tab state
+let productCompLinks    = {};  // shopify_product_id → [link, ...]
+let snkrdunkMappings    = [];  // SnkrdunkMapping rows
+let productSearchQuery  = '';
+let productStockFilter  = 'all';
+
+// Link-modal state
+let linkModalProductId  = null;
+let linkModalSearchResults = [];
+let miProductCache      = [];  // flat list of all competitor products (search pool)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -101,7 +112,7 @@ function switchTab(tab) {
 function loadTab(tab) {
     if      (tab === 'dashboard')       loadDashboard();
     else if (tab === 'price-monitor')   loadPriceMonitor();
-    else if (tab === 'stock')           loadStock();
+    else if (tab === 'products')        loadProducts();
     else if (tab === 'snkrdunk')        loadSnkrdunk();
     else if (tab === 'competitor-intel')loadCompetitorIntel();
     else if (tab === 'price-plans')     loadPricePlans();
@@ -811,6 +822,395 @@ async function syncShopify() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PRODUCTS (stock + competitor links + SNKRDUNK per product)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Default pricing params (mirrors SNKRDUNK tab inputs when they exist)
+function snkParams() {
+    return {
+        rate:     parseFloat(document.getElementById('snk-rate')?.value     || '0.063'),
+        shipping: parseFloat(document.getElementById('snk-shipping')?.value  || '500'),
+        margin:   parseFloat(document.getElementById('snk-margin')?.value    || '20') / 100,
+    };
+}
+
+function calcSnkrdunkRec(jpy) {
+    const { rate, shipping, margin } = snkParams();
+    const cost = (jpy + shipping) * rate;
+    return Math.ceil((cost / (1 - margin)) * 1.25 / 25) * 25;
+}
+
+async function loadProducts() {
+    showTabLoading('products-list');
+    try {
+        const [prodRes, linksRes, mappingsRes, snkRes] = await Promise.allSettled([
+            api('/shopify/products?limit=500'),
+            api('/competitor-links'),
+            api('/mappings/snkrdunk?limit=500'),
+            api('/snkrdunk/products'),
+        ]);
+
+        shopifyProducts  = prodRes.status      === 'fulfilled' ? (prodRes.value.products || prodRes.value || []) : [];
+        const allLinks   = linksRes.status     === 'fulfilled' ? linksRes.value   : [];
+        snkrdunkMappings = mappingsRes.status  === 'fulfilled' ? mappingsRes.value : [];
+        snkrdunkItems    = snkRes.status       === 'fulfilled' ? (snkRes.value.items || []) : [];
+
+        // Index links by shopify_product_id
+        productCompLinks = {};
+        for (const lnk of allLinks) {
+            (productCompLinks[lnk.shopify_product_id] ||= []).push(lnk);
+        }
+
+        renderProducts();
+    } catch (e) {
+        document.getElementById('products-list').innerHTML = `<p class="error">${e.message}</p>`;
+    }
+}
+
+function renderProducts() {
+    const q   = productSearchQuery.trim().toLowerCase();
+    const stf = productStockFilter;
+
+    let products = shopifyProducts;
+
+    if (q) {
+        products = products.filter(p =>
+            p.title.toLowerCase().includes(q) ||
+            (p.variants || []).some(v => (v.sku || '').toLowerCase().includes(q))
+        );
+    }
+
+    if (stf !== 'all') {
+        products = products.filter(p => {
+            const variants = p.variants || [];
+            if (stf === 'out')  return variants.some(v => v.inventory_quantity <= 0);
+            if (stf === 'low')  return variants.some(v => v.inventory_quantity > 0 && v.inventory_quantity <= 10);
+            return true;
+        });
+    }
+
+    const el = document.getElementById('products-list');
+    document.getElementById('products-count').textContent = `${products.length} products`;
+
+    if (!products.length) {
+        el.innerHTML = '<p class="muted" style="padding:2rem">No products match the filter.</p>';
+        return;
+    }
+
+    el.innerHTML = products.map(p => renderProductCard(p)).join('');
+}
+
+function renderProductCard(p) {
+    const variants = p.variants || [];
+    const links    = productCompLinks[p.shopify_id] || [];
+
+    // SNKRDUNK — find mapping and cached item
+    const mapping  = snkrdunkMappings.find(m => m.product_shopify_id === p.shopify_id && !m.disabled);
+    const snkItem  = mapping ? snkrdunkItems.find(i => String(i.id) === String(mapping.snkrdunk_key)) : null;
+    const snkJpy   = snkItem ? (snkItem.minPrice || snkItem.minPriceJpy) : null;
+    const snkRec   = snkJpy  ? calcSnkrdunkRec(snkJpy) : null;
+
+    // Stock summary badge
+    const minStock = Math.min(...variants.map(v => v.inventory_quantity ?? 0));
+    const stockBadge = minStock <= 0
+        ? '<span class="badge badge-danger">Out of stock</span>'
+        : minStock <= 5
+            ? '<span class="badge badge-danger">Critical</span>'
+            : minStock <= 10
+                ? '<span class="badge badge-warning">Low stock</span>'
+                : '<span class="badge badge-success">In stock</span>';
+
+    // Variants rows
+    const variantRows = variants.map(v => `
+        <tr class="${stockClass(v.inventory_quantity)}">
+            <td>${v.title || 'Default'}</td>
+            <td class="mono">${v.sku || '—'}</td>
+            <td class="mono">${fmtNok(v.price)}</td>
+            <td class="text-center mono"><strong>${v.inventory_quantity}</strong></td>
+        </tr>`).join('');
+
+    // SNKRDUNK section
+    const snkSection = snkItem
+        ? `<div class="product-section">
+            <div class="product-section-label">SNKRDUNK</div>
+            <div class="snk-price-row">
+                <span class="mono">¥${fmt(snkJpy)}</span>
+                <span class="arrow">→</span>
+                <span class="mono rec-price">Rec. ${fmtNok(snkRec)}</span>
+                <span class="muted">(${snkItem.nameEn || snkItem.name || ''})</span>
+                <div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap">
+                    ${variants.filter(v => v.option_value?.toLowerCase().includes('box') || variants.length === 1).map(v =>
+                        `<button class="btn btn-xs btn-primary"
+                            onclick="matchPriceSnkrdunk('${p.shopify_id}','${v.shopify_id}',${snkRec},'${esc(p.title)}','${esc(v.title || 'Default')}',${v.price})">
+                            Set rec. price${variants.length > 1 ? ` (${v.title || 'Default'})` : ''}
+                        </button>`
+                    ).join('')}
+                </div>
+            </div>
+           </div>`
+        : `<div class="product-section">
+            <div class="product-section-label">SNKRDUNK</div>
+            <span class="muted">Not mapped — <a href="#snkrdunk" onclick="switchTab('snkrdunk')" class="link">set up in SNKRDUNK tab</a></span>
+           </div>`;
+
+    // Competitor links section
+    const compRows = links.length
+        ? links.map(lnk => {
+            const delta = lnk.mi_price != null
+                ? (() => {
+                    // Compare against the box variant price (or first variant)
+                    const refVariant = variants.find(v => v.option_value?.toLowerCase().includes('box')) || variants[0];
+                    return refVariant ? ((refVariant.price - lnk.mi_price) / lnk.mi_price) * 100 : null;
+                  })()
+                : null;
+            const refVariant = variants.find(v => v.option_value?.toLowerCase().includes('box')) || variants[0];
+            return `
+            <div class="comp-link-row">
+                <span class="comp-domain">${lnk.mi_domain || '—'}</span>
+                <span class="comp-title muted">${lnk.mi_title || '—'}</span>
+                <span class="mono">${fmtNok(lnk.mi_price)}</span>
+                ${lnk.mi_in_stock != null
+                    ? lnk.mi_in_stock
+                        ? '<span class="badge badge-success">In stock</span>'
+                        : '<span class="badge badge-danger">OOS</span>'
+                    : '<span class="muted">—</span>'}
+                ${delta != null ? deltaBadge(refVariant?.price, lnk.mi_price) : ''}
+                <div style="margin-left:auto;display:flex;gap:.3rem;flex-wrap:wrap">
+                    ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs">View</a>` : ''}
+                    ${refVariant && lnk.mi_price
+                        ? `<button class="btn btn-xs btn-primary"
+                                onclick="matchPriceComp('${p.shopify_id}','${refVariant.shopify_id}',${lnk.mi_price},'${esc(p.title)}','${esc(refVariant.title || 'Default')}',${refVariant.price},'${esc(lnk.mi_domain)}')">
+                                Match price
+                           </button>`
+                        : ''}
+                    <button class="btn btn-xs btn-danger" onclick="unlinkCompetitor(${lnk.id})">×</button>
+                </div>
+            </div>`;
+        }).join('')
+        : '<span class="muted" style="font-size:.85rem">No competitors linked yet.</span>';
+
+    return `
+    <div class="product-card" id="pcard-${p.shopify_id.replace(/\W/g, '_')}">
+        <div class="product-card-header">
+            <div class="product-card-title">
+                <strong>${p.title}</strong>
+                <span class="muted" style="font-size:.8rem">${variants.length} variant${variants.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem">
+                ${stockBadge}
+                <button class="btn btn-xs" onclick="toggleProductCard('${p.shopify_id.replace(/\W/g, '_')}')">▾</button>
+            </div>
+        </div>
+        <div class="product-card-body" id="pbody-${p.shopify_id.replace(/\W/g, '_')}">
+            <!-- Variants -->
+            <div class="product-section">
+                <div class="product-section-label">Variants &amp; Stock</div>
+                <table class="data-table compact-table">
+                    <thead><tr><th>Variant</th><th>SKU</th><th>Price</th><th>Stock</th></tr></thead>
+                    <tbody>${variantRows}</tbody>
+                </table>
+            </div>
+
+            <!-- SNKRDUNK -->
+            ${snkSection}
+
+            <!-- Competitors -->
+            <div class="product-section">
+                <div class="product-section-label" style="display:flex;justify-content:space-between">
+                    <span>Competitors</span>
+                    <div style="display:flex;gap:.4rem">
+                        <button class="btn btn-xs" onclick="refreshSingleProduct('${p.shopify_id}')">↻ Refresh prices</button>
+                        <button class="btn btn-xs btn-primary" onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link competitor</button>
+                    </div>
+                </div>
+                <div class="comp-links-list" id="comp-links-${p.shopify_id.replace(/\W/g, '_')}">
+                    ${compRows}
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function esc(str) {
+    return String(str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function toggleProductCard(idSafe) {
+    const body = document.getElementById(`pbody-${idSafe}`);
+    const btn  = body?.previousElementSibling?.querySelector('button[onclick*="toggleProductCard"]');
+    if (!body) return;
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : '';
+    if (btn) btn.textContent = open ? '▸' : '▾';
+}
+
+// ── Competitor linking ────────────────────────────────────────────────────────
+
+function openLinkModal(shopifyProductId, productTitle) {
+    linkModalProductId = shopifyProductId;
+    document.getElementById('link-modal-title').textContent = `Link competitor — ${productTitle}`;
+    document.getElementById('link-search-input').value = '';
+    document.getElementById('link-search-results').innerHTML = '<p class="muted">Type to search competitor products…</p>';
+    document.getElementById('link-modal').classList.add('open');
+
+    // Pre-load competitor products into cache if not already loaded
+    if (!miProductCache.length) {
+        api('/marketintel/competitor-products?limit=200').then(data => {
+            miProductCache = data;
+        }).catch(() => {});
+    }
+}
+
+function closeLinkModal() {
+    document.getElementById('link-modal')?.classList.remove('open');
+    linkModalProductId = null;
+}
+
+function searchLinkProducts() {
+    const q   = document.getElementById('link-search-input')?.value.trim().toLowerCase();
+    const el  = document.getElementById('link-search-results');
+    if (!q) { el.innerHTML = '<p class="muted">Type to search…</p>'; return; }
+
+    const results = miProductCache.filter(p =>
+        p.title.toLowerCase().includes(q) ||
+        (p.sku || '').toLowerCase().includes(q) ||
+        p.competitor_domain.toLowerCase().includes(q)
+    ).slice(0, 30);
+
+    if (!results.length) {
+        el.innerHTML = '<p class="muted">No results. Try a different search term.</p>';
+        return;
+    }
+
+    // If cache is empty, trigger a live fetch
+    if (!miProductCache.length) {
+        el.innerHTML = '<div class="loading-spinner">Loading products…</div>';
+        api('/marketintel/competitor-products?limit=200').then(data => {
+            miProductCache = data;
+            searchLinkProducts();
+        }).catch(e => { el.innerHTML = `<p class="error">${e.message}</p>`; });
+        return;
+    }
+
+    el.innerHTML = results.map(p => `
+        <div class="link-result-row">
+            <div class="link-result-info">
+                <strong>${p.title}</strong>
+                <span class="muted"> · ${p.competitor_domain} · ${fmtNok(p.price)}</span>
+                ${p.in_stock ? '<span class="badge badge-success" style="font-size:.7rem">In stock</span>' : '<span class="badge badge-danger" style="font-size:.7rem">OOS</span>'}
+            </div>
+            <button class="btn btn-sm btn-primary"
+                onclick="confirmLink(${p.id},'${esc(p.competitor_domain)}','${esc(p.title)}',${p.price || 'null'},${p.in_stock},'${esc(p.source_url || '')}')">
+                Link
+            </button>
+        </div>`).join('');
+}
+
+async function confirmLink(miId, domain, title, price, inStock, sourceUrl) {
+    if (!linkModalProductId) return;
+    try {
+        const link = await api('/competitor-links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                shopify_product_id: linkModalProductId,
+                mi_product_id:      miId,
+                mi_domain:          domain,
+                mi_title:           title,
+                mi_price:           price,
+                mi_in_stock:        inStock,
+                mi_source_url:      sourceUrl,
+            }),
+        });
+        // Update local cache
+        (productCompLinks[linkModalProductId] ||= []).push(link);
+        toast(`Linked: ${title} (${domain})`, 'success');
+        closeLinkModal();
+        // Re-render the affected card
+        const safe = linkModalProductId?.replace(/\W/g, '_');
+        const product = shopifyProducts.find(p => p.shopify_id === linkModalProductId);
+        if (product) {
+            const card = document.getElementById(`pcard-${safe}`);
+            if (card) card.outerHTML = renderProductCard(product);
+        }
+    } catch (e) {
+        if (e.message.includes('409')) {
+            toast('Already linked.', 'info');
+        } else {
+            toast(`Failed: ${e.message}`, 'error');
+        }
+    }
+}
+
+async function unlinkCompetitor(linkId) {
+    if (!confirm('Remove this competitor link?')) return;
+    try {
+        await api(`/competitor-links/${linkId}`, { method: 'DELETE' });
+        // Remove from local cache
+        for (const pid of Object.keys(productCompLinks)) {
+            productCompLinks[pid] = productCompLinks[pid].filter(l => l.id !== linkId);
+        }
+        toast('Link removed', 'success');
+        renderProducts();
+    } catch (e) {
+        toast(`Failed: ${e.message}`, 'error');
+    }
+}
+
+async function refreshSingleProduct(shopifyProductId) {
+    // Fetch all competitor products for domains linked to this product
+    const links = productCompLinks[shopifyProductId] || [];
+    if (!links.length) { toast('No competitors linked.', 'info'); return; }
+
+    try {
+        const res = await api('/competitor-links/refresh-prices', { method: 'POST' });
+        toast(`Refreshed ${res.updated} competitor prices`, 'success');
+        // Reload links
+        const allLinks = await api('/competitor-links');
+        productCompLinks = {};
+        for (const lnk of allLinks) (productCompLinks[lnk.shopify_product_id] ||= []).push(lnk);
+        renderProducts();
+    } catch (e) {
+        toast(`Refresh failed: ${e.message}`, 'error');
+    }
+}
+
+// ── Price matching ────────────────────────────────────────────────────────────
+
+async function matchPriceComp(productShopifyId, variantShopifyId, newPrice, productTitle, variantTitle, currentPrice, competitorDomain) {
+    if (!confirm(`Match price to ${competitorDomain}?\n${productTitle} — ${variantTitle}\n${fmtNok(currentPrice)} → ${fmtNok(newPrice)}`)) return;
+    await _createMatchPlan(productShopifyId, variantShopifyId, newPrice, currentPrice, productTitle, variantTitle);
+}
+
+async function matchPriceSnkrdunk(productShopifyId, variantShopifyId, newPrice, productTitle, variantTitle, currentPrice) {
+    if (!confirm(`Set SNKRDUNK recommended price?\n${productTitle} — ${variantTitle}\n${fmtNok(currentPrice)} → ${fmtNok(newPrice)}`)) return;
+    await _createMatchPlan(productShopifyId, variantShopifyId, newPrice, currentPrice, productTitle, variantTitle);
+}
+
+async function _createMatchPlan(productShopifyId, variantShopifyId, newPrice, currentPrice, productTitle, variantTitle) {
+    try {
+        const plan = await api('/price-plans/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                strategy:   'match_competition',
+                plan_type:  'price_update',
+                items: [{
+                    product_shopify_id: productShopifyId,
+                    variant_shopify_id: variantShopifyId,
+                    current_price:      currentPrice,
+                    new_price:          newPrice,
+                    current_title:      `${productTitle} — ${variantTitle}`,
+                }],
+            }),
+        });
+        toast(`Price plan #${plan.id} created — go to Price Plans to review & apply`, 'success');
+    } catch (e) {
+        toast(`Failed: ${e.message}`, 'error');
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -829,8 +1229,23 @@ document.addEventListener('DOMContentLoaded', () => {
         b.addEventListener('click', () => setPmFilter(b.dataset.filter));
     });
 
-    // Stock filter
+    // Stock filter (old stock tab — kept for compatibility)
     document.getElementById('stock-filter')?.addEventListener('change', renderStock);
+
+    // Products tab — search + stock filter
+    document.getElementById('product-search')?.addEventListener('input', e => {
+        productSearchQuery = e.target.value;
+        renderProducts();
+    });
+    document.getElementById('product-stock-filter')?.addEventListener('change', e => {
+        productStockFilter = e.target.value;
+        renderProducts();
+    });
+
+    // Link modal — close on backdrop click
+    document.getElementById('link-modal')?.addEventListener('click', e => {
+        if (e.target === e.currentTarget) closeLinkModal();
+    });
 
     // SNKRDUNK live recalculate
     ['snk-rate', 'snk-shipping', 'snk-margin'].forEach(id => {
