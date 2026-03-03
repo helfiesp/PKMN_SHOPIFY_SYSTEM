@@ -944,7 +944,7 @@ function renderProductCard(p) {
                 </div>
                 <div class="pc-snk-actions">
                     ${variants
-                        .filter(v => v.option_value?.toLowerCase().includes('box') || variants.length === 1)
+                        .filter(v => (v.option_value || v.title || '').toLowerCase().includes('box') || variants.length === 1)
                         .map(v => `<button class="btn btn-sm btn-primary"
                             onclick="matchPriceSnkrdunk('${p.shopify_id}','${v.shopify_id}',${snkRec},'${esc(p.title)}','${esc(v.title || 'Default')}',${v.price})">
                             Set ${fmtNok(snkRec)}${variants.length > 1 ? ' · ' + (v.title || 'Default') : ''}
@@ -958,7 +958,7 @@ function renderProductCard(p) {
            </div>`;
 
     // Competitor rows
-    const refVariant = variants.find(v => v.option_value?.toLowerCase().includes('box')) || variants[0];
+    const refVariant = variants.find(v => (v.option_value || v.title || '').toLowerCase().includes('box')) || variants[0];
     const compRows = links.length
         ? links.map(lnk => `
             <div class="pc-comp-row">
@@ -1069,9 +1069,20 @@ function searchLinkProducts() {
 
     _linkSearchTimer = setTimeout(async () => {
         try {
-            const results = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=50`);
+            // Fetch with the search hint (API may or may not honour it).
+            // Always client-side filter too so we only show genuinely matching rows.
+            const raw = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=200`);
+            const qLower = q.toLowerCase();
+            const results = raw
+                .filter(r =>
+                    (r.title || '').toLowerCase().includes(qLower) ||
+                    (r.competitor_domain || r.domain || '').toLowerCase().includes(qLower) ||
+                    (r.sku || '').toLowerCase().includes(qLower)
+                )
+                .slice(0, 50);
+
             if (!results.length) {
-                el.innerHTML = '<p class="muted" style="padding:1rem;text-align:center">No results found.</p>';
+                el.innerHTML = '<p class="muted" style="padding:1rem;text-align:center">No matching results. Try a different search term.</p>';
                 return;
             }
             el.innerHTML = results.map(r => `
