@@ -26,7 +26,7 @@ let linkModalProductId  = null;
 let _linkSearchTimer    = null;
 let _linkStaged         = [];  // [{id, domain, title, price, inStock, url}, ...]
 let _linkSearchResults  = [];  // cached last search results
-let _linkSortPrice      = false; // true = sort by price asc
+let _linkSortPrice      = null; // null = default, 'asc' = low→high, 'desc' = high→low
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -1103,7 +1103,7 @@ function openLinkModal(shopifyProductId, productTitle) {
     linkModalProductId = shopifyProductId;
     _linkStaged = [];
     _linkSearchResults = [];
-    _linkSortPrice = false;
+    _linkSortPrice = null;
     const sortBtn = document.getElementById('link-sort-btn');
     if (sortBtn) { sortBtn.textContent = 'Price ↕'; sortBtn.classList.remove('btn-primary'); }
     document.getElementById('link-modal-title').textContent = `Link competitors — ${productTitle}`;
@@ -1244,9 +1244,9 @@ function renderLinkResults() {
         el.innerHTML = '<p class="muted" style="padding:1.25rem;text-align:center">No matches found.</p>';
         return;
     }
-    const results = _linkSortPrice
-        ? [..._linkSearchResults].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
-        : _linkSearchResults;
+    let results = _linkSearchResults;
+    if (_linkSortPrice === 'asc')  results = [...results].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+    if (_linkSortPrice === 'desc') results = [...results].sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
     el.innerHTML = results.map(r => {
         const staged = _linkStaged.some(s => s.id === r.id);
         return `
@@ -1268,11 +1268,11 @@ function renderLinkResults() {
 }
 
 function toggleLinkSort() {
-    _linkSortPrice = !_linkSortPrice;
+    _linkSortPrice = _linkSortPrice === null ? 'asc' : _linkSortPrice === 'asc' ? 'desc' : null;
     const btn = document.getElementById('link-sort-btn');
     if (btn) {
-        btn.textContent = _linkSortPrice ? 'Price ↑' : 'Price ↕';
-        btn.classList.toggle('btn-primary', _linkSortPrice);
+        btn.textContent = _linkSortPrice === 'asc' ? 'Price ↑' : _linkSortPrice === 'desc' ? 'Price ↓' : 'Price ↕';
+        btn.classList.toggle('btn-primary', _linkSortPrice !== null);
     }
     renderLinkResults();
 }
