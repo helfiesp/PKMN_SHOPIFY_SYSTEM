@@ -25,6 +25,8 @@ let hiddenProductIds    = new Set(JSON.parse(localStorage.getItem('hiddenProduct
 let linkModalProductId  = null;
 let _linkSearchTimer    = null;
 let _linkStaged         = [];  // [{id, domain, title, price, inStock, url}, ...]
+let _linkSearchResults  = [];  // cached last search results
+let _linkSortPrice      = false; // true = sort by price asc
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -1100,6 +1102,10 @@ function esc(str) {
 function openLinkModal(shopifyProductId, productTitle) {
     linkModalProductId = shopifyProductId;
     _linkStaged = [];
+    _linkSearchResults = [];
+    _linkSortPrice = false;
+    const sortBtn = document.getElementById('link-sort-btn');
+    if (sortBtn) { sortBtn.textContent = 'Price ↕'; sortBtn.classList.remove('btn-primary'); }
     document.getElementById('link-modal-title').textContent = `Link competitors — ${productTitle}`;
     document.getElementById('link-search-input').value = '';
     document.getElementById('link-search-results').innerHTML =
@@ -1223,33 +1229,52 @@ function searchLinkProducts() {
 
     _linkSearchTimer = setTimeout(async () => {
         try {
-            const results = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=50`);
-            if (!results.length) {
-                el.innerHTML = '<p class="muted" style="padding:1.25rem;text-align:center">No matches found.</p>';
-                return;
-            }
-            el.innerHTML = results.map(r => {
-                const staged = _linkStaged.some(s => s.id === r.id);
-                return `
-                <div class="link-result-row">
-                    <div class="link-result-info">
-                        <span class="link-result-domain">${r.competitor_domain || '—'}</span>
-                        <span class="link-result-title"><strong>${r.title}</strong></span>
-                        <span class="mono link-result-price">${fmtNok(r.price)}</span>
-                        ${r.in_stock === true  ? '<span class="badge badge-success badge-sm">In stock</span>'
-                        : r.in_stock === false ? '<span class="badge badge-danger badge-sm">OOS</span>' : ''}
-                    </div>
-                    <button class="btn btn-sm ${staged ? 'btn-staged' : 'btn-primary'}"
-                        data-link-id="${r.id}"
-                        onclick="stageLinkProduct(${r.id},'${esc(r.competitor_domain||'')}','${esc(r.title)}',${r.price??'null'},${!!r.in_stock},'${esc(r.source_url||'')}')">
-                        ${staged ? '✓ Added' : 'Add'}
-                    </button>
-                </div>`;
-            }).join('');
+            _linkSearchResults = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=50`);
+            renderLinkResults();
         } catch (e) {
             el.innerHTML = `<p class="error" style="padding:1rem">Search failed: ${e.message}</p>`;
         }
     }, 300);
+}
+
+function renderLinkResults() {
+    const el = document.getElementById('link-search-results');
+    if (!el) return;
+    if (!_linkSearchResults.length) {
+        el.innerHTML = '<p class="muted" style="padding:1.25rem;text-align:center">No matches found.</p>';
+        return;
+    }
+    const results = _linkSortPrice
+        ? [..._linkSearchResults].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+        : _linkSearchResults;
+    el.innerHTML = results.map(r => {
+        const staged = _linkStaged.some(s => s.id === r.id);
+        return `
+        <div class="link-result-row">
+            <div class="link-result-info">
+                <span class="link-result-domain">${r.competitor_domain || '—'}</span>
+                <span class="link-result-title"><strong>${r.title}</strong></span>
+                <span class="mono link-result-price">${fmtNok(r.price)}</span>
+                ${r.in_stock === true  ? '<span class="badge badge-success badge-sm">In stock</span>'
+                : r.in_stock === false ? '<span class="badge badge-danger badge-sm">OOS</span>' : ''}
+            </div>
+            <button class="btn btn-sm ${staged ? 'btn-staged' : 'btn-primary'}"
+                data-link-id="${r.id}"
+                onclick="stageLinkProduct(${r.id},'${esc(r.competitor_domain||'')}','${esc(r.title)}',${r.price??'null'},${!!r.in_stock},'${esc(r.source_url||'')}')">
+                ${staged ? '✓ Added' : 'Add'}
+            </button>
+        </div>`;
+    }).join('');
+}
+
+function toggleLinkSort() {
+    _linkSortPrice = !_linkSortPrice;
+    const btn = document.getElementById('link-sort-btn');
+    if (btn) {
+        btn.textContent = _linkSortPrice ? 'Price ↑' : 'Price ↕';
+        btn.classList.toggle('btn-primary', _linkSortPrice);
+    }
+    renderLinkResults();
 }
 
 async function unlinkCompetitor(linkId) {
@@ -1298,6 +1323,7 @@ async function setInventory(variantId, newQty, el) {
     try {
         await api(`/shopify/variants/${variantId}/set-inventory`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ quantity: n }),
         });
         el.dataset.orig = n;

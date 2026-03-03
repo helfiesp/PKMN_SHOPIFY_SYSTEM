@@ -1537,11 +1537,15 @@ input[type="checkbox"] {
     border-bottom: 1px solid var(--border-light);
     flex-shrink: 0;
     background: var(--bg);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .modal-search input[type="search"],
 .modal-search .input-sm {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     box-sizing: border-box;
     background: var(--surface);
 }
