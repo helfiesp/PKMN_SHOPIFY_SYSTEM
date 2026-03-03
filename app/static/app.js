@@ -945,17 +945,26 @@ function renderProductListItem(p) {
     const variants   = p.variants || [];
     const links      = productCompLinks[p.shopify_id] || [];
     const snkMapped  = !!snkrdunkMappings.find(m => m.product_shopify_id === p.shopify_id && !m.disabled);
-    const totalStock = variants.reduce((s, v) => s + (v.inventory_quantity ?? 0), 0);
-    const minStock   = variants.length ? Math.min(...variants.map(v => v.inventory_quantity ?? 0)) : 0;
-    const prices     = variants.map(v => v.price).filter(Boolean);
-    const priceLabel = prices.length > 1
-        ? `${fmtNok(Math.min(...prices))} – ${fmtNok(Math.max(...prices))}`
-        : prices.length ? fmtNok(prices[0]) : '';
+
+    // Use box variants only (consistent with detail panel)
+    const boxV = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+    const dispV = boxV.length ? boxV : variants;
+
+    const totalStock = dispV.reduce((s, v) => s + (v.inventory_quantity ?? 0), 0);
+    const minStock   = dispV.length ? Math.min(...dispV.map(v => v.inventory_quantity ?? 0)) : 0;
+    const boxPrice   = dispV[0]?.price;
+    const priceLabel = boxPrice ? fmtNok(boxPrice) : '';
+
     const stockStatus = minStock <= 0 ? 'out' : minStock <= 5 ? 'critical' : minStock <= 10 ? 'low' : 'ok';
     const stockLabel  = minStock <= 0 ? 'OOS'
         : minStock <= 5  ? `${totalStock} · Low!`
         : minStock <= 10 ? `${totalStock} · Low`
         : String(totalStock);
+
+    // Are we cheapest among in-stock competitors?
+    const inStockPrices = links.filter(l => l.mi_in_stock === true && l.mi_price != null).map(l => l.mi_price);
+    const isCheapest = boxPrice && inStockPrices.length && boxPrice <= Math.min(...inStockPrices);
+
     const isSelected = p.shopify_id === selectedProductId;
 
     return `
@@ -967,6 +976,7 @@ function renderProductListItem(p) {
         </div>
         <div class="pli-meta">
             <span class="pli-stock pli-stock-${stockStatus}">${stockLabel}</span>
+            ${isCheapest ? '<span class="pli-dot pli-dot-cheapest" title="Our price is the lowest in-stock">★</span>' : ''}
             ${snkMapped ? '<span class="pli-dot pli-dot-snk">S</span>' : ''}
             ${links.length ? `<span class="pli-dot pli-dot-comp">${links.length}</span>` : ''}
         </div>
@@ -1011,17 +1021,28 @@ function renderProductDetail(p) {
         ? `<span class="pdd-snk-pill" title="SNKRDUNK RRP · ¥${fmt(snkJpy)}">SNK RRP ${fmtNok(snkRec)}</span>`
         : '';
 
+    // Find cheapest competitor (in-stock preferred, fallback to any)
+    const inStockLinks  = links.filter(l => l.mi_in_stock === true && l.mi_price != null);
+    const pricedLinks   = links.filter(l => l.mi_price != null);
+    const cheapestLink  = inStockLinks.length
+        ? inStockLinks.reduce((a, b) => a.mi_price <= b.mi_price ? a : b)
+        : pricedLinks.length ? pricedLinks.reduce((a, b) => a.mi_price <= b.mi_price ? a : b) : null;
+    const minInStockPrice = inStockLinks.length ? Math.min(...inStockLinks.map(l => l.mi_price)) : null;
+    const weCheapest = refVariant && minInStockPrice != null && refVariant.price <= minInStockPrice;
+
     // Competitor rows — single clean row per competitor
     const compRows = links.length
         ? links.map(lnk => {
-            const inStock = lnk.mi_in_stock === true;
-            const oos     = lnk.mi_in_stock === false;
-            const delta   = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
+            const inStock   = lnk.mi_in_stock === true;
+            const oos       = lnk.mi_in_stock === false;
+            const isCheapest = cheapestLink && lnk.id === cheapestLink.id;
+            const delta     = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
             return `
-            <div class="pdd-comp-row">
+            <div class="pdd-comp-row${isCheapest ? ' pdd-comp-cheapest' : ''}">
                 <span class="pdd-comp-domain">${lnk.mi_domain || '—'}</span>
                 <span class="pdd-comp-title">${lnk.mi_title || '—'}</span>
                 <span class="pdd-comp-price">${fmtNok(lnk.mi_price)}</span>
+                ${isCheapest ? '<span class="pdd-cheapest-star" title="Cheapest competitor">★</span>' : ''}
                 <span class="pdd-stock-dot ${inStock ? 'pdd-stock-in' : oos ? 'pdd-stock-oos' : 'pdd-stock-unknown'}"
                       title="${inStock ? 'In stock' : oos ? 'Out of stock' : 'Unknown'}"></span>
                 ${delta}
@@ -1046,6 +1067,7 @@ function renderProductDetail(p) {
         <div class="pdd-header-left">
             <h3 class="pdd-title">${p.title}</h3>
             ${snkPill}
+            ${weCheapest ? '<span class="pdd-cheapest-pill" title="Our price is the lowest among in-stock competitors">★ Lowest price</span>' : ''}
         </div>
         <div class="pdd-header-actions">
             ${isHidden

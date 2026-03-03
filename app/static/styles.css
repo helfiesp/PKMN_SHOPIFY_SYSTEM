@@ -962,8 +962,9 @@ select.input-sm {
     padding: 0.15rem 0.3rem;
     border-radius: 3px;
 }
-.pli-dot-snk  { background: var(--primary-light); color: var(--primary); }
-.pli-dot-comp { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
+.pli-dot-snk      { background: var(--primary-light); color: var(--primary); }
+.pli-dot-comp     { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
+.pli-dot-cheapest { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-size: 0.6rem; }
 
 /* ── Detail panel ──────────────────────────────────────────────────────────── */
 .pdd-header {
@@ -1142,6 +1143,17 @@ select.input-sm {
 .pdd-stock-in      { background: var(--success); }
 .pdd-stock-oos     { background: var(--danger); }
 .pdd-stock-unknown { background: var(--border); }
+/* Cheapest competitor row highlight */
+.pdd-comp-cheapest { border-color: #bbf7d0; background: #f0fdf4; }
+.pdd-cheapest-star { font-size: 0.75rem; color: #15803d; flex-shrink: 0; line-height: 1; }
+/* "Lowest price" pill in detail header */
+.pdd-cheapest-pill {
+    display: inline-flex; align-items: center;
+    background: #dcfce7; color: #15803d;
+    border: 1px solid #bbf7d0; border-radius: 999px;
+    padding: 0.2rem 0.625rem; font-size: 0.6875rem; font-weight: 600;
+    white-space: nowrap; flex-shrink: 0; cursor: default;
+}
 .pdd-comp-empty {
     padding: 2rem 1rem;
     color: var(--text-muted);
