@@ -989,14 +989,18 @@ function renderProductDetail(p) {
     const displayVariants = boxVariants.length ? boxVariants : variants;
     const refVariant      = displayVariants[0];
 
-    // Variant rows — box only
+    // Variant rows — box only, with editable stock qty
     const variantRows = displayVariants.map(v => {
-        const sc = v.inventory_quantity <= 0 ? 'pdd-qty-zero' : v.inventory_quantity <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
+        const qty = v.inventory_quantity ?? 0;
+        const sc = qty <= 0 ? 'pdd-qty-zero' : qty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
         return `
         <div class="pdd-variant">
             <span class="pdd-var-name">${v.title || 'Default'}</span>
             <span class="pdd-var-price">${fmtNok(v.price)}</span>
-            <span class="pdd-var-qty ${sc}">${v.inventory_quantity ?? 0}</span>
+            <input type="number" class="qty-input ${sc}" value="${qty}" min="0" step="1"
+                   data-orig="${qty}" title="Click to edit stock"
+                   onkeydown="if(event.key==='Enter'){this.blur()}"
+                   onblur="setInventory(${v.id},this.value,this)">
         </div>`;
     }).join('');
 
@@ -1045,7 +1049,7 @@ function renderProductDetail(p) {
             ${isHidden
                 ? `<button class="btn btn-xs btn-warning" onclick="unhideProduct('${p.shopify_id}')">Unhide</button>`
                 : `<button class="btn btn-xs" onclick="hideProduct('${p.shopify_id}')" title="Hide from list">Hide</button>`}
-            <button class="btn btn-xs" onclick="refreshSingleProduct('${p.shopify_id}')">↻ Refresh</button>
+            <button class="btn btn-xs btn-refresh" onclick="refreshSingleProduct('${p.shopify_id}')">↻ Refresh</button>
         </div>
     </div>
     <div class="pdd-body">
@@ -1263,17 +1267,52 @@ async function unlinkCompetitor(linkId) {
 }
 
 async function refreshSingleProduct(shopifyProductId) {
-    const links = productCompLinks[shopifyProductId] || [];
-    if (!links.length) { toast('No competitors linked.', 'info'); return; }
+    const p = shopifyProducts.find(x => x.shopify_id === shopifyProductId);
+    if (!p) return;
+    const btn = document.querySelector('.pdd-header-actions .btn-refresh');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
     try {
-        const res = await api('/competitor-links/refresh-prices', { method: 'POST' });
-        toast(`Refreshed ${res.updated} competitor prices`, 'success');
-        const allLinks = await api('/competitor-links');
+        await api(`/shopify/products/${p.id}/refresh`, { method: 'POST' });
+        const [prods, allLinks] = await Promise.all([
+            api('/shopify/products?limit=500'),
+            api('/competitor-links'),
+        ]);
+        shopifyProducts = prods.products || prods || [];
         productCompLinks = {};
         for (const lnk of allLinks) (productCompLinks[lnk.shopify_product_id] ||= []).push(lnk);
+        toast('Refreshed from Shopify', 'success');
         _refreshSelectedProduct();
     } catch (e) {
         toast(`Refresh failed: ${e.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+    }
+}
+
+async function setInventory(variantId, newQty, el) {
+    const n = parseInt(newQty, 10);
+    const orig = parseInt(el.dataset.orig, 10);
+    if (isNaN(n) || n < 0) { el.value = orig; return; }
+    if (n === orig) return;
+    el.disabled = true;
+    try {
+        await api(`/shopify/variants/${variantId}/set-inventory`, {
+            method: 'POST',
+            body: JSON.stringify({ quantity: n }),
+        });
+        el.dataset.orig = n;
+        for (const prod of shopifyProducts) {
+            for (const v of (prod.variants || [])) {
+                if (v.id === variantId) { v.inventory_quantity = n; break; }
+            }
+        }
+        toast(`Stock updated to ${n}`, 'success');
+        _refreshSelectedProduct();
+    } catch (e) {
+        el.value = orig;
+        toast(`Stock update failed: ${e.message}`, 'error');
+    } finally {
+        el.disabled = false;
     }
 }
 

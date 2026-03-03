@@ -1,6 +1,7 @@
 """Shopify operations router."""
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from datetime import datetime
 import requests
@@ -13,6 +14,10 @@ from app.schemas import (
     FetchCollectionResponse
 )
 from app.services import shopify_service
+
+
+class SetInventoryRequest(BaseModel):
+    quantity: int
 
 router = APIRouter()
 
@@ -348,6 +353,139 @@ async def refresh_all_prices(db: Session = Depends(get_db)):
         "updated_count": updated_count,
         "error_count": error_count
     }
+
+
+@router.post("/products/{product_id}/refresh")
+async def refresh_product(product_id: int, db: Session = Depends(get_db)):
+    """Refresh prices and inventory for a single product from Shopify GraphQL."""
+    from app.models import Variant, Product
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    shop = settings.get_shopify_shop()
+    token = settings.get_shopify_token()
+    if not shop or not token:
+        raise HTTPException(status_code=500, detail="Shopify credentials not configured")
+
+    graphql_url = f"https://{shop}/admin/api/{settings.shopify_api_version}/graphql.json"
+    headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
+
+    query = """
+    query($id: ID!) {
+      product(id: $id) {
+        variants(first: 100) {
+          edges {
+            node { id price compareAtPrice inventoryQuantity }
+          }
+        }
+      }
+    }
+    """
+
+    response = requests.post(
+        graphql_url,
+        json={"query": query, "variables": {"id": product.shopify_id}},
+        headers=headers,
+        timeout=30
+    )
+    response.raise_for_status()
+    result = response.json()
+
+    if "errors" in result:
+        raise HTTPException(status_code=500, detail=f"GraphQL errors: {result['errors']}")
+
+    variants_data = result.get("data", {}).get("product", {}).get("variants", {}).get("edges", [])
+    updated_count = 0
+
+    for edge in variants_data:
+        node = edge.get("node", {})
+        variant = db.query(Variant).filter(Variant.shopify_id == node.get("id")).first()
+        if variant and node.get("price") is not None:
+            variant.price = float(node["price"])
+            if node.get("compareAtPrice") is not None:
+                variant.compare_at_price = float(node["compareAtPrice"])
+            if node.get("inventoryQuantity") is not None:
+                variant.inventory_quantity = int(node["inventoryQuantity"])
+            variant.updated_at = datetime.utcnow()
+            updated_count += 1
+
+    db.commit()
+    return {"message": "Product refreshed", "product_id": product_id, "updated_count": updated_count}
+
+
+@router.post("/variants/{variant_id}/set-inventory")
+async def set_variant_inventory(
+    variant_id: int,
+    body: SetInventoryRequest,
+    db: Session = Depends(get_db)
+):
+    """Set inventory quantity for a variant on Shopify and update local DB."""
+    from app.models import Variant
+
+    variant = db.query(Variant).filter(Variant.id == variant_id).first()
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    if not variant.inventory_item_id:
+        raise HTTPException(status_code=400, detail="Variant has no inventory_item_id; sync collection first")
+
+    shop = settings.get_shopify_shop()
+    token = settings.get_shopify_token()
+    if not shop or not token:
+        raise HTTPException(status_code=500, detail="Shopify credentials not configured")
+
+    graphql_url = f"https://{shop}/admin/api/{settings.shopify_api_version}/graphql.json"
+    headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
+
+    location_gid = f"gid://shopify/Location/{settings.location_id}"
+
+    mutation = """
+    mutation($input: InventorySetQuantitiesInput!) {
+      inventorySetQuantities(input: $input) {
+        inventoryAdjustmentGroup {
+          changes { name quantityAfterChange }
+        }
+        userErrors { field message }
+      }
+    }
+    """
+
+    response = requests.post(
+        graphql_url,
+        json={
+            "query": mutation,
+            "variables": {
+                "input": {
+                    "name": "available",
+                    "reason": "correction",
+                    "quantities": [{
+                        "inventoryItemId": variant.inventory_item_id,
+                        "locationId": location_gid,
+                        "quantity": body.quantity
+                    }]
+                }
+            }
+        },
+        headers=headers,
+        timeout=30
+    )
+    response.raise_for_status()
+    result = response.json()
+
+    if "errors" in result:
+        raise HTTPException(status_code=500, detail=f"GraphQL errors: {result['errors']}")
+
+    user_errors = result.get("data", {}).get("inventorySetQuantities", {}).get("userErrors", [])
+    if user_errors:
+        raise HTTPException(status_code=500, detail=f"Shopify error: {user_errors}")
+
+    old_qty = variant.inventory_quantity
+    variant.inventory_quantity = body.quantity
+    variant.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {"message": "Inventory updated", "variant_id": variant_id, "old_quantity": old_qty, "new_quantity": body.quantity}
 
 
 @router.get("/price-change-history")
