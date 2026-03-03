@@ -845,6 +845,104 @@ function calcSnkrdunkRec(jpy) {
     return Math.ceil((cost / (1 - margin)) * 1.25 / 25) * 25;
 }
 
+// ── Auto-match helpers ────────────────────────────────────────────────────────
+
+function titleScore(ourTitle, compTitle) {
+    const stop = new Set([
+        'pokemon', 'pokémon', 'japansk', 'japanese', 'display', 'booster', 'box',
+        'pack', 'tcg', 'kort', 'card', 'cards', 'high', 'class', 'collection',
+        'med', 'shrink', 'the', 'of', 'and', 'jp', 'jpn', 'en', 'og', 'ex',
+    ]);
+    const tokenize = s => s.toLowerCase()
+        .replace(/[^a-zæøå0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length >= 2 && !stop.has(w));
+
+    const ours   = new Set(tokenize(ourTitle));
+    const theirs = new Set(tokenize(compTitle));
+    if (!ours.size) return 0;
+    let hits = 0;
+    for (const w of ours) if (theirs.has(w)) hits++;
+    return hits / ours.size;
+}
+
+async function autoMatchAll() {
+    const unmatched = shopifyProducts.filter(p =>
+        !hiddenProductIds.has(p.shopify_id) &&
+        !(productCompLinks[p.shopify_id]?.length)
+    );
+    if (!unmatched.length) {
+        toast('All visible products already have competitor links', 'info');
+        return;
+    }
+
+    const btn = document.getElementById('btn-auto-match');
+    const origLabel = 'Auto-match';
+    if (btn) btn.disabled = true;
+
+    let matched = 0, skipped = 0, linksCreated = 0;
+
+    for (let i = 0; i < unmatched.length; i++) {
+        const p = unmatched[i];
+        if (btn) btn.textContent = `Matching ${i + 1}/${unmatched.length}…`;
+
+        // Use booster box price as reference
+        const variants = p.variants || [];
+        const boxV = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+        const dispV = boxV.length ? boxV : variants;
+        const ourPrice = dispV[0]?.price;
+        if (!ourPrice) { skipped++; continue; }
+
+        try {
+            const candidates = await api(`/marketintel/competitor-products?search=${encodeURIComponent(p.title)}&limit=50`);
+            const good = candidates.filter(c => {
+                if (c.price == null) return false;
+                // Price: 40%–200% of ours (filters out single packs and wildly different items)
+                const ratio = +c.price / +ourPrice;
+                if (ratio < 0.4 || ratio > 2.0) return false;
+                // Title: at least 50% of our keywords must be found in competitor title
+                return titleScore(p.title, c.title || '') >= 0.5;
+            });
+
+            if (!good.length) { skipped++; continue; }
+
+            for (const m of good) {
+                try {
+                    const link = await api('/competitor-links', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            shopify_product_id: p.shopify_id,
+                            mi_product_id:  m.id,
+                            mi_domain:      m.competitor_domain,
+                            mi_title:       m.title,
+                            mi_price:       m.price,
+                            mi_in_stock:    m.in_stock,
+                            mi_source_url:  m.source_url,
+                        }),
+                    });
+                    (productCompLinks[p.shopify_id] ||= []).push(link);
+                    linksCreated++;
+                } catch (e) {
+                    if (!e.message.includes('409')) console.warn('Auto-link failed:', e.message);
+                }
+            }
+            matched++;
+        } catch (e) {
+            skipped++;
+        }
+    }
+
+    // Reload all links cleanly
+    const allLinks = await api('/competitor-links');
+    productCompLinks = {};
+    for (const lnk of allLinks) (productCompLinks[lnk.shopify_product_id] ||= []).push(lnk);
+
+    if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+    renderProducts();
+    toast(`Auto-matched ${matched} products · ${linksCreated} links created · ${skipped} skipped`, matched > 0 ? 'success' : 'info');
+}
+
 async function loadProducts() {
     showTabLoading('products-list');
     try {
