@@ -1102,25 +1102,35 @@ function renderProductDetail(p) {
     const displayVariants = boxVariants.length ? boxVariants : variants;
     const refVariant      = displayVariants[0];
 
-    // Left panel — vertical card per box variant
+    // Left panel — compact info rows per box variant
     const boxCards = displayVariants.map(v => {
         const qty = v.inventory_quantity ?? 0;
         const sc  = qty <= 0 ? 'pdd-qty-zero' : qty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
         return `
         <div class="pdd-box-card">
-            <div class="pdd-box-label">${v.title || 'Booster Box'}</div>
-            <div class="pdd-box-price">${fmtNok(v.price)}</div>
-            <div class="pdd-box-stock-row">
-                <span class="pdd-box-stock-label">Stock</span>
+            <div class="pdd-info-row">
+                <span class="pdd-info-label">Type</span>
+                <span class="pdd-info-value">${v.title || 'Booster Box'}</span>
+            </div>
+            <div class="pdd-info-row">
+                <span class="pdd-info-label">Our price</span>
+                <span class="pdd-info-value mono">${fmtNok(v.price)}</span>
+            </div>
+            <div class="pdd-info-row">
+                <span class="pdd-info-label">Stock</span>
                 <input type="number" class="qty-input ${sc}" value="${qty}" min="0" step="1"
                        data-orig="${qty}" title="Click to edit stock"
                        onkeydown="if(event.key==='Enter'){this.blur()}"
                        onblur="setInventory(${v.id},this.value,this)">
             </div>
-            ${snkRec ? `
-            <div class="pdd-box-snk">
-                <span class="pdd-box-snk-label">SNK RRP</span>
-                <span class="pdd-box-snk-price" title="¥${fmt(snkJpy)}">${fmtNok(snkRec)}</span>
+            ${snkJpy ? `
+            <div class="pdd-info-row pdd-info-divider">
+                <span class="pdd-info-label">SNKRDUNK</span>
+                <span class="pdd-info-value mono">¥${fmt(snkJpy)}</span>
+            </div>
+            <div class="pdd-info-row">
+                <span class="pdd-info-label">SNK RRP</span>
+                <span class="pdd-info-value mono pdd-info-snk">${fmtNok(snkRec)}</span>
             </div>` : ''}
         </div>`;
     }).join('');
