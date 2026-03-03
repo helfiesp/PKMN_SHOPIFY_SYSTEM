@@ -24,6 +24,7 @@ from app.routers import (
     history,
     analytics,
     oauth,
+    marketintel,
 )
 from app.routers import settings as settings_router
 
@@ -66,6 +67,7 @@ app.include_router(mappings.router, prefix="/api/v1/mappings", tags=["Mappings"]
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
 app.include_router(history.router, tags=["History"])
+app.include_router(marketintel.router, prefix="/api/v1/marketintel", tags=["MarketIntel"])
 
 
 @app.get("/", response_class=HTMLResponse)

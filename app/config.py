@@ -92,7 +92,11 @@ class Settings(BaseSettings):
     # Matching
     shopify_match_threshold: float = 0.62
     price_ok_band_nok: int = 25
-    
+
+    # MarketIntel competitor intelligence API
+    marketintel_api_key: str = "mw_1dab7febe614d9189824c93fd614d532ce2f0a47083a07f7"
+    marketintel_base_url: str = "http://192.168.0.100/api/v1"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
