@@ -907,40 +907,41 @@ function renderProductCard(p) {
     const idSafe   = p.shopify_id.replace(/\W/g, '_');
 
     // SNKRDUNK
-    const mapping = snkrdunkMappings.find(m => m.product_shopify_id === p.shopify_id && !m.disabled);
-    const snkItem = mapping ? snkrdunkItems.find(i => String(i.id) === String(mapping.snkrdunk_key)) : null;
-    const snkJpy  = snkItem ? (snkItem.minPrice || snkItem.minPriceJpy) : null;
-    const snkRec  = snkJpy  ? calcSnkrdunkRec(snkJpy) : null;
+    const mapping  = snkrdunkMappings.find(m => m.product_shopify_id === p.shopify_id && !m.disabled);
+    const snkItem  = mapping ? snkrdunkItems.find(i => String(i.id) === String(mapping.snkrdunk_key)) : null;
+    const snkJpy   = snkItem ? (snkItem.minPrice || snkItem.minPriceJpy) : null;
+    const snkRec   = snkJpy  ? calcSnkrdunkRec(snkJpy) : null;
 
-    // Stock badge
-    const minStock = variants.length ? Math.min(...variants.map(v => v.inventory_quantity ?? 0)) : 0;
-    const stockBadge = minStock <= 0
-        ? '<span class="badge badge-danger badge-sm">Out of stock</span>'
-        : minStock <= 5
-            ? '<span class="badge badge-danger badge-sm">Critical</span>'
-            : minStock <= 10
-                ? '<span class="badge badge-warning badge-sm">Low stock</span>'
-                : '<span class="badge badge-success badge-sm">In stock</span>';
+    // Stock / price summary
+    const totalStock = variants.reduce((s, v) => s + (v.inventory_quantity ?? 0), 0);
+    const minStock   = variants.length ? Math.min(...variants.map(v => v.inventory_quantity ?? 0)) : 0;
+    const prices     = variants.map(v => v.price).filter(Boolean);
+    const priceLabel = prices.length > 1
+        ? `${fmtNok(Math.min(...prices))} – ${fmtNok(Math.max(...prices))}`
+        : prices.length ? fmtNok(prices[0]) : '';
 
-    // Variant rows
+    const stockStatus = minStock <= 0 ? 'out' : minStock <= 5 ? 'critical' : minStock <= 10 ? 'low' : 'ok';
+    const stockLabel  = minStock <= 0 ? 'Out of stock'
+        : minStock <= 5  ? `${totalStock} · Critical`
+        : minStock <= 10 ? `${totalStock} · Low`
+        : `${totalStock} in stock`;
+
+    // Variant table rows (no SKU — usually empty)
+    const refVariant  = variants.find(v => (v.option_value || v.title || '').toLowerCase().includes('box')) || variants[0];
     const variantRows = variants.map(v => `
-        <tr class="${stockClass(v.inventory_quantity)}">
+        <tr>
             <td>${v.title || 'Default'}</td>
-            <td class="mono text-muted">${v.sku || '—'}</td>
             <td class="mono">${fmtNok(v.price)}</td>
-            <td class="text-center mono pc-stock-qty ${v.inventory_quantity <= 0 ? 'pc-stock-zero' : v.inventory_quantity <= 10 ? 'pc-stock-low' : ''}">${v.inventory_quantity}</td>
+            <td class="mono text-center ${v.inventory_quantity <= 0 ? 'pc-stock-zero' : v.inventory_quantity <= 10 ? 'pc-stock-low' : ''}">${v.inventory_quantity ?? 0}</td>
         </tr>`).join('');
 
-    // SNKRDUNK section — compact single row
-    const snkSection = snkItem
-        ? `<div class="pc-snk-box">
-            <span class="pc-snk-label">SNK</span>
-            <span class="pc-snk-name">${snkItem.nameEn || snkItem.name || ''}</span>
-            <span class="pc-snk-divider">·</span>
-            <span class="pc-snk-jpy mono">¥${fmt(snkJpy)}</span>
-            <span class="pc-snk-arrow">→</span>
-            <span class="pc-snk-nok mono">${fmtNok(snkRec)}</span>
-            <div class="pc-snk-actions">
+    // SNKRDUNK detail block
+    const snkDetail = snkItem
+        ? `<div class="pcd-snk">
+            <span class="pcd-label">SNK</span>
+            <span class="pcd-snk-name">${snkItem.nameEn || snkItem.name || ''}</span>
+            <span class="pcd-snk-price mono">¥${fmt(snkJpy)} → <strong>${fmtNok(snkRec)}</strong></span>
+            <div class="pcd-snk-actions">
                 ${variants
                     .filter(v => (v.option_value || v.title || '').toLowerCase().includes('box') || variants.length === 1)
                     .map(v => `<button class="btn btn-xs btn-primary"
@@ -949,26 +950,23 @@ function renderProductCard(p) {
                     </button>`).join('')}
             </div>
            </div>`
-        : `<div class="pc-snk-box pc-snk-empty">
-            <span class="pc-snk-label">SNK</span>
-            <span class="pc-snk-unmapped">Not mapped — <a href="#snkrdunk" onclick="switchTab('snkrdunk')">set up in SNKRDUNK tab</a></span>
+        : `<div class="pcd-snk pcd-snk-empty">
+            <span class="pcd-label">SNK</span>
+            <span class="pcd-snk-unmapped">Not mapped — <a href="#" onclick="switchTab('snkrdunk');return false">set up →</a></span>
            </div>`;
 
     // Competitor rows
-    const refVariant = variants.find(v => (v.option_value || v.title || '').toLowerCase().includes('box')) || variants[0];
     const compRows = links.length
         ? links.map(lnk => `
-            <div class="pc-comp-row">
-                <div class="pc-comp-left">
-                    <span class="pc-comp-domain">${lnk.mi_domain || '—'}</span>
-                    <span class="pc-comp-title">${lnk.mi_title || '—'}</span>
-                </div>
-                <div class="pc-comp-right">
-                    <span class="pc-comp-price mono">${fmtNok(lnk.mi_price)}</span>
-                    ${lnk.mi_in_stock === true  ? '<span class="badge badge-success badge-sm">In stock</span>'
+            <div class="pcd-comp-row">
+                <span class="pcd-comp-domain">${lnk.mi_domain || '—'}</span>
+                <span class="pcd-comp-title">${lnk.mi_title || '—'}</span>
+                <div class="pcd-comp-actions">
+                    <span class="pcd-comp-price mono">${fmtNok(lnk.mi_price)}</span>
+                    ${lnk.mi_in_stock === true  ? '<span class="badge badge-success badge-sm">Stock</span>'
                     : lnk.mi_in_stock === false ? '<span class="badge badge-danger badge-sm">OOS</span>' : ''}
                     ${refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : ''}
-                    ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs">↗</a>` : ''}
+                    ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs" title="Open">↗</a>` : ''}
                     ${refVariant && lnk.mi_price != null
                         ? `<button class="btn btn-xs btn-primary"
                             onclick="matchPriceComp('${p.shopify_id}','${refVariant.shopify_id}',${lnk.mi_price},'${esc(p.title)}','${esc(refVariant.title || 'Default')}',${refVariant.price},'${esc(lnk.mi_domain)}')">
@@ -977,57 +975,41 @@ function renderProductCard(p) {
                     <button class="btn btn-xs btn-danger" onclick="unlinkCompetitor(${lnk.id})" title="Remove">×</button>
                 </div>
             </div>`).join('')
-        : '<div class="pc-comp-empty">No competitors linked yet. Click + Link to add one.</div>';
-
-    // Header summary (visible when collapsed)
-    const totalStock = variants.reduce((s, v) => s + (v.inventory_quantity ?? 0), 0);
-    const prices = variants.map(v => v.price).filter(Boolean);
-    const priceLabel = prices.length > 1
-        ? `${fmtNok(Math.min(...prices))} – ${fmtNok(Math.max(...prices))}`
-        : prices.length ? fmtNok(prices[0]) : '';
-    const compSummary = links.length
-        ? links.map(l => `${l.mi_domain}${l.mi_price != null ? ' ' + fmtNok(l.mi_price) : ''}`).join(' · ')
-        : '';
+        : '<div class="pcd-comp-empty">No competitors linked yet.</div>';
 
     return `
-    <div class="product-card" id="pcard-${idSafe}">
-        <div class="product-card-header" onclick="toggleProductCard('${idSafe}')">
-            <div class="product-card-title">
-                <span class="pc-name">${p.title}</span>
-                <span class="pc-meta">${priceLabel}${totalStock > 0 ? ' · ' + totalStock + ' pcs' : ''}</span>
-            </div>
-            <div class="pc-header-right">
-                ${stockBadge}
-                ${snkItem ? '<span class="pc-snk-dot" title="SNKRDUNK mapped">SNK</span>' : ''}
-                ${links.length ? `<span class="pc-comp-dot" title="${compSummary}">${links.length} comp</span>` : ''}
-                <svg class="pc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(-90deg)"><polyline points="6 9 12 15 18 9"/></svg>
+    <div class="pc-row-wrap" id="pcard-${idSafe}">
+        <div class="pc-row pc-row-${stockStatus}" onclick="toggleProductCard('${idSafe}')">
+            <svg class="pc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(-90deg)"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="pc-row-name">${p.title}</span>
+            <span class="pc-row-price">${priceLabel}</span>
+            <div class="pc-row-right">
+                <span class="pc-stock-pill pc-stock-${stockStatus}">${stockLabel}</span>
+                ${snkItem  ? '<span class="pc-dot pc-dot-snk">SNK</span>' : ''}
+                ${links.length ? `<span class="pc-dot pc-dot-comp" title="${links.map(l => l.mi_domain).join(', ')}">${links.length} comp</span>` : ''}
             </div>
         </div>
-        <div class="product-card-body" id="pbody-${idSafe}" style="display:none">
-
-            <!-- Variants table -->
-            <div class="pc-section">
-                <table class="data-table compact-table">
-                    <thead><tr><th>Variant</th><th>SKU</th><th>Price</th><th class="text-center">Stock</th></tr></thead>
-                    <tbody>${variantRows}</tbody>
-                </table>
-            </div>
-
-            <!-- SNKRDUNK -->
-            ${snkSection}
-
-            <!-- Competitors -->
-            <div class="pc-section">
-                <div class="pc-section-header">
-                    <span class="pc-section-title">Competitors</span>
-                    <div class="pc-section-actions">
-                        <button class="btn btn-xs" onclick="event.stopPropagation();refreshSingleProduct('${p.shopify_id}')">↻ Refresh</button>
-                        <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
-                    </div>
+        <div class="pc-detail" id="pbody-${idSafe}" style="display:none">
+            <div class="pcd-grid">
+                <div class="pcd-left">
+                    <div class="pcd-section-label">Variants</div>
+                    <table class="data-table">
+                        <thead><tr><th>Variant</th><th>Price</th><th class="text-center">Stock</th></tr></thead>
+                        <tbody>${variantRows}</tbody>
+                    </table>
+                    ${snkDetail}
                 </div>
-                <div class="pc-comp-list" id="comp-links-${idSafe}">${compRows}</div>
+                <div class="pcd-right">
+                    <div class="pcd-section-header">
+                        <span class="pcd-section-label">Competitors</span>
+                        <div style="display:flex;gap:.25rem">
+                            <button class="btn btn-xs" onclick="event.stopPropagation();refreshSingleProduct('${p.shopify_id}')">↻ Refresh</button>
+                            <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
+                        </div>
+                    </div>
+                    <div class="pcd-comp-list" id="comp-links-${idSafe}">${compRows}</div>
+                </div>
             </div>
-
         </div>
     </div>`;
 }
