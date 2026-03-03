@@ -21,8 +21,7 @@ let productStockFilter  = 'all';
 
 // Link-modal state
 let linkModalProductId  = null;
-let linkModalSearchResults = [];
-let miProductCache      = [];  // flat list of all competitor products (search pool)
+let _linkSearchTimer    = null; // debounce handle
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -903,15 +902,16 @@ function renderProducts() {
 function renderProductCard(p) {
     const variants = p.variants || [];
     const links    = productCompLinks[p.shopify_id] || [];
+    const idSafe   = p.shopify_id.replace(/\W/g, '_');
 
-    // SNKRDUNK — find mapping and cached item
-    const mapping  = snkrdunkMappings.find(m => m.product_shopify_id === p.shopify_id && !m.disabled);
-    const snkItem  = mapping ? snkrdunkItems.find(i => String(i.id) === String(mapping.snkrdunk_key)) : null;
-    const snkJpy   = snkItem ? (snkItem.minPrice || snkItem.minPriceJpy) : null;
-    const snkRec   = snkJpy  ? calcSnkrdunkRec(snkJpy) : null;
+    // SNKRDUNK
+    const mapping = snkrdunkMappings.find(m => m.product_shopify_id === p.shopify_id && !m.disabled);
+    const snkItem = mapping ? snkrdunkItems.find(i => String(i.id) === String(mapping.snkrdunk_key)) : null;
+    const snkJpy  = snkItem ? (snkItem.minPrice || snkItem.minPriceJpy) : null;
+    const snkRec  = snkJpy  ? calcSnkrdunkRec(snkJpy) : null;
 
-    // Stock summary badge
-    const minStock = Math.min(...variants.map(v => v.inventory_quantity ?? 0));
+    // Stock badge
+    const minStock = variants.length ? Math.min(...variants.map(v => v.inventory_quantity ?? 0)) : 0;
     const stockBadge = minStock <= 0
         ? '<span class="badge badge-danger">Out of stock</span>'
         : minStock <= 5
@@ -920,93 +920,88 @@ function renderProductCard(p) {
                 ? '<span class="badge badge-warning">Low stock</span>'
                 : '<span class="badge badge-success">In stock</span>';
 
-    // Variants rows
+    // Variant rows
     const variantRows = variants.map(v => `
         <tr class="${stockClass(v.inventory_quantity)}">
             <td>${v.title || 'Default'}</td>
-            <td class="mono">${v.sku || '—'}</td>
+            <td class="mono text-muted">${v.sku || '—'}</td>
             <td class="mono">${fmtNok(v.price)}</td>
-            <td class="text-center mono"><strong>${v.inventory_quantity}</strong></td>
+            <td class="text-center mono pc-stock-qty ${v.inventory_quantity <= 0 ? 'pc-stock-zero' : v.inventory_quantity <= 10 ? 'pc-stock-low' : ''}">${v.inventory_quantity}</td>
         </tr>`).join('');
 
     // SNKRDUNK section
     const snkSection = snkItem
-        ? `<div class="product-section">
-            <div class="product-section-label">SNKRDUNK</div>
-            <div class="snk-price-row">
-                <span class="mono">¥${fmt(snkJpy)}</span>
-                <span class="arrow">→</span>
-                <span class="mono rec-price">Rec. ${fmtNok(snkRec)}</span>
-                <span class="muted">(${snkItem.nameEn || snkItem.name || ''})</span>
-                <div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap">
-                    ${variants.filter(v => v.option_value?.toLowerCase().includes('box') || variants.length === 1).map(v =>
-                        `<button class="btn btn-xs btn-primary"
+        ? `<div class="pc-snk-box">
+            <div class="pc-snk-header">
+                <span class="pc-snk-label">SNKRDUNK</span>
+                <span class="pc-snk-name">${snkItem.nameEn || snkItem.name || ''}</span>
+            </div>
+            <div class="pc-snk-body">
+                <div class="pc-snk-prices">
+                    <span class="pc-snk-jpy mono">¥${fmt(snkJpy)}</span>
+                    <span class="pc-snk-arrow">→</span>
+                    <span class="pc-snk-nok mono">Rec. ${fmtNok(snkRec)}</span>
+                </div>
+                <div class="pc-snk-actions">
+                    ${variants
+                        .filter(v => v.option_value?.toLowerCase().includes('box') || variants.length === 1)
+                        .map(v => `<button class="btn btn-sm btn-primary"
                             onclick="matchPriceSnkrdunk('${p.shopify_id}','${v.shopify_id}',${snkRec},'${esc(p.title)}','${esc(v.title || 'Default')}',${v.price})">
-                            Set rec. price${variants.length > 1 ? ` (${v.title || 'Default'})` : ''}
-                        </button>`
-                    ).join('')}
+                            Set ${fmtNok(snkRec)}${variants.length > 1 ? ' · ' + (v.title || 'Default') : ''}
+                        </button>`).join('')}
                 </div>
             </div>
            </div>`
-        : `<div class="product-section">
-            <div class="product-section-label">SNKRDUNK</div>
-            <span class="muted">Not mapped — <a href="#snkrdunk" onclick="switchTab('snkrdunk')" class="link">set up in SNKRDUNK tab</a></span>
+        : `<div class="pc-snk-box pc-snk-empty">
+            <span class="pc-snk-label">SNKRDUNK</span>
+            <span class="pc-snk-unmapped">Not mapped — <a href="#snkrdunk" onclick="switchTab('snkrdunk')">set up in SNKRDUNK tab</a></span>
            </div>`;
 
-    // Competitor links section
+    // Competitor rows
+    const refVariant = variants.find(v => v.option_value?.toLowerCase().includes('box')) || variants[0];
     const compRows = links.length
-        ? links.map(lnk => {
-            const delta = lnk.mi_price != null
-                ? (() => {
-                    // Compare against the box variant price (or first variant)
-                    const refVariant = variants.find(v => v.option_value?.toLowerCase().includes('box')) || variants[0];
-                    return refVariant ? ((refVariant.price - lnk.mi_price) / lnk.mi_price) * 100 : null;
-                  })()
-                : null;
-            const refVariant = variants.find(v => v.option_value?.toLowerCase().includes('box')) || variants[0];
-            return `
-            <div class="comp-link-row">
-                <span class="comp-domain">${lnk.mi_domain || '—'}</span>
-                <span class="comp-title muted">${lnk.mi_title || '—'}</span>
-                <span class="mono">${fmtNok(lnk.mi_price)}</span>
-                ${lnk.mi_in_stock != null
-                    ? lnk.mi_in_stock
-                        ? '<span class="badge badge-success">In stock</span>'
-                        : '<span class="badge badge-danger">OOS</span>'
-                    : '<span class="muted">—</span>'}
-                ${delta != null ? deltaBadge(refVariant?.price, lnk.mi_price) : ''}
-                <div style="margin-left:auto;display:flex;gap:.3rem;flex-wrap:wrap">
-                    ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs">View</a>` : ''}
-                    ${refVariant && lnk.mi_price
-                        ? `<button class="btn btn-xs btn-primary"
-                                onclick="matchPriceComp('${p.shopify_id}','${refVariant.shopify_id}',${lnk.mi_price},'${esc(p.title)}','${esc(refVariant.title || 'Default')}',${refVariant.price},'${esc(lnk.mi_domain)}')">
-                                Match price
-                           </button>`
-                        : ''}
-                    <button class="btn btn-xs btn-danger" onclick="unlinkCompetitor(${lnk.id})">×</button>
+        ? links.map(lnk => `
+            <div class="pc-comp-row">
+                <div class="pc-comp-left">
+                    <span class="pc-comp-domain">${lnk.mi_domain || '—'}</span>
+                    <span class="pc-comp-title">${lnk.mi_title || '—'}</span>
                 </div>
-            </div>`;
-        }).join('')
-        : '<span class="muted" style="font-size:.85rem">No competitors linked yet.</span>';
+                <div class="pc-comp-right">
+                    <span class="pc-comp-price mono">${fmtNok(lnk.mi_price)}</span>
+                    ${lnk.mi_in_stock === true  ? '<span class="badge badge-success">In stock</span>'
+                    : lnk.mi_in_stock === false ? '<span class="badge badge-danger">OOS</span>' : ''}
+                    ${refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price) : ''}
+                    ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs">↗</a>` : ''}
+                    ${refVariant && lnk.mi_price != null
+                        ? `<button class="btn btn-xs btn-primary"
+                            onclick="matchPriceComp('${p.shopify_id}','${refVariant.shopify_id}',${lnk.mi_price},'${esc(p.title)}','${esc(refVariant.title || 'Default')}',${refVariant.price},'${esc(lnk.mi_domain)}')">
+                            Match</button>`
+                        : ''}
+                    <button class="btn btn-xs btn-danger" onclick="unlinkCompetitor(${lnk.id})" title="Remove">×</button>
+                </div>
+            </div>`).join('')
+        : '<div class="pc-comp-empty">No competitors linked yet. Click + Link to add one.</div>';
 
     return `
-    <div class="product-card" id="pcard-${p.shopify_id.replace(/\W/g, '_')}">
-        <div class="product-card-header">
+    <div class="product-card" id="pcard-${idSafe}">
+        <div class="product-card-header" onclick="toggleProductCard('${idSafe}')">
             <div class="product-card-title">
-                <strong>${p.title}</strong>
-                <span class="muted" style="font-size:.8rem">${variants.length} variant${variants.length !== 1 ? 's' : ''}</span>
+                <span class="pc-name">${p.title}</span>
+                <span class="pc-variants-count">${variants.length} variant${variants.length !== 1 ? 's' : ''}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:.5rem">
+            <div class="pc-header-right">
                 ${stockBadge}
-                <button class="btn btn-xs" onclick="toggleProductCard('${p.shopify_id.replace(/\W/g, '_')}')">▾</button>
+                ${snkItem ? '<span class="pc-snk-dot" title="SNKRDUNK mapped">SNK</span>' : ''}
+                ${links.length ? `<span class="pc-comp-dot" title="${links.length} competitor${links.length !== 1 ? 's' : ''} linked">${links.length}C</span>` : ''}
+                <svg class="pc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </div>
         </div>
-        <div class="product-card-body" id="pbody-${p.shopify_id.replace(/\W/g, '_')}">
-            <!-- Variants -->
-            <div class="product-section">
-                <div class="product-section-label">Variants &amp; Stock</div>
+        <div class="product-card-body" id="pbody-${idSafe}">
+
+            <!-- Variants table -->
+            <div class="pc-section">
                 <table class="data-table compact-table">
-                    <thead><tr><th>Variant</th><th>SKU</th><th>Price</th><th>Stock</th></tr></thead>
+                    <thead><tr><th>Variant</th><th>SKU</th><th>Price</th><th class="text-center">Stock</th></tr></thead>
                     <tbody>${variantRows}</tbody>
                 </table>
             </div>
@@ -1015,18 +1010,17 @@ function renderProductCard(p) {
             ${snkSection}
 
             <!-- Competitors -->
-            <div class="product-section">
-                <div class="product-section-label" style="display:flex;justify-content:space-between">
-                    <span>Competitors</span>
-                    <div style="display:flex;gap:.4rem">
-                        <button class="btn btn-xs" onclick="refreshSingleProduct('${p.shopify_id}')">↻ Refresh prices</button>
-                        <button class="btn btn-xs btn-primary" onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link competitor</button>
+            <div class="pc-section">
+                <div class="pc-section-header">
+                    <span class="pc-section-title">Competitors</span>
+                    <div class="pc-section-actions">
+                        <button class="btn btn-xs" onclick="event.stopPropagation();refreshSingleProduct('${p.shopify_id}')">↻ Refresh</button>
+                        <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
                     </div>
                 </div>
-                <div class="comp-links-list" id="comp-links-${p.shopify_id.replace(/\W/g, '_')}">
-                    ${compRows}
-                </div>
+                <div class="pc-comp-list" id="comp-links-${idSafe}">${compRows}</div>
             </div>
+
         </div>
     </div>`;
 }
@@ -1036,12 +1030,12 @@ function esc(str) {
 }
 
 function toggleProductCard(idSafe) {
-    const body = document.getElementById(`pbody-${idSafe}`);
-    const btn  = body?.previousElementSibling?.querySelector('button[onclick*="toggleProductCard"]');
+    const body    = document.getElementById(`pbody-${idSafe}`);
+    const chevron = document.querySelector(`#pcard-${idSafe} .pc-chevron`);
     if (!body) return;
     const open = body.style.display !== 'none';
     body.style.display = open ? 'none' : '';
-    if (btn) btn.textContent = open ? '▸' : '▾';
+    if (chevron) chevron.style.transform = open ? 'rotate(-90deg)' : '';
 }
 
 // ── Competitor linking ────────────────────────────────────────────────────────
@@ -1050,15 +1044,10 @@ function openLinkModal(shopifyProductId, productTitle) {
     linkModalProductId = shopifyProductId;
     document.getElementById('link-modal-title').textContent = `Link competitor — ${productTitle}`;
     document.getElementById('link-search-input').value = '';
-    document.getElementById('link-search-results').innerHTML = '<p class="muted">Type to search competitor products…</p>';
+    document.getElementById('link-search-results').innerHTML =
+        '<p class="muted" style="padding:1rem;text-align:center">Type to search competitor products…</p>';
     document.getElementById('link-modal').classList.add('open');
-
-    // Pre-load competitor products into cache if not already loaded
-    if (!miProductCache.length) {
-        api('/marketintel/competitor-products?limit=200').then(data => {
-            miProductCache = data;
-        }).catch(() => {});
-    }
+    document.getElementById('link-search-input').focus();
 }
 
 function closeLinkModal() {
@@ -1067,43 +1056,42 @@ function closeLinkModal() {
 }
 
 function searchLinkProducts() {
-    const q   = document.getElementById('link-search-input')?.value.trim().toLowerCase();
-    const el  = document.getElementById('link-search-results');
-    if (!q) { el.innerHTML = '<p class="muted">Type to search…</p>'; return; }
+    const q  = document.getElementById('link-search-input')?.value.trim();
+    const el = document.getElementById('link-search-results');
 
-    const results = miProductCache.filter(p =>
-        p.title.toLowerCase().includes(q) ||
-        (p.sku || '').toLowerCase().includes(q) ||
-        p.competitor_domain.toLowerCase().includes(q)
-    ).slice(0, 30);
-
-    if (!results.length) {
-        el.innerHTML = '<p class="muted">No results. Try a different search term.</p>';
+    if (!q || q.length < 2) {
+        el.innerHTML = '<p class="muted" style="padding:1rem;text-align:center">Type at least 2 characters…</p>';
         return;
     }
 
-    // If cache is empty, trigger a live fetch
-    if (!miProductCache.length) {
-        el.innerHTML = '<div class="loading-spinner">Loading products…</div>';
-        api('/marketintel/competitor-products?limit=200').then(data => {
-            miProductCache = data;
-            searchLinkProducts();
-        }).catch(e => { el.innerHTML = `<p class="error">${e.message}</p>`; });
-        return;
-    }
+    clearTimeout(_linkSearchTimer);
+    el.innerHTML = '<div class="loading-spinner" style="padding:1rem">Searching…</div>';
 
-    el.innerHTML = results.map(p => `
-        <div class="link-result-row">
-            <div class="link-result-info">
-                <strong>${p.title}</strong>
-                <span class="muted"> · ${p.competitor_domain} · ${fmtNok(p.price)}</span>
-                ${p.in_stock ? '<span class="badge badge-success" style="font-size:.7rem">In stock</span>' : '<span class="badge badge-danger" style="font-size:.7rem">OOS</span>'}
-            </div>
-            <button class="btn btn-sm btn-primary"
-                onclick="confirmLink(${p.id},'${esc(p.competitor_domain)}','${esc(p.title)}',${p.price || 'null'},${p.in_stock},'${esc(p.source_url || '')}')">
-                Link
-            </button>
-        </div>`).join('');
+    _linkSearchTimer = setTimeout(async () => {
+        try {
+            const results = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=50`);
+            if (!results.length) {
+                el.innerHTML = '<p class="muted" style="padding:1rem;text-align:center">No results found.</p>';
+                return;
+            }
+            el.innerHTML = results.map(r => `
+                <div class="link-result-row">
+                    <div class="link-result-info">
+                        <span class="link-result-domain">${r.competitor_domain || r.domain || '—'}</span>
+                        <strong>${r.title}</strong>
+                        <span class="mono" style="font-size:.82rem">${fmtNok(r.price)}</span>
+                        ${r.in_stock === true  ? '<span class="badge badge-success" style="font-size:.7rem">In stock</span>'
+                        : r.in_stock === false ? '<span class="badge badge-danger"  style="font-size:.7rem">OOS</span>' : ''}
+                    </div>
+                    <button class="btn btn-sm btn-primary"
+                        onclick="confirmLink(${r.id},'${esc(r.competitor_domain || r.domain || '')}','${esc(r.title)}',${r.price ?? 'null'},${!!r.in_stock},'${esc(r.source_url || '')}')">
+                        Link
+                    </button>
+                </div>`).join('');
+        } catch (e) {
+            el.innerHTML = `<p class="error" style="padding:1rem">Search failed: ${e.message}</p>`;
+        }
+    }, 300);
 }
 
 async function confirmLink(miId, domain, title, price, inStock, sourceUrl) {

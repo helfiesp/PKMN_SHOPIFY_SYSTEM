@@ -20,14 +20,16 @@ def list_competitors():
 def list_competitor_products(
     domain: Optional[str] = None,
     competitor_id: Optional[int] = None,
-    limit: int = Query(default=200, ge=1, le=200),
+    search: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ):
-    """Products from competitor catalogs, filterable by domain or competitor ID."""
+    """Products from competitor catalogs, filterable by domain, competitor ID, or search term."""
     try:
         return marketintel_service.get_competitor_products(
             domain=domain,
             competitor_id=competitor_id,
+            search=search,
             limit=limit,
             offset=offset,
         )

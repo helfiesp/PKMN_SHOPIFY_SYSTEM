@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for cls in pc-name pc-variants-count pc-header-right pc-chevron pc-snk-dot pc-comp-dot pc-section pc-section-header pc-section-title pc-section-actions pc-stock-qty pc-stock-zero pc-stock-low pc-snk-box pc-snk-empty pc-snk-header pc-snk-label pc-snk-name pc-snk-body pc-snk-prices pc-snk-jpy pc-snk-arrow pc-snk-nok pc-snk-actions pc-snk-unmapped pc-comp-list pc-comp-row pc-comp-left pc-comp-domain pc-comp-title pc-comp-right pc-comp-price pc-comp-empty link-result-row link-result-info link-result-domain)",
+      "Bash(do)",
+      "Bash(echo \"OK: $cls\")",
+      "Bash(echo \"MISSING: $cls\")",
+      "Bash(done)"
+    ]
+  }
+}

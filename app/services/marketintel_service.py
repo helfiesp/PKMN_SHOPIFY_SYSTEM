@@ -22,15 +22,18 @@ def get_competitors() -> list:
 def get_competitor_products(
     domain: Optional[str] = None,
     competitor_id: Optional[int] = None,
+    search: Optional[str] = None,
     limit: int = 200,
     offset: int = 0,
 ) -> list:
-    """Return products from competitor catalog with optional domain/id filter."""
+    """Return products from competitor catalog with optional domain/id/search filter."""
     params: dict = {"limit": limit, "offset": offset}
     if domain:
         params["domain"] = domain
     if competitor_id is not None:
         params["competitor_id"] = competitor_id
+    if search:
+        params["search"] = search
     r = requests.get(f"{_base()}/competitor-products", headers=_headers(), params=params, timeout=15)
     r.raise_for_status()
     return r.json()
