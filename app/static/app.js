@@ -49,14 +49,15 @@ function fmtDate(iso) {
     return new Date(iso).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function deltaBadge(ownPrice, compPrice) {
-    if (!ownPrice || !compPrice) return '<span class="badge badge-neutral">—</span>';
+function deltaBadge(ownPrice, compPrice, sm = false) {
+    const cls = sm ? 'badge badge-sm' : 'badge';
+    if (!ownPrice || !compPrice) return `<span class="${cls} badge-neutral">—</span>`;
     const pct = ((ownPrice - compPrice) / compPrice) * 100;
     const sign = pct > 0 ? '+' : '';
-    if (pct > 10)  return `<span class="badge badge-danger">${sign}${pct.toFixed(1)}%</span>`;
-    if (pct > 3)   return `<span class="badge badge-warning">${sign}${pct.toFixed(1)}%</span>`;
-    if (pct < -5)  return `<span class="badge badge-info">${sign}${pct.toFixed(1)}%</span>`;
-    return `<span class="badge badge-success">${sign}${pct.toFixed(1)}%</span>`;
+    if (pct > 10)  return `<span class="${cls} badge-danger">${sign}${pct.toFixed(1)}%</span>`;
+    if (pct > 3)   return `<span class="${cls} badge-warning">${sign}${pct.toFixed(1)}%</span>`;
+    if (pct < -5)  return `<span class="${cls} badge-info">${sign}${pct.toFixed(1)}%</span>`;
+    return `<span class="${cls} badge-success">${sign}${pct.toFixed(1)}%</span>`;
 }
 
 function severityBadge(sev) {
@@ -914,12 +915,12 @@ function renderProductCard(p) {
     // Stock badge
     const minStock = variants.length ? Math.min(...variants.map(v => v.inventory_quantity ?? 0)) : 0;
     const stockBadge = minStock <= 0
-        ? '<span class="badge badge-danger">Out of stock</span>'
+        ? '<span class="badge badge-danger badge-sm">Out of stock</span>'
         : minStock <= 5
-            ? '<span class="badge badge-danger">Critical</span>'
+            ? '<span class="badge badge-danger badge-sm">Critical</span>'
             : minStock <= 10
-                ? '<span class="badge badge-warning">Low stock</span>'
-                : '<span class="badge badge-success">In stock</span>';
+                ? '<span class="badge badge-warning badge-sm">Low stock</span>'
+                : '<span class="badge badge-success badge-sm">In stock</span>';
 
     // Variant rows
     const variantRows = variants.map(v => `
@@ -930,31 +931,26 @@ function renderProductCard(p) {
             <td class="text-center mono pc-stock-qty ${v.inventory_quantity <= 0 ? 'pc-stock-zero' : v.inventory_quantity <= 10 ? 'pc-stock-low' : ''}">${v.inventory_quantity}</td>
         </tr>`).join('');
 
-    // SNKRDUNK section
+    // SNKRDUNK section — compact single row
     const snkSection = snkItem
         ? `<div class="pc-snk-box">
-            <div class="pc-snk-header">
-                <span class="pc-snk-label">SNKRDUNK</span>
-                <span class="pc-snk-name">${snkItem.nameEn || snkItem.name || ''}</span>
-            </div>
-            <div class="pc-snk-body">
-                <div class="pc-snk-prices">
-                    <span class="pc-snk-jpy mono">¥${fmt(snkJpy)}</span>
-                    <span class="pc-snk-arrow">→</span>
-                    <span class="pc-snk-nok mono">Rec. ${fmtNok(snkRec)}</span>
-                </div>
-                <div class="pc-snk-actions">
-                    ${variants
-                        .filter(v => (v.option_value || v.title || '').toLowerCase().includes('box') || variants.length === 1)
-                        .map(v => `<button class="btn btn-sm btn-primary"
-                            onclick="matchPriceSnkrdunk('${p.shopify_id}','${v.shopify_id}',${snkRec},'${esc(p.title)}','${esc(v.title || 'Default')}',${v.price})">
-                            Set ${fmtNok(snkRec)}${variants.length > 1 ? ' · ' + (v.title || 'Default') : ''}
-                        </button>`).join('')}
-                </div>
+            <span class="pc-snk-label">SNK</span>
+            <span class="pc-snk-name">${snkItem.nameEn || snkItem.name || ''}</span>
+            <span class="pc-snk-divider">·</span>
+            <span class="pc-snk-jpy mono">¥${fmt(snkJpy)}</span>
+            <span class="pc-snk-arrow">→</span>
+            <span class="pc-snk-nok mono">${fmtNok(snkRec)}</span>
+            <div class="pc-snk-actions">
+                ${variants
+                    .filter(v => (v.option_value || v.title || '').toLowerCase().includes('box') || variants.length === 1)
+                    .map(v => `<button class="btn btn-xs btn-primary"
+                        onclick="matchPriceSnkrdunk('${p.shopify_id}','${v.shopify_id}',${snkRec},'${esc(p.title)}','${esc(v.title || 'Default')}',${v.price})">
+                        Set ${fmtNok(snkRec)}${variants.length > 1 ? ' · ' + (v.title || 'Default') : ''}
+                    </button>`).join('')}
             </div>
            </div>`
         : `<div class="pc-snk-box pc-snk-empty">
-            <span class="pc-snk-label">SNKRDUNK</span>
+            <span class="pc-snk-label">SNK</span>
             <span class="pc-snk-unmapped">Not mapped — <a href="#snkrdunk" onclick="switchTab('snkrdunk')">set up in SNKRDUNK tab</a></span>
            </div>`;
 
@@ -969,9 +965,9 @@ function renderProductCard(p) {
                 </div>
                 <div class="pc-comp-right">
                     <span class="pc-comp-price mono">${fmtNok(lnk.mi_price)}</span>
-                    ${lnk.mi_in_stock === true  ? '<span class="badge badge-success">In stock</span>'
-                    : lnk.mi_in_stock === false ? '<span class="badge badge-danger">OOS</span>' : ''}
-                    ${refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price) : ''}
+                    ${lnk.mi_in_stock === true  ? '<span class="badge badge-success badge-sm">In stock</span>'
+                    : lnk.mi_in_stock === false ? '<span class="badge badge-danger badge-sm">OOS</span>' : ''}
+                    ${refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : ''}
                     ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs">↗</a>` : ''}
                     ${refVariant && lnk.mi_price != null
                         ? `<button class="btn btn-xs btn-primary"
