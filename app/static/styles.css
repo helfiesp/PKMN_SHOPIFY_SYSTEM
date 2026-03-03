@@ -1143,10 +1143,21 @@ select.input-sm {
 .pdd-stock-in      { background: var(--success); }
 .pdd-stock-oos     { background: var(--danger); }
 .pdd-stock-unknown { background: var(--border); }
-/* Cheapest competitor row highlight */
-.pdd-comp-cheapest { border-color: #bbf7d0; background: #f0fdf4; }
-.pdd-cheapest-star { font-size: 0.75rem; color: #15803d; flex-shrink: 0; line-height: 1; }
-/* "Lowest price" pill in detail header */
+/* Cheapest competitor row — strong green left border */
+.pdd-comp-cheapest {
+    border-color: #16a34a;
+    background: #f0fdf4;
+    border-left: 3px solid #16a34a;
+}
+/* "Best" badge on the cheapest row */
+.pdd-best-badge {
+    display: inline-flex; align-items: center;
+    background: #16a34a; color: #fff;
+    border-radius: 4px; padding: 0.1rem 0.375rem;
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase; flex-shrink: 0;
+}
+/* "★ Lowest price" pill in detail header */
 .pdd-cheapest-pill {
     display: inline-flex; align-items: center;
     background: #dcfce7; color: #15803d;

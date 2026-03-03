@@ -1021,28 +1021,36 @@ function renderProductDetail(p) {
         ? `<span class="pdd-snk-pill" title="SNKRDUNK RRP · ¥${fmt(snkJpy)}">SNK RRP ${fmtNok(snkRec)}</span>`
         : '';
 
-    // Find cheapest competitor (in-stock preferred, fallback to any)
-    const inStockLinks  = links.filter(l => l.mi_in_stock === true && l.mi_price != null);
-    const pricedLinks   = links.filter(l => l.mi_price != null);
-    const cheapestLink  = inStockLinks.length
-        ? inStockLinks.reduce((a, b) => a.mi_price <= b.mi_price ? a : b)
-        : pricedLinks.length ? pricedLinks.reduce((a, b) => a.mi_price <= b.mi_price ? a : b) : null;
-    const minInStockPrice = inStockLinks.length ? Math.min(...inStockLinks.map(l => l.mi_price)) : null;
-    const weCheapest = refVariant && minInStockPrice != null && refVariant.price <= minInStockPrice;
+    // Find cheapest competitor — in-stock takes priority, fallback to any priced
+    const inStockLinks    = links.filter(l => l.mi_in_stock === true && l.mi_price != null);
+    const pricedLinks     = links.filter(l => l.mi_price != null);
+    const cheapestLink    = inStockLinks.length
+        ? inStockLinks.reduce((a, b) => +a.mi_price <= +b.mi_price ? a : b)
+        : pricedLinks.length ? pricedLinks.reduce((a, b) => +a.mi_price <= +b.mi_price ? a : b) : null;
+    const minInStockPrice = inStockLinks.length ? Math.min(...inStockLinks.map(l => +l.mi_price)) : null;
+    const weCheapest      = refVariant && minInStockPrice != null && +refVariant.price <= minInStockPrice;
 
-    // Competitor rows — single clean row per competitor
-    const compRows = links.length
-        ? links.map(lnk => {
-            const inStock   = lnk.mi_in_stock === true;
-            const oos       = lnk.mi_in_stock === false;
+    // Sort competitors: cheapest first, then by price
+    const sortedLinks = [...links].sort((a, b) => {
+        if (a.mi_price == null && b.mi_price == null) return 0;
+        if (a.mi_price == null) return 1;
+        if (b.mi_price == null) return -1;
+        return +a.mi_price - +b.mi_price;
+    });
+
+    // Competitor rows — sorted cheapest first
+    const compRows = sortedLinks.length
+        ? sortedLinks.map(lnk => {
+            const inStock    = lnk.mi_in_stock === true;
+            const oos        = lnk.mi_in_stock === false;
             const isCheapest = cheapestLink && lnk.id === cheapestLink.id;
-            const delta     = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
+            const delta      = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
             return `
             <div class="pdd-comp-row${isCheapest ? ' pdd-comp-cheapest' : ''}">
                 <span class="pdd-comp-domain">${lnk.mi_domain || '—'}</span>
                 <span class="pdd-comp-title">${lnk.mi_title || '—'}</span>
                 <span class="pdd-comp-price">${fmtNok(lnk.mi_price)}</span>
-                ${isCheapest ? '<span class="pdd-cheapest-star" title="Cheapest competitor">★</span>' : ''}
+                ${isCheapest ? '<span class="pdd-best-badge">Best</span>' : ''}
                 <span class="pdd-stock-dot ${inStock ? 'pdd-stock-in' : oos ? 'pdd-stock-oos' : 'pdd-stock-unknown'}"
                       title="${inStock ? 'In stock' : oos ? 'Out of stock' : 'Unknown'}"></span>
                 ${delta}
