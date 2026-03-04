@@ -687,7 +687,10 @@ select.input-sm {
 
 .toast-success { background: var(--success); }
 .toast-error   { background: var(--danger); }
+.toast-warning { background: #e67e22; }
 .toast-info    { background: var(--primary); }
+
+.input-error { outline: 2px solid var(--danger) !important; }
 
 @keyframes toastIn {
     from { opacity: 0; transform: translateX(24px); }
