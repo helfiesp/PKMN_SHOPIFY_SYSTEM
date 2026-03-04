@@ -134,14 +134,16 @@ function loadTab(tab) {
 // DASHBOARD
 // ─────────────────────────────────────────────────────────────────────────────
 async function loadDashboard() {
-    showTabLoading('dash-attention');
-    showTabLoading('dash-alerts');
+    const panels = ['dash-price-actions','dash-restock','dash-comp-activity','dash-margins'];
+    panels.forEach(id => showTabLoading(id));
 
-    const [prodRes, alertsRes, snkRes, matchRes] = await Promise.allSettled([
+    const [prodRes, alertsRes, snkRes, matchRes, linksRes, costRes] = await Promise.allSettled([
         api('/shopify/products?limit=500'),
-        api('/marketintel/alerts?limit=50'),
+        api('/marketintel/alerts?limit=100'),
         api('/snkrdunk/products'),
         api('/marketintel/matched-products?limit=200'),
+        api('/competitor-links'),
+        api('/purchase-orders/cost-history'),
     ]);
 
     shopifyProducts = prodRes.status === 'fulfilled'
@@ -149,75 +151,243 @@ async function loadDashboard() {
     miAlerts = alertsRes.status === 'fulfilled' ? alertsRes.value : [];
     snkrdunkItems = snkRes.status === 'fulfilled' ? (snkRes.value.items || []) : [];
     matchedProducts = matchRes.status === 'fulfilled' ? matchRes.value : [];
+    const compLinks = linksRes.status === 'fulfilled' ? linksRes.value : [];
+    const costHistory = costRes.status === 'fulfilled' ? costRes.value : {};
 
-    const variants     = flatVariants(shopifyProducts);
-    const outOfStock   = variants.filter(v => v.inventory_quantity <= 0);
-    const lowStock     = variants.filter(v => v.inventory_quantity > 0 && v.inventory_quantity <= 10);
-    const unreadAlerts = miAlerts.filter(a => !a.read_at).length;
-    const overpriced   = matchedProducts.filter(m => {
-        const own  = m.own_product?.price;
-        const comp = m.competitor_product?.price;
-        return own && comp && ((own - comp) / comp) > 0.10;
-    });
+    // ── Build product lookup ──
+    const prodById = {};
+    for (const p of shopifyProducts) prodById[p.shopify_id] = p;
 
-    // Stat cards
-    document.getElementById('stat-products').textContent    = shopifyProducts.length || 0;
-    document.getElementById('stat-out-of-stock').textContent = outOfStock.length;
-    document.getElementById('stat-price-alerts').textContent = overpriced.length;
-    document.getElementById('stat-mi-alerts').textContent    = unreadAlerts;
+    // ── Build competitor link map: shopify_product_id → [link, ...] ──
+    const linksByProd = {};
+    for (const l of compLinks) {
+        (linksByProd[l.shopify_product_id] ||= []).push(l);
+    }
 
-    // Needs attention list
-    const attn = document.getElementById('dash-attention');
-    const items = [
-        ...outOfStock.slice(0, 10).map(v =>
-            `<li class="attention-item attention-danger">
-                <span class="attention-label">OUT OF STOCK</span>
-                <span>${v.productTitle} — ${v.title}</span>
-            </li>`
-        ),
-        ...lowStock.slice(0, 5).map(v =>
-            `<li class="attention-item attention-warning">
-                <span class="attention-label">LOW (${v.inventory_quantity})</span>
-                <span>${v.productTitle} — ${v.title}</span>
-            </li>`
-        ),
-        ...overpriced.slice(0, 5).map(m => {
-            const pct = (((m.own_product.price - m.competitor_product.price) / m.competitor_product.price) * 100).toFixed(1);
-            return `<li class="attention-item attention-warning">
-                <span class="attention-label">OVERPRICED +${pct}%</span>
-                <span>${m.own_product.title} vs ${m.competitor_product.competitor_domain}</span>
-            </li>`;
+    const variants = flatVariants(shopifyProducts);
+    const outOfStock = variants.filter(v => v.inventory_quantity <= 0);
+    const lowStock = variants.filter(v => v.inventory_quantity > 0 && v.inventory_quantity <= 15);
+
+    // ── Find products where a competitor beats us on price ──
+    const beatenOnPrice = [];
+    for (const [pid, links] of Object.entries(linksByProd)) {
+        const prod = prodById[pid];
+        if (!prod) continue;
+        const ourPrice = prod.variants?.[0]?.price;
+        if (!ourPrice) continue;
+        for (const l of links) {
+            if (l.mi_price && l.mi_in_stock && l.mi_price < ourPrice) {
+                const diff = ourPrice - l.mi_price;
+                const pct = (diff / ourPrice) * 100;
+                beatenOnPrice.push({
+                    title: prod.title,
+                    ourPrice,
+                    compPrice: l.mi_price,
+                    domain: l.mi_domain,
+                    pct,
+                    diff,
+                    shopifyId: pid,
+                });
+            }
+        }
+    }
+    beatenOnPrice.sort((a, b) => b.pct - a.pct);
+
+    // ── Recent competitor alerts (7 days) ──
+    const now = Date.now();
+    const weekAgo = now - 7 * 86400000;
+    const recentAlerts = miAlerts.filter(a => new Date(a.created_at).getTime() > weekAgo);
+    const priceChanges = recentAlerts.filter(a => a.type === 'price_change');
+    const stockChanges = recentAlerts.filter(a => a.type === 'stock_change');
+    const newProducts = recentAlerts.filter(a => a.type === 'new_product');
+
+    // ── Margin analysis from cost history ──
+    const marginItems = [];
+    for (const [pid, cost] of Object.entries(costHistory)) {
+        const prod = prodById[pid];
+        if (!prod) continue;
+        const ourPrice = prod.variants?.[0]?.price;
+        if (!ourPrice || !cost.last_unit_nok) continue;
+        const margin = ((ourPrice - cost.last_unit_nok) / ourPrice) * 100;
+        marginItems.push({
+            title: prod.title,
+            ourPrice,
+            cost: cost.last_unit_nok,
+            avgCost: cost.avg_unit_nok_30d,
+            margin,
+            shopifyId: pid,
+        });
+    }
+    marginItems.sort((a, b) => a.margin - b.margin);
+
+    // ── Total inventory value (rough) ──
+    let totalValue = 0;
+    for (const v of variants) {
+        if (v.inventory_quantity > 0 && v.price) totalValue += v.inventory_quantity * v.price;
+    }
+
+    // ── Stat cards ──
+    const statGrid = document.getElementById('dash-stat-grid');
+    statGrid.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-value">${shopifyProducts.length}</div>
+            <div class="stat-label">Products</div>
+        </div>
+        <div class="stat-card stat-danger">
+            <div class="stat-value">${outOfStock.length}</div>
+            <div class="stat-label">Out of Stock</div>
+        </div>
+        <div class="stat-card stat-warning">
+            <div class="stat-value">${lowStock.length}</div>
+            <div class="stat-label">Low Stock</div>
+        </div>
+        <div class="stat-card" style="--stat-accent:var(--danger)">
+            <div class="stat-value" style="color:var(--danger)">${beatenOnPrice.length}</div>
+            <div class="stat-label">Beaten on Price</div>
+        </div>
+        <div class="stat-card stat-info">
+            <div class="stat-value">${priceChanges.length}</div>
+            <div class="stat-label">Price Changes (7d)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${fmtNok(totalValue)}</div>
+            <div class="stat-label">Inventory Value</div>
+        </div>
+    `;
+
+    // ── Price Adjustments panel ──
+    const priceEl = document.getElementById('dash-price-actions');
+    document.getElementById('dash-price-count').textContent = beatenOnPrice.length;
+    if (beatenOnPrice.length === 0) {
+        priceEl.innerHTML = '<p class="muted" style="padding:.75rem 1rem">You\'re competitive on all linked products.</p>';
+    } else {
+        priceEl.innerHTML = `<div class="dash-table-wrap"><table class="data-table dash-table">
+            <thead><tr>
+                <th>Product</th><th>Our Price</th><th>Competitor</th><th>Their Price</th><th>Difference</th>
+            </tr></thead>
+            <tbody>${beatenOnPrice.slice(0, 15).map(b => `<tr class="dash-row-clickable" onclick="switchTab('products'); setTimeout(()=>selectProduct('${b.shopifyId}'),300)">
+                <td><strong>${b.title}</strong></td>
+                <td class="mono">${fmtNok(b.ourPrice)}</td>
+                <td class="muted">${b.domain}</td>
+                <td class="mono">${fmtNok(b.compPrice)}</td>
+                <td><span class="badge badge-sm badge-danger">-${b.pct.toFixed(0)}% (${fmtNok(b.diff)})</span></td>
+            </tr>`).join('')}</tbody>
+        </table></div>`;
+    }
+
+    // ── Restock panel ──
+    const restockEl = document.getElementById('dash-restock');
+    const restockItems = [
+        ...outOfStock.map(v => {
+            const cost = costHistory[shopifyProducts.find(p => p.variants?.some(vv => vv.shopify_id === v.shopify_id))?.shopify_id];
+            return { title: v.productTitle, qty: 0, cost: cost?.last_unit_nok, status: 'out' };
+        }),
+        ...lowStock.map(v => {
+            const cost = costHistory[shopifyProducts.find(p => p.variants?.some(vv => vv.shopify_id === v.shopify_id))?.shopify_id];
+            return { title: v.productTitle, qty: v.inventory_quantity, cost: cost?.last_unit_nok, status: 'low' };
         }),
     ];
-    attn.innerHTML = items.length
-        ? `<ul class="attention-list">${items.join('')}</ul>`
-        : '<p class="muted">Nothing needs attention right now.</p>';
-
-    // Recent competitor alerts
-    const alertsEl = document.getElementById('dash-alerts');
-    if (miAlerts.length === 0) {
-        alertsEl.innerHTML = '<p class="muted">No recent competitor alerts.</p>';
+    // Dedupe by title
+    const seen = new Set();
+    const uniqueRestock = restockItems.filter(r => { if (seen.has(r.title)) return false; seen.add(r.title); return true; });
+    document.getElementById('dash-restock-count').textContent = uniqueRestock.length;
+    if (uniqueRestock.length === 0) {
+        restockEl.innerHTML = '<p class="muted" style="padding:.75rem 1rem">All products are well-stocked.</p>';
     } else {
-        alertsEl.innerHTML = miAlerts.slice(0, 15).map(a => `
-            <div class="alert-row alert-row-${a.severity}">
-                <div class="alert-row-meta">
-                    ${severityBadge(a.severity)}
-                    <span class="alert-type">${a.type.replace(/_/g, ' ')}</span>
-                    <span class="muted">${fmtDate(a.created_at)}</span>
-                </div>
-                <div class="alert-row-body">
-                    <strong>${a.payload?.product_title || '—'}</strong>
-                    ${a.payload?.competitor_domain ? `<span class="muted"> · ${a.payload.competitor_domain}</span>` : ''}
-                    ${a.type === 'price_change'
-                        ? `<span class="muted"> · ${fmtNok(a.payload?.previous_price)} → ${fmtNok(a.payload?.current_price)} (${a.payload?.change_pct?.toFixed(1)}%)</span>`
-                        : ''}
-                    ${a.type === 'new_product'
-                        ? `<span class="muted"> · ${fmtNok(a.payload?.current_price)}</span>`
-                        : ''}
-                </div>
-            </div>
-        `).join('');
+        restockEl.innerHTML = `<div class="dash-table-wrap"><table class="data-table dash-table">
+            <thead><tr><th>Product</th><th>Stock</th><th>Last Cost</th><th>Status</th></tr></thead>
+            <tbody>${uniqueRestock.slice(0, 15).map(r => `<tr>
+                <td>${r.title}</td>
+                <td class="mono ${stockClass(r.qty)}">${r.qty}</td>
+                <td class="mono">${r.cost ? fmtNok(r.cost) : '<span class="muted">—</span>'}</td>
+                <td>${r.status === 'out'
+                    ? '<span class="badge badge-sm badge-danger">Out of Stock</span>'
+                    : '<span class="badge badge-sm badge-warning">Low Stock</span>'}</td>
+            </tr>`).join('')}</tbody>
+        </table></div>`;
     }
+
+    // ── Competitor Activity panel ──
+    const actEl = document.getElementById('dash-comp-activity');
+    if (recentAlerts.length === 0) {
+        actEl.innerHTML = '<p class="muted" style="padding:.75rem 1rem">No competitor activity in the last 7 days.</p>';
+    } else {
+        // Group by type
+        let html = '';
+
+        if (priceChanges.length > 0) {
+            html += '<div class="dash-act-group"><div class="dash-act-label">Price Changes</div>';
+            html += priceChanges.slice(0, 8).map(a => {
+                const dropped = a.payload?.change_pct < 0;
+                return `<div class="dash-act-row">
+                    <span class="dash-act-title">${a.payload?.product_title || '—'}</span>
+                    <span class="muted">${a.payload?.competitor_domain || ''}</span>
+                    <span class="mono">${fmtNok(a.payload?.previous_price)} → ${fmtNok(a.payload?.current_price)}</span>
+                    <span class="badge badge-sm ${dropped ? 'badge-danger' : 'badge-success'}">${a.payload?.change_pct?.toFixed(1)}%</span>
+                </div>`;
+            }).join('');
+            html += '</div>';
+        }
+
+        if (stockChanges.length > 0) {
+            html += '<div class="dash-act-group"><div class="dash-act-label">Stock Changes</div>';
+            html += stockChanges.slice(0, 6).map(a => {
+                const restocked = (a.payload?.stock_after || 0) > (a.payload?.stock_before || 0);
+                return `<div class="dash-act-row">
+                    <span class="dash-act-title">${a.payload?.product_title || '—'}</span>
+                    <span class="muted">${a.payload?.competitor_domain || ''}</span>
+                    <span>${restocked
+                        ? '<span class="badge badge-sm badge-info">Restocked</span>'
+                        : '<span class="badge badge-sm badge-neutral">Sold out</span>'}</span>
+                </div>`;
+            }).join('');
+            html += '</div>';
+        }
+
+        if (newProducts.length > 0) {
+            html += '<div class="dash-act-group"><div class="dash-act-label">New Competitor Products</div>';
+            html += newProducts.slice(0, 5).map(a => `<div class="dash-act-row">
+                <span class="dash-act-title">${a.payload?.product_title || '—'}</span>
+                <span class="muted">${a.payload?.competitor_domain || ''}</span>
+                <span class="mono">${fmtNok(a.payload?.current_price)}</span>
+            </div>`).join('');
+            html += '</div>';
+        }
+
+        actEl.innerHTML = html || '<p class="muted" style="padding:.75rem 1rem">No activity to show.</p>';
+    }
+
+    // ── Margin Watch panel ──
+    const marginEl = document.getElementById('dash-margins');
+    if (marginItems.length === 0) {
+        marginEl.innerHTML = '<p class="muted" style="padding:.75rem 1rem">No cost data yet. Create a Purchase Order to track margins.</p>';
+    } else {
+        const lowMargin = marginItems.filter(m => m.margin < 25);
+        const goodMargin = marginItems.filter(m => m.margin >= 25);
+        let html = `<div class="dash-table-wrap"><table class="data-table dash-table">
+            <thead><tr><th>Product</th><th>Price</th><th>Cost</th><th>Margin</th></tr></thead>
+            <tbody>`;
+        // Show low margins first (sorted worst first), then good ones
+        const display = [...lowMargin.slice(0, 10), ...goodMargin.slice(0, 5)];
+        html += display.map(m => {
+            const bc = m.margin < 10 ? 'badge-danger' : m.margin < 20 ? 'badge-warning' : m.margin < 30 ? 'badge-neutral' : 'badge-success';
+            return `<tr class="dash-row-clickable" onclick="switchTab('products'); setTimeout(()=>selectProduct('${m.shopifyId}'),300)">
+                <td>${m.title}</td>
+                <td class="mono">${fmtNok(m.ourPrice)}</td>
+                <td class="mono">${fmtNok(m.cost)}</td>
+                <td><span class="badge badge-sm ${bc}">${m.margin.toFixed(1)}%</span></td>
+            </tr>`;
+        }).join('');
+        html += '</tbody></table></div>';
+
+        if (lowMargin.length > 0) {
+            html += `<p class="muted" style="padding:.5rem 1rem;font-size:.75rem">${lowMargin.length} product${lowMargin.length > 1 ? 's' : ''} below 25% margin</p>`;
+        }
+        marginEl.innerHTML = html;
+    }
+
+    // Last updated
+    document.getElementById('dash-last-updated').textContent = `Updated ${new Date().toLocaleTimeString('nb-NO')}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1164,6 +1334,15 @@ function renderProductDetail(p) {
             <span class="pdd-metric-label">Our price</span>
         </div>
         <div class="pdd-metric">
+            <span class="pdd-metric-value ${stockSc}">${refVariant
+                ? `<input type="number" class="qty-input ${stockSc}" value="${refQty}" min="0" step="1"
+                       data-orig="${refQty}" style="width:3rem;text-align:center;font-size:.9375rem"
+                       onkeydown="if(event.key==='Enter'){this.blur()}"
+                       onblur="setInventory(${refVariant.id},this.value,this)">`
+                : '—'}</span>
+            <span class="pdd-metric-label">Stock</span>
+        </div>
+        <div class="pdd-metric">
             <span class="pdd-metric-value mono">${cost ? fmtNok(cost.last_unit_nok) : '—'}</span>
             <span class="pdd-metric-label">Last cost</span>
         </div>
@@ -1185,21 +1364,9 @@ function renderProductDetail(p) {
         </div>
     </div>`;
 
-    // Variant cards — compact
-    const variantCards = displayVariants.map(v => {
-        const qty = v.inventory_quantity ?? 0;
-        const sc  = qty <= 0 ? 'pdd-qty-zero' : qty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
-        return `
-        <div class="pdd-variant-card">
-            <span class="pdd-var-name">${v.title || 'Default'}</span>
-            <span class="pdd-var-price mono">${fmtNok(v.price)}</span>
-            <span class="pdd-var-sku mono muted">${v.sku || ''}</span>
-            <input type="number" class="qty-input ${sc}" value="${qty}" min="0" step="1"
-                   data-orig="${qty}" title="Edit stock"
-                   onkeydown="if(event.key==='Enter'){this.blur()}"
-                   onblur="setInventory(${v.id},this.value,this)">
-        </div>`;
-    }).join('');
+    // Stock for the reference (box) variant
+    const refQty = refVariant ? (refVariant.inventory_quantity ?? 0) : 0;
+    const stockSc = refQty <= 0 ? 'pdd-qty-zero' : refQty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
 
     // Find cheapest competitor — in-stock takes priority, fallback to any priced
     const inStockLinks    = links.filter(l => l.mi_in_stock === true && l.mi_price != null);
@@ -1269,21 +1436,12 @@ function renderProductDetail(p) {
 
     ${metricsHtml}
 
-    <div class="pdd-sections">
-        <div class="pdd-section">
-            <div class="pdd-section-head">
-                <span class="pdd-label">Variants</span>
-            </div>
-            <div class="pdd-variant-list">${variantCards}</div>
+    <div class="pdd-comp-section">
+        <div class="pdd-section-head">
+            <span class="pdd-label">Competitors (${links.length})</span>
+            <button class="btn btn-xs btn-primary" onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
         </div>
-
-        <div class="pdd-section pdd-section-grow">
-            <div class="pdd-section-head">
-                <span class="pdd-label">Competitors (${links.length})</span>
-                <button class="btn btn-xs btn-primary" onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
-            </div>
-            <div class="pdd-comp-list">${compRows}</div>
-        </div>
+        <div class="pdd-comp-list">${compRows}</div>
     </div>
 
     ${cost ? `<div class="pdd-cost-note muted">Last PO: ${fmtDate(cost.last_po_date)}</div>` : ''}`;

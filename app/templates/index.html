@@ -104,34 +104,40 @@
                 </div>
 
                 <!-- Stat cards -->
-                <div class="stat-grid">
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-products">&mdash;</div>
-                        <div class="stat-label">Products</div>
+                <div class="stat-grid" id="dash-stat-grid"></div>
+
+                <!-- Action panels -->
+                <div class="dash-panels">
+                    <div class="card dash-panel">
+                        <div class="card-header">
+                            <h3>Price Adjustments Needed</h3>
+                            <span class="badge badge-sm badge-danger" id="dash-price-count">0</span>
+                        </div>
+                        <div id="dash-price-actions"><div class="loading-spinner">Loading&hellip;</div></div>
                     </div>
-                    <div class="stat-card stat-danger">
-                        <div class="stat-value" id="stat-out-of-stock">&mdash;</div>
-                        <div class="stat-label">Out of Stock</div>
-                    </div>
-                    <div class="stat-card stat-warning">
-                        <div class="stat-value" id="stat-price-alerts">&mdash;</div>
-                        <div class="stat-label">Overpriced vs Competitors</div>
-                    </div>
-                    <div class="stat-card stat-success">
-                        <div class="stat-value" id="stat-mi-alerts">&mdash;</div>
-                        <div class="stat-label">Unread Competitor Alerts</div>
+                    <div class="card dash-panel">
+                        <div class="card-header">
+                            <h3>Restock Needed</h3>
+                            <span class="badge badge-sm badge-warning" id="dash-restock-count">0</span>
+                        </div>
+                        <div id="dash-restock"><div class="loading-spinner">Loading&hellip;</div></div>
                     </div>
                 </div>
 
-                <!-- Two-column: attention + recent alerts -->
-                <div class="dash-grid">
-                    <div class="card">
-                        <div class="card-header"><h3>Needs Attention</h3></div>
-                        <div id="dash-attention"><div class="loading-spinner">Loading&hellip;</div></div>
+                <div class="dash-panels">
+                    <div class="card dash-panel">
+                        <div class="card-header">
+                            <h3>Competitor Activity</h3>
+                            <span class="muted" style="font-size:.75rem">Last 7 days</span>
+                        </div>
+                        <div id="dash-comp-activity"><div class="loading-spinner">Loading&hellip;</div></div>
                     </div>
-                    <div class="card">
-                        <div class="card-header"><h3>Recent Competitor Alerts</h3></div>
-                        <div id="dash-alerts"><div class="loading-spinner">Loading&hellip;</div></div>
+                    <div class="card dash-panel">
+                        <div class="card-header">
+                            <h3>Margin Watch</h3>
+                            <span class="muted" style="font-size:.75rem">Based on last purchase cost</span>
+                        </div>
+                        <div id="dash-margins"><div class="loading-spinner">Loading&hellip;</div></div>
                     </div>
                 </div>
             </div>
