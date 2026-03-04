@@ -70,6 +70,11 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                     <span class="nav-label">Price Plans</span>
                 </button>
+
+                <button class="nav-item" data-tab="purchase-orders">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                    <span class="nav-label">Purchase Orders</span>
+                </button>
             </div>
         </nav>
 
@@ -289,6 +294,74 @@
                 <div id="pp-plans-list"><div class="loading-spinner">Loading&hellip;</div></div>
             </div>
 
+            <!-- ─── PURCHASE ORDERS ──────────────────────────────────────────── -->
+            <div id="tab-purchase-orders" class="tab-panel">
+                <div class="section-header">
+                    <h2>Purchase Orders</h2>
+                    <span class="muted" id="po-count"></span>
+                </div>
+
+                <!-- Create PO form -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3>Create Purchase Order</h3>
+                        <button class="btn btn-sm" onclick="togglePoForm()">Expand / Collapse</button>
+                    </div>
+                    <div id="po-form" style="padding:1rem 1.25rem">
+                        <!-- Product search -->
+                        <div style="display:flex;gap:.75rem;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
+                            <div style="flex:1;min-width:250px">
+                                <label class="form-label">Search product / variant</label>
+                                <input type="search" id="po-product-search" class="input-sm"
+                                    placeholder="Type product name or SKU&hellip;"
+                                    oninput="poSearchProducts()" />
+                            </div>
+                        </div>
+                        <!-- Search results dropdown -->
+                        <div id="po-search-results" class="po-search-dropdown" style="display:none"></div>
+
+                        <!-- Line items table -->
+                        <div id="po-line-items-wrap" style="margin-bottom:1rem">
+                            <p class="muted" style="font-size:.8125rem">No items added yet. Search and click a variant above.</p>
+                        </div>
+
+                        <!-- Order-level fields -->
+                        <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
+                            <div>
+                                <label class="form-label">Order Date</label>
+                                <input type="date" id="po-order-date" class="input-sm" />
+                            </div>
+                            <div>
+                                <label class="form-label">Shipping (JPY)</label>
+                                <input type="number" id="po-shipping-jpy" class="input-sm" value="0" min="0" step="100" style="width:120px" />
+                            </div>
+                            <div>
+                                <label class="form-label">Total paid (NOK)</label>
+                                <input type="number" id="po-total-nok" class="input-sm" value="" min="0" step="1" style="width:140px"
+                                    placeholder="Actual NOK paid" />
+                            </div>
+                            <div style="flex:1;min-width:200px">
+                                <label class="form-label">Notes (optional)</label>
+                                <input type="text" id="po-notes" class="input-sm" placeholder="e.g. Tenso order #123" style="width:100%" />
+                            </div>
+                        </div>
+
+                        <div style="display:flex;justify-content:flex-end;gap:.5rem">
+                            <button class="btn" onclick="clearPoForm()">Clear</button>
+                            <button class="btn btn-primary" id="btn-save-po" onclick="savePurchaseOrder()">
+                                Save &amp; Update Inventory
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PO History list -->
+                <div class="card">
+                    <div class="card-header"><h3>Order History</h3></div>
+                    <div id="po-history-list"><div class="loading-spinner">Loading&hellip;</div></div>
+                </div>
+            </div>
+
             <!-- ─── SETTINGS ───────────────────────────────────────────────── -->
             <div id="tab-settings" class="tab-panel">
                 <div class="section-header">
@@ -357,6 +430,14 @@
     <div class="modal-box">
         <button class="modal-close-btn" onclick="closeModal()">&times;</button>
         <div id="plan-modal-body"></div>
+    </div>
+</div>
+
+<!-- PO detail modal -->
+<div id="po-modal" class="modal-overlay">
+    <div class="modal-box">
+        <button class="modal-close-btn" onclick="closePoModal()">&times;</button>
+        <div id="po-modal-body"></div>
     </div>
 </div>
 

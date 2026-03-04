@@ -28,6 +28,10 @@ let _linkStaged         = [];  // [{id, domain, title, price, inStock, url}, ...
 let _linkSearchResults  = [];  // cached last search results
 let _linkSortPrice      = null; // null = default, 'asc' = low→high, 'desc' = high→low
 
+// Purchase Orders state
+let poLineItems = [];
+let poSearchTimer = null;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
     const res = await fetch(API + path, opts);
@@ -121,6 +125,7 @@ function loadTab(tab) {
     else if (tab === 'snkrdunk')        loadSnkrdunk();
     else if (tab === 'competitor-intel')loadCompetitorIntel();
     else if (tab === 'price-plans')     loadPricePlans();
+    else if (tab === 'purchase-orders') loadPurchaseOrders();
     else if (tab === 'settings')        loadSettings();
 }
 
@@ -1520,6 +1525,316 @@ async function _createMatchPlan(productShopifyId, variantShopifyId, newPrice, cu
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PURCHASE ORDERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadPurchaseOrders() {
+    showTabLoading('po-history-list');
+    const dateEl = document.getElementById('po-order-date');
+    if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+    try {
+        const orders = await api('/purchase-orders?limit=50');
+        renderPoHistory(orders);
+        document.getElementById('po-count').textContent = `${orders.length} orders`;
+    } catch (e) {
+        document.getElementById('po-history-list').innerHTML = `<p class="error">${e.message}</p>`;
+    }
+}
+
+function renderPoHistory(orders) {
+    const el = document.getElementById('po-history-list');
+    if (!orders?.length) {
+        el.innerHTML = '<p class="muted" style="padding:1rem 1.25rem">No purchase orders yet.</p>';
+        return;
+    }
+    el.innerHTML = `
+        <table class="data-table">
+            <thead><tr>
+                <th>ID</th><th>Date</th><th>Items</th><th>Total Qty</th>
+                <th>Total JPY</th><th>Shipping JPY</th><th>Total NOK</th>
+                <th>Status</th><th></th>
+            </tr></thead>
+            <tbody>
+                ${orders.map(o => `
+                    <tr>
+                        <td class="mono">#${o.id}</td>
+                        <td>${fmtDate(o.order_date)}</td>
+                        <td>${o.total_items}</td>
+                        <td>${fmt(o.total_quantity)}</td>
+                        <td class="mono">&yen;${fmt(o.total_jpy, 0)}</td>
+                        <td class="mono">&yen;${fmt(o.shipping_cost_jpy, 0)}</td>
+                        <td class="mono"><strong>${fmtNok(o.total_nok)}</strong></td>
+                        <td><span class="badge ${o.status === 'completed' ? 'badge-success' : 'badge-neutral'}">${o.status}</span></td>
+                        <td>
+                            <button class="btn btn-xs" onclick="viewPurchaseOrder(${o.id})">View</button>
+                            ${o.status === 'completed' ? `<button class="btn btn-xs btn-danger-outline" onclick="cancelPurchaseOrder(${o.id})">Cancel</button>` : ''}
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>`;
+}
+
+function poSearchProducts() {
+    clearTimeout(poSearchTimer);
+    const q = document.getElementById('po-product-search')?.value?.trim();
+    const resultsEl = document.getElementById('po-search-results');
+    if (!q || q.length < 2) { resultsEl.style.display = 'none'; return; }
+
+    poSearchTimer = setTimeout(async () => {
+        try {
+            if (!shopifyProducts.length) {
+                const res = await api('/shopify/products?limit=500');
+                shopifyProducts = res.products || res || [];
+            }
+            const qLower = q.toLowerCase();
+            const matches = [];
+            for (const p of shopifyProducts) {
+                for (const v of (p.variants || [])) {
+                    if (
+                        p.title.toLowerCase().includes(qLower) ||
+                        (v.sku || '').toLowerCase().includes(qLower) ||
+                        (v.title || '').toLowerCase().includes(qLower)
+                    ) {
+                        matches.push({
+                            variant_id: v.id,
+                            product_title: p.title,
+                            variant_title: v.title || 'Default',
+                            sku: v.sku || '',
+                            price: v.price,
+                            inventory_quantity: v.inventory_quantity || 0,
+                        });
+                    }
+                }
+            }
+            if (!matches.length) {
+                resultsEl.innerHTML = '<p class="muted" style="padding:.5rem">No variants found.</p>';
+            } else {
+                resultsEl.innerHTML = matches.slice(0, 20).map(m => `
+                    <div class="po-search-item" onclick="addPoLineItem(${m.variant_id}, ${JSON.stringify(m.product_title)}, ${JSON.stringify(m.variant_title)}, ${JSON.stringify(m.sku)}, ${m.inventory_quantity})">
+                        <span class="po-search-name">${m.product_title} &mdash; ${m.variant_title}</span>
+                        <span class="po-search-meta">SKU: ${m.sku || '—'} &middot; Stock: ${m.inventory_quantity} &middot; ${fmtNok(m.price)}</span>
+                    </div>
+                `).join('');
+            }
+            resultsEl.style.display = 'block';
+        } catch (e) {
+            resultsEl.innerHTML = `<p class="error">${e.message}</p>`;
+            resultsEl.style.display = 'block';
+        }
+    }, 300);
+}
+
+function addPoLineItem(variantId, productTitle, variantTitle, sku, inventoryQty) {
+    if (poLineItems.find(i => i.variant_id === variantId)) {
+        toast('Variant already added', 'warning');
+        return;
+    }
+    poLineItems.push({
+        variant_id: variantId,
+        product_title: productTitle,
+        variant_title: variantTitle,
+        sku: sku,
+        quantity: 1,
+        price_jpy: 0,
+        inventory_quantity: inventoryQty,
+    });
+    document.getElementById('po-product-search').value = '';
+    document.getElementById('po-search-results').style.display = 'none';
+    renderPoLineItems();
+}
+
+function removePoLineItem(variantId) {
+    poLineItems = poLineItems.filter(i => i.variant_id !== variantId);
+    renderPoLineItems();
+}
+
+function updatePoLineItem(variantId, field, value) {
+    const item = poLineItems.find(i => i.variant_id === variantId);
+    if (item) {
+        item[field] = parseFloat(value) || 0;
+        renderPoLineItems();
+    }
+}
+
+function renderPoLineItems() {
+    const wrap = document.getElementById('po-line-items-wrap');
+    if (!poLineItems.length) {
+        wrap.innerHTML = '<p class="muted" style="font-size:.8125rem">No items added yet. Search and click a variant above.</p>';
+        return;
+    }
+    wrap.innerHTML = `
+        <table class="data-table">
+            <thead><tr>
+                <th>Product</th><th>Variant</th><th>SKU</th><th>Current Stock</th>
+                <th style="width:80px">Qty</th><th style="width:120px">Price (JPY)</th>
+                <th>Line Total JPY</th><th></th>
+            </tr></thead>
+            <tbody>
+                ${poLineItems.map(i => `
+                    <tr>
+                        <td>${i.product_title}</td>
+                        <td>${i.variant_title}</td>
+                        <td class="mono muted">${i.sku || '—'}</td>
+                        <td class="mono ${stockClass(i.inventory_quantity)}">${i.inventory_quantity}</td>
+                        <td><input type="number" class="input-sm" value="${i.quantity}" min="1" style="width:70px"
+                            onchange="updatePoLineItem(${i.variant_id}, 'quantity', this.value)" /></td>
+                        <td><input type="number" class="input-sm" value="${i.price_jpy}" min="0" style="width:110px"
+                            onchange="updatePoLineItem(${i.variant_id}, 'price_jpy', this.value)" /></td>
+                        <td class="mono">&yen;${fmt(i.quantity * i.price_jpy, 0)}</td>
+                        <td><button class="btn btn-xs btn-danger-outline" onclick="removePoLineItem(${i.variant_id})">Remove</button></td>
+                    </tr>
+                `).join('')}
+            </tbody>
+            <tfoot><tr>
+                <td colspan="4" style="text-align:right"><strong>Totals:</strong></td>
+                <td class="mono"><strong>${poLineItems.reduce((s, i) => s + i.quantity, 0)}</strong></td>
+                <td></td>
+                <td class="mono"><strong>&yen;${fmt(poLineItems.reduce((s, i) => s + i.quantity * i.price_jpy, 0), 0)}</strong></td>
+                <td></td>
+            </tr></tfoot>
+        </table>`;
+}
+
+function togglePoForm() {
+    const form = document.getElementById('po-form');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function clearPoForm() {
+    poLineItems = [];
+    document.getElementById('po-product-search').value = '';
+    document.getElementById('po-shipping-jpy').value = '0';
+    document.getElementById('po-total-nok').value = '';
+    document.getElementById('po-notes').value = '';
+    document.getElementById('po-search-results').style.display = 'none';
+    renderPoLineItems();
+}
+
+async function savePurchaseOrder() {
+    if (!poLineItems.length) { toast('Add at least one line item', 'warning'); return; }
+
+    const totalNok = parseFloat(document.getElementById('po-total-nok')?.value);
+    if (!totalNok || totalNok <= 0) { toast('Enter the total NOK paid', 'warning'); return; }
+
+    for (const item of poLineItems) {
+        if (item.quantity <= 0) { toast(`Set quantity for ${item.product_title} — ${item.variant_title}`, 'warning'); return; }
+        if (item.price_jpy <= 0) { toast(`Set JPY price for ${item.product_title} — ${item.variant_title}`, 'warning'); return; }
+    }
+
+    const btn = document.getElementById('btn-save-po');
+    if (btn) btn.disabled = true;
+
+    const orderDate = document.getElementById('po-order-date')?.value || null;
+    const shippingJpy = parseFloat(document.getElementById('po-shipping-jpy')?.value) || 0;
+    const notes = document.getElementById('po-notes')?.value?.trim() || null;
+
+    try {
+        const result = await api('/purchase-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                order_date: orderDate ? new Date(orderDate).toISOString() : null,
+                shipping_cost_jpy: shippingJpy,
+                total_nok: totalNok,
+                notes: notes,
+                items: poLineItems.map(i => ({
+                    variant_id: i.variant_id,
+                    quantity: i.quantity,
+                    price_jpy: i.price_jpy,
+                })),
+            }),
+        });
+        toast(`PO #${result.id} saved — inventory updated`, 'success');
+        clearPoForm();
+        loadPurchaseOrders();
+    } catch (e) {
+        toast(`Failed to save PO: ${e.message}`, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function viewPurchaseOrder(poId) {
+    try {
+        const po = await api(`/purchase-orders/${poId}`);
+        const modal = document.getElementById('po-modal');
+        const body = document.getElementById('po-modal-body');
+        if (!modal || !body) return;
+
+        const totalItemJpy = (po.items || []).reduce((s, i) => s + (i.price_jpy * i.quantity), 0);
+        const totalQty = (po.items || []).reduce((s, i) => s + i.quantity, 0);
+
+        body.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+                <h3 style="margin:0">Purchase Order #${po.id}
+                    <span class="badge ${po.status === 'completed' ? 'badge-success' : 'badge-neutral'}">${po.status}</span>
+                </h3>
+            </div>
+            <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem">
+                <div><span class="muted">Date:</span> ${fmtDate(po.order_date)}</div>
+                <div><span class="muted">FX Rate:</span> ${po.fx_rate_snapshot ? po.fx_rate_snapshot.toFixed(4) : '—'}</div>
+                <div><span class="muted">Shipping:</span> &yen;${fmt(po.shipping_cost_jpy, 0)}</div>
+                <div><span class="muted">Total NOK:</span> <strong>${fmtNok(po.total_nok)}</strong></div>
+                ${po.notes ? `<div><span class="muted">Notes:</span> ${po.notes}</div>` : ''}
+            </div>
+            <table class="data-table">
+                <thead><tr>
+                    <th>Product</th><th>Variant</th><th>SKU</th>
+                    <th>Qty</th><th>Price (JPY)</th><th>Line Total (JPY)</th>
+                </tr></thead>
+                <tbody>
+                    ${(po.items || []).map(i => `
+                        <tr>
+                            <td>${i.product_title || '—'}</td>
+                            <td>${i.variant_title || '—'}</td>
+                            <td class="mono muted">${i.sku || '—'}</td>
+                            <td class="mono">${i.quantity}</td>
+                            <td class="mono">&yen;${fmt(i.price_jpy, 0)}</td>
+                            <td class="mono">&yen;${fmt(i.price_jpy * i.quantity, 0)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+                <tfoot><tr>
+                    <td colspan="3" style="text-align:right"><strong>Totals</strong></td>
+                    <td class="mono"><strong>${totalQty}</strong></td>
+                    <td></td>
+                    <td class="mono"><strong>&yen;${fmt(totalItemJpy, 0)}</strong></td>
+                </tr></tfoot>
+            </table>
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+                <div style="display:flex;gap:2rem;flex-wrap:wrap">
+                    <div><span class="muted">Items JPY:</span> &yen;${fmt(totalItemJpy, 0)}</div>
+                    <div><span class="muted">+ Shipping:</span> &yen;${fmt(po.shipping_cost_jpy, 0)}</div>
+                    <div><span class="muted">= Total JPY:</span> <strong>&yen;${fmt(totalItemJpy + po.shipping_cost_jpy, 0)}</strong></div>
+                    <div><span class="muted">Paid NOK:</span> <strong>${fmtNok(po.total_nok)}</strong></div>
+                    <div><span class="muted">Effective rate:</span> ${po.total_nok && (totalItemJpy + po.shipping_cost_jpy) > 0
+                        ? (po.total_nok / (totalItemJpy + po.shipping_cost_jpy)).toFixed(4)
+                        : '—'} NOK/JPY</div>
+                </div>
+            </div>`;
+        modal.classList.add('open');
+    } catch (e) {
+        toast(`Failed to load PO: ${e.message}`, 'error');
+    }
+}
+
+function closePoModal() {
+    document.getElementById('po-modal')?.classList.remove('open');
+}
+
+async function cancelPurchaseOrder(poId) {
+    if (!confirm(`Cancel PO #${poId} and revert inventory (subtract quantities back from Shopify)?`)) return;
+    try {
+        await api(`/purchase-orders/${poId}/cancel?revert_inventory=true`, { method: 'POST' });
+        toast(`PO #${poId} cancelled and inventory reverted`, 'success');
+        loadPurchaseOrders();
+    } catch (e) {
+        toast(`Failed: ${e.message}`, 'error');
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -1554,6 +1869,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Link modal — close on backdrop click
     document.getElementById('link-modal')?.addEventListener('click', e => {
         if (e.target === e.currentTarget) closeLinkModal();
+    });
+
+    // PO modal — close on backdrop click
+    document.getElementById('po-modal')?.addEventListener('click', e => {
+        if (e.target === e.currentTarget) closePoModal();
+    });
+
+    // Close PO search dropdown when clicking outside
+    document.addEventListener('click', e => {
+        const searchEl = document.getElementById('po-product-search');
+        const resultsEl = document.getElementById('po-search-results');
+        if (resultsEl && searchEl && !searchEl.contains(e.target) && !resultsEl.contains(e.target)) {
+            resultsEl.style.display = 'none';
+        }
     });
 
     // SNKRDUNK live recalculate

@@ -1711,3 +1711,38 @@ input[type="checkbox"] {
     font-weight: 600;
     white-space: nowrap;
 }
+
+/* ── Purchase Orders ─────────────────────────────────────────────── */
+.po-search-dropdown {
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card-bg);
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+
+.po-search-item {
+    display: flex;
+    flex-direction: column;
+    padding: .5rem .75rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background .15s;
+}
+.po-search-item:last-child { border-bottom: none; }
+.po-search-item:hover { background: var(--row-hover); }
+
+.po-search-name { font-size: .875rem; font-weight: 500; }
+.po-search-meta { font-size: .75rem; color: var(--muted); margin-top: .15rem; }
+
+.btn-danger-outline {
+    color: var(--danger);
+    border-color: var(--danger);
+    background: transparent;
+}
+.btn-danger-outline:hover {
+    background: var(--danger);
+    color: #fff;
+}

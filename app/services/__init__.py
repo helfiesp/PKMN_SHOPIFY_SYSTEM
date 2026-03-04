@@ -7,6 +7,7 @@ from app.services.booster_variant_service import booster_variant_service
 from app.services.booster_inventory_service import booster_inventory_service
 from app.services.report_service import report_service
 from app.services.settings_service import settings_service
+from app.services.purchase_order_service import purchase_order_service
 
 __all__ = [
     "shopify_service",
@@ -17,4 +18,5 @@ __all__ = [
     "booster_inventory_service",
     "report_service",
     "settings_service",
+    "purchase_order_service",
 ]

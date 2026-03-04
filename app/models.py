@@ -862,3 +862,50 @@ class LocalCompetitorLink(Base):
     __table_args__ = (
         UniqueConstraint('shopify_product_id', 'mi_product_id', name='uq_lcl_shopify_mi'),
     )
+
+
+class PurchaseOrder(Base):
+    """Purchase order for tracking inventory purchases."""
+    __tablename__ = "purchase_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_date = Column(DateTime(timezone=True), nullable=False)
+    shipping_cost_jpy = Column(Float, default=0.0)
+    total_nok = Column(Float, nullable=False)
+    fx_rate_snapshot = Column(Float)
+    status = Column(String(50), default="completed")
+    notes = Column(Text)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    items = relationship("PurchaseOrderItem", back_populates="purchase_order", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_po_status_date', 'status', 'order_date'),
+    )
+
+
+class PurchaseOrderItem(Base):
+    """Line item in a purchase order."""
+    __tablename__ = "purchase_order_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False)
+    variant_id = Column(Integer, ForeignKey("variants.id"), nullable=False)
+
+    quantity = Column(Integer, nullable=False)
+    price_jpy = Column(Float, nullable=False)
+
+    product_title = Column(String(500))
+    variant_title = Column(String(500))
+    sku = Column(String(255))
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    purchase_order = relationship("PurchaseOrder", back_populates="items")
+    variant = relationship("Variant")
+
+    __table_args__ = (
+        Index('idx_poi_order_variant', 'purchase_order_id', 'variant_id'),
+    )

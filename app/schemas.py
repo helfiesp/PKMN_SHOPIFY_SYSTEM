@@ -420,3 +420,71 @@ class SettingUpdateRequest(BaseModel):
     shopify_shop: Optional[str] = None
     shopify_token: Optional[str] = None
     google_translate_api_key: Optional[str] = None
+
+
+# ============================================================================
+# Purchase Order Schemas
+# ============================================================================
+
+class PurchaseOrderItemCreate(BaseModel):
+    variant_id: int
+    quantity: int = Field(ge=1)
+    price_jpy: float = Field(ge=0)
+
+
+class PurchaseOrderItemResponse(BaseModel):
+    id: int
+    purchase_order_id: int
+    variant_id: int
+    quantity: int
+    price_jpy: float
+    product_title: Optional[str] = None
+    variant_title: Optional[str] = None
+    sku: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PurchaseOrderCreate(BaseModel):
+    order_date: Optional[datetime] = None
+    shipping_cost_jpy: float = 0.0
+    total_nok: float = Field(gt=0)
+    notes: Optional[str] = None
+    items: List[PurchaseOrderItemCreate] = Field(min_length=1)
+
+
+class PurchaseOrderResponse(BaseModel):
+    id: int
+    order_date: datetime
+    shipping_cost_jpy: float
+    total_nok: float
+    fx_rate_snapshot: Optional[float] = None
+    status: str
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    items: List[PurchaseOrderItemResponse] = []
+    total_items: Optional[int] = None
+    total_quantity: Optional[int] = None
+    total_jpy: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PurchaseOrderSummary(BaseModel):
+    id: int
+    order_date: datetime
+    shipping_cost_jpy: float
+    total_nok: float
+    status: str
+    notes: Optional[str] = None
+    created_at: datetime
+    total_items: int = 0
+    total_quantity: int = 0
+    total_jpy: float = 0.0
+
+    class Config:
+        from_attributes = True

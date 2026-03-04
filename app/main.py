@@ -26,6 +26,7 @@ from app.routers import (
     oauth,
     marketintel,
     competitor_links,
+    purchase_orders,
 )
 from app.routers import settings as settings_router
 
@@ -70,6 +71,7 @@ app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytic
 app.include_router(history.router, tags=["History"])
 app.include_router(marketintel.router, prefix="/api/v1/marketintel", tags=["MarketIntel"])
 app.include_router(competitor_links.router, prefix="/api/v1/competitor-links", tags=["Competitor Links"])
+app.include_router(purchase_orders.router, prefix="/api/v1/purchase-orders", tags=["Purchase Orders"])
 
 
 @app.get("/", response_class=HTMLResponse)
