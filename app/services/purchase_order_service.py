@@ -246,6 +246,82 @@ class PurchaseOrderService:
             })
         return results
 
+    def get_product_cost_history(self, db: Session) -> dict:
+        """Get cost history per product from completed POs.
+
+        Returns dict keyed by product_shopify_id with:
+        - last_unit_nok: unit NOK cost from the most recent PO
+        - avg_unit_nok_30d: average unit NOK cost from POs in the last 30 days
+        - last_po_date: date of the most recent PO containing this product
+        """
+        from datetime import timedelta
+
+        # Get all completed POs with items
+        pos = (
+            db.query(PurchaseOrder)
+            .options(joinedload(PurchaseOrder.items))
+            .filter(PurchaseOrder.status == "completed")
+            .order_by(PurchaseOrder.order_date.desc())
+            .all()
+        )
+
+        # Build per-product cost data
+        product_costs: dict[str, list] = {}
+        now = datetime.now(timezone.utc)
+        cutoff_30d = now - timedelta(days=30)
+
+        for po in pos:
+            items = po.items
+            if not items:
+                continue
+            total_item_jpy = sum(i.price_jpy * i.quantity for i in items)
+            total_weight = sum((i.weight_grams or 0) * i.quantity for i in items)
+            total_qty = sum(i.quantity for i in items)
+            grand_total_jpy = total_item_jpy + (po.shipping_cost_jpy or 0)
+            use_weight = total_weight > 0
+
+            for item in items:
+                pid = item.product_shopify_id
+                if not pid:
+                    continue
+                line_jpy = item.price_jpy * item.quantity
+                line_weight = (item.weight_grams or 0) * item.quantity
+                if use_weight and total_weight > 0:
+                    shipping_share = (line_weight / total_weight) * (po.shipping_cost_jpy or 0)
+                elif total_qty > 0:
+                    shipping_share = (item.quantity / total_qty) * (po.shipping_cost_jpy or 0)
+                else:
+                    shipping_share = 0
+                line_total_jpy = line_jpy + shipping_share
+                line_nok = (line_total_jpy / grand_total_jpy) * po.total_nok if grand_total_jpy > 0 else 0
+                unit_nok = line_nok / item.quantity if item.quantity > 0 else 0
+
+                product_costs.setdefault(pid, []).append({
+                    "unit_nok": unit_nok,
+                    "po_date": po.order_date,
+                    "quantity": item.quantity,
+                })
+
+        # Aggregate
+        result = {}
+        for pid, entries in product_costs.items():
+            last = entries[0]  # already sorted desc by order_date
+            recent = [e for e in entries if e["po_date"] and e["po_date"].replace(tzinfo=timezone.utc if e["po_date"].tzinfo is None else e["po_date"].tzinfo) >= cutoff_30d]
+            if recent:
+                total_qty_30d = sum(e["quantity"] for e in recent)
+                weighted_sum = sum(e["unit_nok"] * e["quantity"] for e in recent)
+                avg_30d = weighted_sum / total_qty_30d if total_qty_30d > 0 else 0
+            else:
+                avg_30d = last["unit_nok"]
+
+            result[pid] = {
+                "last_unit_nok": round(last["unit_nok"], 2),
+                "avg_unit_nok_30d": round(avg_30d, 2),
+                "last_po_date": last["po_date"].isoformat() if last["po_date"] else None,
+            }
+
+        return result
+
     def get_purchase_order(self, db: Session, po_id: int) -> Optional[PurchaseOrder]:
         """Get single PO with items eagerly loaded."""
         return (

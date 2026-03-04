@@ -865,6 +865,15 @@ select.input-sm {
     padding: 0;
 }
 
+/* ── Products controls ────────────────────────────────────────────────────── */
+.prod-controls {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
 /* ── Products split layout ─────────────────────────────────────────────────── */
 .prod-layout {
     display: flex;
@@ -968,14 +977,18 @@ select.input-sm {
 .pli-dot-snk      { background: var(--primary-light); color: var(--primary); }
 .pli-dot-comp     { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
 .pli-dot-cheapest { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-size: 0.6rem; }
+.pli-dot-cost     { background: var(--info-light); color: var(--info-dark); }
+.pli-margin-low   { background: rgba(239, 68, 68, 0.03); }
+.text-warning { color: var(--warning-dark); }
+.text-danger  { color: var(--danger); }
 
 /* ── Detail panel ──────────────────────────────────────────────────────────── */
 .pdd-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.75rem 1.125rem;
+    padding: 1rem 1.25rem 0.75rem;
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
@@ -984,10 +997,16 @@ select.input-sm {
 }
 .pdd-header-left {
     display: flex;
-    align-items: center;
-    gap: 0.625rem;
+    flex-direction: column;
+    gap: 0.375rem;
     min-width: 0;
     flex: 1;
+}
+.pdd-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-wrap: wrap;
 }
 .pdd-header-actions {
     display: flex;
@@ -997,51 +1016,56 @@ select.input-sm {
 }
 .pdd-title {
     margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+}
+
+/* Key metrics bar */
+.pdd-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+}
+.pdd-metric {
+    padding: 0.625rem 1rem;
+    text-align: center;
+    border-right: 1px solid var(--border-light);
+}
+.pdd-metric:last-child { border-right: none; }
+.pdd-metric-value {
+    display: block;
     font-size: 0.9375rem;
     font-weight: 700;
     color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex-shrink: 1;
-    min-width: 0;
+    line-height: 1.2;
 }
-
-/* SNK RRP pill in header */
-.pdd-snk-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    background: var(--primary-light);
-    color: var(--primary);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    border-radius: 999px;
-    padding: 0.2rem 0.625rem;
-    font-size: 0.6875rem;
+.pdd-metric-label {
+    display: block;
+    font-size: 0.625rem;
     font-weight: 600;
-    white-space: nowrap;
-    flex-shrink: 0;
-    cursor: default;
-}
-.pdd-snk-pill::before {
-    content: 'SNK';
-    font-size: 0.5rem;
-    font-weight: 800;
-    letter-spacing: 0.05em;
-    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
 }
 
-.pdd-body {
-    display: grid;
-    grid-template-columns: 200px 1fr;
+/* Sections layout */
+.pdd-sections {
+    display: flex;
+    gap: 0;
+    min-height: 0;
 }
-.pdd-left {
+.pdd-section {
+    padding: 0.875rem 1rem;
     border-right: 1px solid var(--border-light);
-    padding: 0.875rem 1rem;
+    min-width: 180px;
 }
-.pdd-right {
-    padding: 0.875rem 1rem;
-}
+.pdd-section:last-child { border-right: none; }
+.pdd-section-grow { flex: 1; min-width: 0; }
 
 .pdd-label {
     font-size: 0.5625rem;
@@ -1059,40 +1083,48 @@ select.input-sm {
 }
 .pdd-section-head .pdd-label { margin-bottom: 0; }
 
-/* Box card — compact info-row list */
-.pdd-box-card {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-}
-.pdd-info-row {
+/* Variant cards — compact row */
+.pdd-variant-list { display: flex; flex-direction: column; gap: 0.375rem; }
+.pdd-variant-card {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0.4rem 0.875rem;
-    gap: 0.75rem;
-    border-bottom: 1px solid var(--border-light);
+    gap: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
 }
-.pdd-info-row:last-child { border-bottom: none; }
-.pdd-info-divider { border-top: 1px solid var(--border); margin-top: -1px; }
-.pdd-info-label {
+.pdd-var-name {
     font-size: 0.75rem;
-    color: var(--text-muted);
-    flex-shrink: 0;
-}
-.pdd-info-value {
-    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--text);
-    text-align: right;
+    white-space: nowrap;
+    min-width: 60px;
 }
-.pdd-info-value.mono { font-family: monospace; font-size: 0.875rem; }
-.pdd-info-snk { color: var(--primary); }
-.pdd-var-qty   { font-size: 0.875rem; font-weight: 700; min-width: 24px; text-align: right; }
+.pdd-var-price {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+}
+.pdd-var-sku {
+    font-size: 0.6875rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .pdd-qty-zero  { color: var(--danger); }
 .pdd-qty-low   { color: var(--warning); }
 .pdd-qty-ok    { color: var(--success-dark); }
+
+/* Cost note */
+.pdd-cost-note {
+    padding: 0.5rem 1rem;
+    font-size: 0.6875rem;
+    border-top: 1px solid var(--border-light);
+}
 
 /* Editable qty input */
 .qty-input {

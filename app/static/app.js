@@ -31,6 +31,7 @@ let _linkSortPrice      = null; // null = default, 'asc' = low→high, 'desc' = 
 // Purchase Orders state
 let poLineItems = [];
 let poSearchTimer = null;
+let productCostHistory = {};  // product_shopify_id → {last_unit_nok, avg_unit_nok_30d, last_po_date}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -981,17 +982,19 @@ async function autoMatchAll() {
 async function loadProducts() {
     showTabLoading('products-list');
     try {
-        const [prodRes, linksRes, mappingsRes, snkRes] = await Promise.allSettled([
+        const [prodRes, linksRes, mappingsRes, snkRes, costRes] = await Promise.allSettled([
             api('/shopify/products?limit=500'),
             api('/competitor-links'),
             api('/mappings/snkrdunk?limit=500'),
             api('/snkrdunk/products'),
+            api('/purchase-orders/cost-history'),
         ]);
 
         shopifyProducts  = prodRes.status      === 'fulfilled' ? (prodRes.value.products || prodRes.value || []) : [];
         const allLinks   = linksRes.status     === 'fulfilled' ? linksRes.value   : [];
         snkrdunkMappings = mappingsRes.status  === 'fulfilled' ? mappingsRes.value : [];
         snkrdunkItems    = snkRes.status       === 'fulfilled' ? (snkRes.value.items || []) : [];
+        productCostHistory = costRes.status    === 'fulfilled' ? costRes.value     : {};
 
         // Index links by shopify_product_id
         productCompLinks = {};
@@ -1078,6 +1081,7 @@ function renderProductListItem(p) {
     const variants   = p.variants || [];
     const links      = productCompLinks[p.shopify_id] || [];
     const snkMapped  = !!snkrdunkMappings.find(m => m.product_shopify_id === p.shopify_id && !m.disabled);
+    const cost       = productCostHistory[p.shopify_id];
 
     // Use box variants only (consistent with detail panel)
     const boxV = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
@@ -1098,10 +1102,17 @@ function renderProductListItem(p) {
     const inStockPrices = links.filter(l => l.mi_in_stock === true && l.mi_price != null).map(l => l.mi_price);
     const isCheapest = boxPrice && inStockPrices.length && boxPrice <= Math.min(...inStockPrices);
 
+    // Margin indicator
+    let marginClass = '';
+    if (cost && boxPrice) {
+        const margin = ((boxPrice - cost.last_unit_nok) / boxPrice) * 100;
+        marginClass = margin < 10 ? 'pli-margin-low' : margin >= 25 ? 'pli-margin-good' : '';
+    }
+
     const isSelected = p.shopify_id === selectedProductId;
 
     return `
-    <div class="pli-row pli-${stockStatus}${isSelected ? ' selected' : ''}"
+    <div class="pli-row pli-${stockStatus}${isSelected ? ' selected' : ''} ${marginClass}"
          data-id="${p.shopify_id}" onclick="selectProduct('${p.shopify_id}')">
         <div class="pli-body">
             <span class="pli-name">${p.title}</span>
@@ -1109,6 +1120,7 @@ function renderProductListItem(p) {
         </div>
         <div class="pli-meta">
             <span class="pli-stock pli-stock-${stockStatus}">${stockLabel}</span>
+            ${cost ? `<span class="pli-dot pli-dot-cost" title="Last cost: ${fmtNok(cost.last_unit_nok)}">C</span>` : ''}
             ${isCheapest ? '<span class="pli-dot pli-dot-cheapest" title="Our price is the lowest in-stock">★</span>' : ''}
             ${snkMapped ? '<span class="pli-dot pli-dot-snk">S</span>' : ''}
             ${links.length ? `<span class="pli-dot pli-dot-comp">${links.length}</span>` : ''}
@@ -1119,7 +1131,7 @@ function renderProductListItem(p) {
 // ── Product detail panel (right panel) ───────────────────────────────────────
 
 function renderProductDetail(p) {
-    if (!p) return '<div class="prod-no-selection">← Select a product</div>';
+    if (!p) return '<div class="prod-no-selection">Select a product from the list</div>';
 
     const variants   = p.variants || [];
     const links      = productCompLinks[p.shopify_id] || [];
@@ -1128,42 +1140,64 @@ function renderProductDetail(p) {
     const snkJpy     = snkItem ? (snkItem.minPrice || snkItem.minPriceJpy) : null;
     const snkRec     = snkJpy  ? calcSnkrdunkRec(snkJpy) : null;
     const isHidden   = hiddenProductIds.has(p.shopify_id);
+    const cost       = productCostHistory[p.shopify_id];
 
     // Only show box variants; fall back to all if none
     const boxVariants    = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
     const displayVariants = boxVariants.length ? boxVariants : variants;
     const refVariant      = displayVariants[0];
 
-    // Left panel — compact info rows per box variant
-    const boxCards = displayVariants.map(v => {
+    // Margin calculation
+    let marginPct = null;
+    if (cost && refVariant?.price) {
+        marginPct = ((refVariant.price - cost.last_unit_nok) / refVariant.price) * 100;
+    }
+    const marginBadge = marginPct != null
+        ? `<span class="badge ${marginPct < 10 ? 'badge-danger' : marginPct < 20 ? 'badge-warning' : 'badge-success'}">${marginPct.toFixed(0)}% margin</span>`
+        : '';
+
+    // Key metrics row
+    const metricsHtml = `
+    <div class="pdd-metrics">
+        <div class="pdd-metric">
+            <span class="pdd-metric-value mono">${fmtNok(refVariant?.price)}</span>
+            <span class="pdd-metric-label">Our price</span>
+        </div>
+        <div class="pdd-metric">
+            <span class="pdd-metric-value mono">${cost ? fmtNok(cost.last_unit_nok) : '—'}</span>
+            <span class="pdd-metric-label">Last cost</span>
+        </div>
+        <div class="pdd-metric">
+            <span class="pdd-metric-value mono">${cost ? fmtNok(cost.avg_unit_nok_30d) : '—'}</span>
+            <span class="pdd-metric-label">30d avg cost</span>
+        </div>
+        <div class="pdd-metric">
+            <span class="pdd-metric-value ${marginPct != null && marginPct < 15 ? 'text-danger' : ''}">${marginPct != null ? marginPct.toFixed(1) + '%' : '—'}</span>
+            <span class="pdd-metric-label">Margin</span>
+        </div>
+        <div class="pdd-metric">
+            <span class="pdd-metric-value mono">${snkJpy ? '¥' + fmt(snkJpy) : '—'}</span>
+            <span class="pdd-metric-label">SNKRDUNK</span>
+        </div>
+        <div class="pdd-metric">
+            <span class="pdd-metric-value mono ${snkRec && refVariant?.price && Math.abs(refVariant.price - snkRec) > 50 ? 'text-warning' : ''}">${snkRec ? fmtNok(snkRec) : '—'}</span>
+            <span class="pdd-metric-label">SNK RRP</span>
+        </div>
+    </div>`;
+
+    // Variant cards — compact
+    const variantCards = displayVariants.map(v => {
         const qty = v.inventory_quantity ?? 0;
         const sc  = qty <= 0 ? 'pdd-qty-zero' : qty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
         return `
-        <div class="pdd-box-card">
-            <div class="pdd-info-row">
-                <span class="pdd-info-label">Type</span>
-                <span class="pdd-info-value">${v.title || 'Booster Box'}</span>
-            </div>
-            <div class="pdd-info-row">
-                <span class="pdd-info-label">Our price</span>
-                <span class="pdd-info-value mono">${fmtNok(v.price)}</span>
-            </div>
-            <div class="pdd-info-row">
-                <span class="pdd-info-label">Stock</span>
-                <input type="number" class="qty-input ${sc}" value="${qty}" min="0" step="1"
-                       data-orig="${qty}" title="Click to edit stock"
-                       onkeydown="if(event.key==='Enter'){this.blur()}"
-                       onblur="setInventory(${v.id},this.value,this)">
-            </div>
-            ${snkJpy ? `
-            <div class="pdd-info-row pdd-info-divider">
-                <span class="pdd-info-label">SNKRDUNK</span>
-                <span class="pdd-info-value mono">¥${fmt(snkJpy)}</span>
-            </div>
-            <div class="pdd-info-row">
-                <span class="pdd-info-label">SNK RRP</span>
-                <span class="pdd-info-value mono pdd-info-snk">${fmtNok(snkRec)}</span>
-            </div>` : ''}
+        <div class="pdd-variant-card">
+            <span class="pdd-var-name">${v.title || 'Default'}</span>
+            <span class="pdd-var-price mono">${fmtNok(v.price)}</span>
+            <span class="pdd-var-sku mono muted">${v.sku || ''}</span>
+            <input type="number" class="qty-input ${sc}" value="${qty}" min="0" step="1"
+                   data-orig="${qty}" title="Edit stock"
+                   onkeydown="if(event.key==='Enter'){this.blur()}"
+                   onblur="setInventory(${v.id},this.value,this)">
         </div>`;
     }).join('');
 
@@ -1193,13 +1227,13 @@ function renderProductDetail(p) {
             const delta         = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
             return `
             <div class="pdd-comp-row${isCheapest ? ' pdd-comp-cheapest' : ''}">
-                <span class="pdd-comp-domain">${lnk.mi_domain || '—'}</span>
-                <span class="pdd-comp-title">${lnk.mi_title || '—'}</span>
-                <span class="pdd-comp-price">${fmtNok(lnk.mi_price)}</span>
-                ${isCheapest ? '<span class="pdd-best-badge">Best</span>' : ''}
                 <span class="pdd-stock-dot ${inStock ? 'pdd-stock-in' : oos ? 'pdd-stock-oos' : 'pdd-stock-unknown'}"
                       title="${inStock ? 'In stock' : oos ? 'Out of stock' : 'Unknown'}"></span>
+                <span class="pdd-comp-domain">${lnk.mi_domain || '—'}</span>
+                <span class="pdd-comp-price">${fmtNok(lnk.mi_price)}</span>
+                ${isCheapest ? '<span class="pdd-best-badge">Best</span>' : ''}
                 ${delta}
+                <span class="pdd-comp-title">${lnk.mi_title || '—'}</span>
                 <div class="pdd-comp-btns">
                     ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs" title="Open listing">↗</a>` : ''}
                     ${refVariant && lnk.mi_price != null
@@ -1220,7 +1254,10 @@ function renderProductDetail(p) {
     <div class="pdd-header">
         <div class="pdd-header-left">
             <h3 class="pdd-title">${p.title}</h3>
-            ${weCheapest ? '<span class="pdd-cheapest-pill" title="Our price is the lowest among in-stock competitors">★ Lowest price</span>' : ''}
+            <div class="pdd-badges">
+                ${weCheapest ? '<span class="pdd-cheapest-pill" title="Our price is the lowest among in-stock competitors">★ Lowest price</span>' : ''}
+                ${marginBadge}
+            </div>
         </div>
         <div class="pdd-header-actions">
             ${isHidden
@@ -1229,18 +1266,27 @@ function renderProductDetail(p) {
             <button class="btn btn-xs btn-refresh" onclick="refreshSingleProduct('${p.shopify_id}')">↻ Refresh</button>
         </div>
     </div>
-    <div class="pdd-body">
-        <div class="pdd-left">
-            ${boxCards}
-        </div>
-        <div class="pdd-right">
+
+    ${metricsHtml}
+
+    <div class="pdd-sections">
+        <div class="pdd-section">
             <div class="pdd-section-head">
-                <span class="pdd-label">Competitors</span>
+                <span class="pdd-label">Variants</span>
+            </div>
+            <div class="pdd-variant-list">${variantCards}</div>
+        </div>
+
+        <div class="pdd-section pdd-section-grow">
+            <div class="pdd-section-head">
+                <span class="pdd-label">Competitors (${links.length})</span>
                 <button class="btn btn-xs btn-primary" onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
             </div>
             <div class="pdd-comp-list">${compRows}</div>
         </div>
-    </div>`;
+    </div>
+
+    ${cost ? `<div class="pdd-cost-note muted">Last PO: ${fmtDate(cost.last_po_date)}</div>` : ''}`;
 }
 
 function selectProduct(shopifyId) {
@@ -1855,7 +1901,11 @@ function _hidePoDetail() {
 }
 
 function _poDetailTableHtml(rows, totalItemJpy, totalWeight, totalQty, shippingJpy, grandTotalJpy, totalNok, storeName) {
-    const shopifyUrl = sid => storeName ? `https://admin.shopify.com/store/${storeName}/products/${sid}` : null;
+    const shopifyUrl = sid => {
+        if (!storeName || !sid) return null;
+        const numericId = sid.replace('gid://shopify/Product/', '');
+        return `https://admin.shopify.com/store/${storeName}/products/${numericId}`;
+    };
     return `
         <table class="data-table po-detail-table">
             <thead><tr>
@@ -2024,10 +2074,20 @@ async function viewPurchaseOrder(poId) {
                     <span>Total paid: <strong>${fmtNok(po.total_nok)}</strong></span>
                     <span>Effective rate: <strong>${effectiveRate}</strong> NOK/JPY</span>
                 </div>
+                <div class="po-actions">
+                    <button class="btn btn-primary" onclick="startNewPurchaseOrder()">+ New Purchase Order</button>
+                </div>
             </div>`);
     } catch (e) {
         toast(`Failed to load PO: ${e.message}`, 'error');
     }
+}
+
+function startNewPurchaseOrder() {
+    clearPoForm();
+    _hidePoDetail();
+    document.getElementById('po-form-card').style.display = '';
+    document.getElementById('po-product-search')?.focus();
 }
 
 async function cancelPurchaseOrder(poId) {

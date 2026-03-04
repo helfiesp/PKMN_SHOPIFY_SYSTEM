@@ -102,6 +102,12 @@ async def list_purchase_orders(
     )
 
 
+@router.get("/cost-history")
+async def get_cost_history(db: Session = Depends(get_db)):
+    """Get per-product cost history from completed purchase orders."""
+    return purchase_order_service.get_product_cost_history(db=db)
+
+
 @router.get("/{po_id}")
 async def get_purchase_order(po_id: int, db: Session = Depends(get_db)):
     """Get a single purchase order with all line items."""

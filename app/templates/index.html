@@ -168,17 +168,19 @@
                 </div>
 
                 <!-- Controls -->
-                <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
+                <div class="prod-controls">
                     <input type="search" id="product-search" class="input-sm"
-                        placeholder="Search products or SKU&hellip;" style="min-width:220px" />
-                    <select id="product-stock-filter" class="input-sm" style="min-width:160px">
+                        placeholder="Search products or SKU&hellip;" style="flex:1;min-width:200px;max-width:320px" />
+                    <select id="product-stock-filter" class="input-sm" style="min-width:150px">
                         <option value="all">All products</option>
                         <option value="out">Out of stock</option>
                         <option value="low">Low stock (&le; 10)</option>
                         <option value="hidden">Hidden</option>
                     </select>
-                    <button id="btn-auto-match" class="btn btn-sm" onclick="autoMatchAll()" title="Auto-link competitors for unmatched products">Auto-match</button>
-                    <button class="btn btn-primary btn-sm" onclick="loadProducts()">Refresh</button>
+                    <div style="margin-left:auto;display:flex;gap:.5rem">
+                        <button id="btn-auto-match" class="btn btn-sm" onclick="autoMatchAll()" title="Auto-link competitors for unmatched products">Auto-match</button>
+                        <button class="btn btn-primary btn-sm" onclick="loadProducts()">Refresh</button>
+                    </div>
                 </div>
 
                 <div id="products-list"><div class="loading-spinner">Loading&hellip;</div></div>
@@ -450,14 +452,6 @@
     <div class="modal-box">
         <button class="modal-close-btn" onclick="closeModal()">&times;</button>
         <div id="plan-modal-body"></div>
-    </div>
-</div>
-
-<!-- PO detail modal -->
-<div id="po-modal" class="modal-overlay">
-    <div class="modal-box">
-        <button class="modal-close-btn" onclick="closePoModal()">&times;</button>
-        <div id="po-modal-body"></div>
     </div>
 </div>
 
