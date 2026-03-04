@@ -1669,6 +1669,11 @@ function updatePoLineItem(variantId, field, value) {
     if (item) {
         item[field] = parseFloat(value) || 0;
         renderPoLineItems();
+        // Persist weight locally so it pre-fills on future POs
+        if (field === 'weight_grams' && item[field] > 0) {
+            fetch(`/api/v1/shopify/variants/${variantId}/weight?weight_grams=${item[field]}`, { method: 'PATCH' })
+                .catch(err => console.warn('Failed to save weight:', err));
+        }
     }
 }
 

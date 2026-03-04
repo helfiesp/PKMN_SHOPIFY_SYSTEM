@@ -229,6 +229,27 @@ async def update_variant_price(
         "log_id": log_entry.id if price is not None else None
     }
 
+@router.patch("/variants/{variant_id}/weight")
+async def update_variant_weight(
+    variant_id: int,
+    weight_grams: float = Query(..., ge=0),
+    db: Session = Depends(get_db)
+):
+    """Update a variant's weight_grams locally."""
+    from app.models import Variant
+    from datetime import datetime, timezone
+
+    variant = db.query(Variant).filter(Variant.id == variant_id).first()
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    variant.weight_grams = weight_grams
+    variant.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"variant_id": variant_id, "weight_grams": weight_grams}
+
+
 @router.get("/variants/{variant_id}")
 async def get_variant(
     variant_id: int,
