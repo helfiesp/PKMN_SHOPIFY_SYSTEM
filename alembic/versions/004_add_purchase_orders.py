@@ -17,6 +17,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Add weight_grams to existing variants table
+    with op.batch_alter_table('variants') as batch_op:
+        batch_op.add_column(sa.Column('weight_grams', sa.Float(), nullable=True))
+
     op.create_table(
         'purchase_orders',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -39,6 +43,7 @@ def upgrade() -> None:
         sa.Column('variant_id', sa.Integer(), nullable=False),
         sa.Column('quantity', sa.Integer(), nullable=False),
         sa.Column('price_jpy', sa.Float(), nullable=False),
+        sa.Column('weight_grams', sa.Float(), nullable=True),
         sa.Column('product_title', sa.String(length=500), nullable=True),
         sa.Column('variant_title', sa.String(length=500), nullable=True),
         sa.Column('sku', sa.String(length=255), nullable=True),
@@ -56,3 +61,5 @@ def downgrade() -> None:
     op.drop_table('purchase_order_items')
     op.drop_index('idx_po_status_date', table_name='purchase_orders')
     op.drop_table('purchase_orders')
+    with op.batch_alter_table('variants') as batch_op:
+        batch_op.drop_column('weight_grams')

@@ -48,7 +48,8 @@ class Variant(Base):
     inventory_quantity = Column(Integer, default=0)
     available_for_sale = Column(Boolean, default=True)
     inventory_item_id = Column(String(255))
-    
+    weight_grams = Column(Float)
+
     # Variant options (e.g., Type: Booster Box)
     option_name = Column(String(100))
     option_value = Column(String(255))
@@ -896,6 +897,7 @@ class PurchaseOrderItem(Base):
 
     quantity = Column(Integer, nullable=False)
     price_jpy = Column(Float, nullable=False)
+    weight_grams = Column(Float)
 
     product_title = Column(String(500))
     variant_title = Column(String(500))

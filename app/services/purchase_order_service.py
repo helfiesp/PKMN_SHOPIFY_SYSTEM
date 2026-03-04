@@ -141,6 +141,7 @@ class PurchaseOrderService:
                 variant_id=item["variant_id"],
                 quantity=item["quantity"],
                 price_jpy=item["price_jpy"],
+                weight_grams=item.get("weight_grams") or variant.weight_grams,
                 product_title=product.title if product else None,
                 variant_title=variant.title,
                 sku=variant.sku,

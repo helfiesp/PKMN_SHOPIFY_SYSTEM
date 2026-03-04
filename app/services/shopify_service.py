@@ -87,6 +87,8 @@ class ShopifyService:
                         inventoryQuantity
                         availableForSale
                         sku
+                        weight
+                        weightUnit
                         inventoryItem { id }
                       }
                     }
@@ -179,7 +181,22 @@ class ShopifyService:
                 ).first()
                 
                 inventory_item_id = var_data.get("inventoryItem", {}).get("id") if var_data.get("inventoryItem") else None
-                
+
+                # Normalize weight to grams
+                raw_weight = var_data.get("weight")
+                weight_unit = (var_data.get("weightUnit") or "").upper()
+                weight_grams = None
+                if raw_weight is not None:
+                    w = float(raw_weight)
+                    if weight_unit == "KILOGRAMS":
+                        weight_grams = w * 1000
+                    elif weight_unit == "POUNDS":
+                        weight_grams = w * 453.592
+                    elif weight_unit == "OUNCES":
+                        weight_grams = w * 28.3495
+                    else:
+                        weight_grams = w
+
                 if variant:
                     # Check if price changed to record history
                     price_changed = (variant.price != float(var_data["price"]) or 
@@ -192,7 +209,8 @@ class ShopifyService:
                     variant.inventory_quantity = var_data.get("inventoryQuantity", 0)
                     variant.available_for_sale = var_data.get("availableForSale", True)
                     variant.inventory_item_id = inventory_item_id
-                    
+                    variant.weight_grams = weight_grams
+
                     # Save to price history if price changed
                     if price_changed:
                         db.add(ProductPriceHistory(
@@ -211,7 +229,8 @@ class ShopifyService:
                         compare_at_price=float(var_data["compareAtPrice"]) if var_data.get("compareAtPrice") else None,
                         inventory_quantity=var_data.get("inventoryQuantity", 0),
                         available_for_sale=var_data.get("availableForSale", True),
-                        inventory_item_id=inventory_item_id
+                        inventory_item_id=inventory_item_id,
+                        weight_grams=weight_grams
                     )
                     db.add(variant)
                     db.flush()  # Get variant ID

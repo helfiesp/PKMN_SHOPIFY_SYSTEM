@@ -15,6 +15,7 @@ class VariantBase(BaseModel):
     compare_at_price: Optional[float] = None
     inventory_quantity: int = 0
     available_for_sale: bool = True
+    weight_grams: Optional[float] = None
     option_name: Optional[str] = None
     option_value: Optional[str] = None
 
@@ -430,6 +431,7 @@ class PurchaseOrderItemCreate(BaseModel):
     variant_id: int
     quantity: int = Field(ge=1)
     price_jpy: float = Field(ge=0)
+    weight_grams: Optional[float] = None
 
 
 class PurchaseOrderItemResponse(BaseModel):
@@ -438,6 +440,7 @@ class PurchaseOrderItemResponse(BaseModel):
     variant_id: int
     quantity: int
     price_jpy: float
+    weight_grams: Optional[float] = None
     product_title: Optional[str] = None
     variant_title: Optional[str] = None
     sku: Optional[str] = None

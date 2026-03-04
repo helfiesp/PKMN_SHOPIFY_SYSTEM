@@ -14,6 +14,42 @@ from app.services.purchase_order_service import purchase_order_service
 router = APIRouter()
 
 
+def _serialize_item(i):
+    return {
+        "id": i.id,
+        "purchase_order_id": i.purchase_order_id,
+        "variant_id": i.variant_id,
+        "quantity": i.quantity,
+        "price_jpy": i.price_jpy,
+        "weight_grams": i.weight_grams,
+        "product_title": i.product_title,
+        "variant_title": i.variant_title,
+        "sku": i.sku,
+        "created_at": i.created_at,
+    }
+
+
+def _serialize_po(po, extras=None):
+    data = {
+        "id": po.id,
+        "order_date": po.order_date,
+        "shipping_cost_jpy": po.shipping_cost_jpy,
+        "total_nok": po.total_nok,
+        "fx_rate_snapshot": po.fx_rate_snapshot,
+        "status": po.status,
+        "notes": po.notes,
+        "created_at": po.created_at,
+        "updated_at": po.updated_at,
+        "items": [_serialize_item(i) for i in po.items],
+        "total_items": len(po.items),
+        "total_quantity": sum(i.quantity for i in po.items),
+        "total_jpy": sum(i.price_jpy * i.quantity for i in po.items),
+    }
+    if extras:
+        data.update(extras)
+    return data
+
+
 @router.post("")
 async def create_purchase_order(
     request: PurchaseOrderCreate,
@@ -29,36 +65,10 @@ async def create_purchase_order(
             notes=request.notes,
             items=[item.model_dump() for item in request.items],
         )
-        po = result["purchase_order"]
-        return {
-            "id": po.id,
-            "order_date": po.order_date,
-            "shipping_cost_jpy": po.shipping_cost_jpy,
-            "total_nok": po.total_nok,
-            "fx_rate_snapshot": po.fx_rate_snapshot,
-            "status": po.status,
-            "notes": po.notes,
-            "created_at": po.created_at,
-            "updated_at": po.updated_at,
-            "items": [
-                {
-                    "id": i.id,
-                    "purchase_order_id": i.purchase_order_id,
-                    "variant_id": i.variant_id,
-                    "quantity": i.quantity,
-                    "price_jpy": i.price_jpy,
-                    "product_title": i.product_title,
-                    "variant_title": i.variant_title,
-                    "sku": i.sku,
-                    "created_at": i.created_at,
-                }
-                for i in po.items
-            ],
-            "total_items": len(po.items),
-            "total_quantity": sum(i.quantity for i in po.items),
-            "total_jpy": sum(i.price_jpy * i.quantity for i in po.items),
-            "inventory_results": result["inventory_results"],
-        }
+        return _serialize_po(
+            result["purchase_order"],
+            {"inventory_results": result["inventory_results"]},
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -84,31 +94,7 @@ async def get_purchase_order(po_id: int, db: Session = Depends(get_db)):
     po = purchase_order_service.get_purchase_order(db=db, po_id=po_id)
     if not po:
         raise HTTPException(status_code=404, detail="Purchase order not found")
-    return {
-        "id": po.id,
-        "order_date": po.order_date,
-        "shipping_cost_jpy": po.shipping_cost_jpy,
-        "total_nok": po.total_nok,
-        "fx_rate_snapshot": po.fx_rate_snapshot,
-        "status": po.status,
-        "notes": po.notes,
-        "created_at": po.created_at,
-        "updated_at": po.updated_at,
-        "items": [
-            {
-                "id": i.id,
-                "purchase_order_id": i.purchase_order_id,
-                "variant_id": i.variant_id,
-                "quantity": i.quantity,
-                "price_jpy": i.price_jpy,
-                "product_title": i.product_title,
-                "variant_title": i.variant_title,
-                "sku": i.sku,
-                "created_at": i.created_at,
-            }
-            for i in po.items
-        ],
-    }
+    return _serialize_po(po)
 
 
 @router.post("/{po_id}/cancel")

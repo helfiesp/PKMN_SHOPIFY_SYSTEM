@@ -1528,6 +1528,9 @@ async function _createMatchPlan(productShopifyId, variantShopifyId, newPrice, cu
 // PURCHASE ORDERS
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Temp cache for search results so click handler can look up by index
+let _poSearchMatches = [];
+
 async function loadPurchaseOrders() {
     showTabLoading('po-history-list');
     const dateEl = document.getElementById('po-order-date');
@@ -1575,6 +1578,8 @@ function renderPoHistory(orders) {
         </table>`;
 }
 
+// ── Product search ───────────────────────────────────────────────────────────
+
 function poSearchProducts() {
     clearTimeout(poSearchTimer);
     const q = document.getElementById('po-product-search')?.value?.trim();
@@ -1588,7 +1593,7 @@ function poSearchProducts() {
                 shopifyProducts = res.products || res || [];
             }
             const qLower = q.toLowerCase();
-            const matches = [];
+            _poSearchMatches = [];
             for (const p of shopifyProducts) {
                 for (const v of (p.variants || [])) {
                     if (
@@ -1596,24 +1601,25 @@ function poSearchProducts() {
                         (v.sku || '').toLowerCase().includes(qLower) ||
                         (v.title || '').toLowerCase().includes(qLower)
                     ) {
-                        matches.push({
+                        _poSearchMatches.push({
                             variant_id: v.id,
                             product_title: p.title,
                             variant_title: v.title || 'Default',
                             sku: v.sku || '',
                             price: v.price,
                             inventory_quantity: v.inventory_quantity || 0,
+                            weight_grams: v.weight_grams || null,
                         });
                     }
                 }
             }
-            if (!matches.length) {
+            if (!_poSearchMatches.length) {
                 resultsEl.innerHTML = '<p class="muted" style="padding:.5rem">No variants found.</p>';
             } else {
-                resultsEl.innerHTML = matches.slice(0, 20).map(m => `
-                    <div class="po-search-item" onclick="addPoLineItem(${m.variant_id}, ${JSON.stringify(m.product_title)}, ${JSON.stringify(m.variant_title)}, ${JSON.stringify(m.sku)}, ${m.inventory_quantity})">
+                resultsEl.innerHTML = _poSearchMatches.slice(0, 20).map((m, idx) => `
+                    <div class="po-search-item" data-po-idx="${idx}">
                         <span class="po-search-name">${m.product_title} &mdash; ${m.variant_title}</span>
-                        <span class="po-search-meta">SKU: ${m.sku || '—'} &middot; Stock: ${m.inventory_quantity} &middot; ${fmtNok(m.price)}</span>
+                        <span class="po-search-meta">SKU: ${m.sku || '—'} &middot; Stock: ${m.inventory_quantity} &middot; ${fmtNok(m.price)}${m.weight_grams ? ` &middot; ${fmt(m.weight_grams, 0)}g` : ''}</span>
                     </div>
                 `).join('');
             }
@@ -1625,24 +1631,33 @@ function poSearchProducts() {
     }, 300);
 }
 
-function addPoLineItem(variantId, productTitle, variantTitle, sku, inventoryQty) {
-    if (poLineItems.find(i => i.variant_id === variantId)) {
+function _handlePoSearchClick(e) {
+    const item = e.target.closest('.po-search-item');
+    if (!item) return;
+    const idx = parseInt(item.dataset.poIdx, 10);
+    const m = _poSearchMatches[idx];
+    if (!m) return;
+
+    if (poLineItems.find(i => i.variant_id === m.variant_id)) {
         toast('Variant already added', 'warning');
         return;
     }
     poLineItems.push({
-        variant_id: variantId,
-        product_title: productTitle,
-        variant_title: variantTitle,
-        sku: sku,
+        variant_id: m.variant_id,
+        product_title: m.product_title,
+        variant_title: m.variant_title,
+        sku: m.sku,
         quantity: 1,
         price_jpy: 0,
-        inventory_quantity: inventoryQty,
+        weight_grams: m.weight_grams || 0,
+        inventory_quantity: m.inventory_quantity,
     });
     document.getElementById('po-product-search').value = '';
     document.getElementById('po-search-results').style.display = 'none';
     renderPoLineItems();
 }
+
+// ── Line items ───────────────────────────────────────────────────────────────
 
 function removePoLineItem(variantId) {
     poLineItems = poLineItems.filter(i => i.variant_id !== variantId);
@@ -1666,9 +1681,9 @@ function renderPoLineItems() {
     wrap.innerHTML = `
         <table class="data-table">
             <thead><tr>
-                <th>Product</th><th>Variant</th><th>SKU</th><th>Current Stock</th>
-                <th style="width:80px">Qty</th><th style="width:120px">Price (JPY)</th>
-                <th>Line Total JPY</th><th></th>
+                <th>Product</th><th>Variant</th><th>SKU</th><th>Stock</th>
+                <th style="width:70px">Qty</th><th style="width:110px">Price (JPY)</th>
+                <th style="width:100px">Weight (g)</th><th>Line JPY</th><th></th>
             </tr></thead>
             <tbody>
                 ${poLineItems.map(i => `
@@ -1677,10 +1692,12 @@ function renderPoLineItems() {
                         <td>${i.variant_title}</td>
                         <td class="mono muted">${i.sku || '—'}</td>
                         <td class="mono ${stockClass(i.inventory_quantity)}">${i.inventory_quantity}</td>
-                        <td><input type="number" class="input-sm" value="${i.quantity}" min="1" style="width:70px"
+                        <td><input type="number" class="input-sm" value="${i.quantity}" min="1" style="width:65px"
                             onchange="updatePoLineItem(${i.variant_id}, 'quantity', this.value)" /></td>
-                        <td><input type="number" class="input-sm" value="${i.price_jpy}" min="0" style="width:110px"
+                        <td><input type="number" class="input-sm" value="${i.price_jpy}" min="0" style="width:105px"
                             onchange="updatePoLineItem(${i.variant_id}, 'price_jpy', this.value)" /></td>
+                        <td><input type="number" class="input-sm" value="${i.weight_grams || ''}" min="0" style="width:90px"
+                            placeholder="g" onchange="updatePoLineItem(${i.variant_id}, 'weight_grams', this.value)" /></td>
                         <td class="mono">&yen;${fmt(i.quantity * i.price_jpy, 0)}</td>
                         <td><button class="btn btn-xs btn-danger-outline" onclick="removePoLineItem(${i.variant_id})">Remove</button></td>
                     </tr>
@@ -1690,11 +1707,14 @@ function renderPoLineItems() {
                 <td colspan="4" style="text-align:right"><strong>Totals:</strong></td>
                 <td class="mono"><strong>${poLineItems.reduce((s, i) => s + i.quantity, 0)}</strong></td>
                 <td></td>
+                <td class="mono muted">${fmt(poLineItems.reduce((s, i) => s + (i.weight_grams || 0) * i.quantity, 0), 0)}g</td>
                 <td class="mono"><strong>&yen;${fmt(poLineItems.reduce((s, i) => s + i.quantity * i.price_jpy, 0), 0)}</strong></td>
                 <td></td>
             </tr></tfoot>
         </table>`;
 }
+
+// ── Form controls ────────────────────────────────────────────────────────────
 
 function togglePoForm() {
     const form = document.getElementById('po-form');
@@ -1711,22 +1731,110 @@ function clearPoForm() {
     renderPoLineItems();
 }
 
-async function savePurchaseOrder() {
-    if (!poLineItems.length) { toast('Add at least one line item', 'warning'); return; }
+// ── Preview ──────────────────────────────────────────────────────────────────
 
+function previewPurchaseOrder() {
+    if (!poLineItems.length) { toast('Add at least one line item', 'warning'); return; }
     const totalNok = parseFloat(document.getElementById('po-total-nok')?.value);
     if (!totalNok || totalNok <= 0) { toast('Enter the total NOK paid', 'warning'); return; }
-
     for (const item of poLineItems) {
         if (item.quantity <= 0) { toast(`Set quantity for ${item.product_title} — ${item.variant_title}`, 'warning'); return; }
         if (item.price_jpy <= 0) { toast(`Set JPY price for ${item.product_title} — ${item.variant_title}`, 'warning'); return; }
     }
 
-    const btn = document.getElementById('btn-save-po');
+    const shippingJpy = parseFloat(document.getElementById('po-shipping-jpy')?.value) || 0;
+    const totalItemJpy = poLineItems.reduce((s, i) => s + i.quantity * i.price_jpy, 0);
+    const totalWeight = poLineItems.reduce((s, i) => s + (i.weight_grams || 0) * i.quantity, 0);
+    const totalQty = poLineItems.reduce((s, i) => s + i.quantity, 0);
+
+    // Split shipping by weight (proportional). If no weights, split evenly by quantity.
+    const useWeight = totalWeight > 0;
+    const rows = poLineItems.map(i => {
+        const lineJpy = i.quantity * i.price_jpy;
+        const lineWeight = (i.weight_grams || 0) * i.quantity;
+        let shippingShare;
+        if (useWeight) {
+            shippingShare = totalWeight > 0 ? (lineWeight / totalWeight) * shippingJpy : 0;
+        } else {
+            shippingShare = (i.quantity / totalQty) * shippingJpy;
+        }
+        const lineTotalJpy = lineJpy + shippingShare;
+        // NOK share proportional to total JPY (items + shipping)
+        const grandTotalJpy = totalItemJpy + shippingJpy;
+        const lineNok = grandTotalJpy > 0 ? (lineTotalJpy / grandTotalJpy) * totalNok : 0;
+        return { ...i, lineJpy, lineWeight, shippingShare, lineTotalJpy, lineNok };
+    });
+
+    const orderDate = document.getElementById('po-order-date')?.value || new Date().toISOString().slice(0, 10);
+    const notes = document.getElementById('po-notes')?.value?.trim() || '';
+    const effectiveRate = (totalItemJpy + shippingJpy) > 0
+        ? (totalNok / (totalItemJpy + shippingJpy)).toFixed(4) : '—';
+
+    const modal = document.getElementById('po-modal');
+    const body = document.getElementById('po-modal-body');
+    if (!modal || !body) return;
+
+    body.innerHTML = `
+        <h3 style="margin:0 0 1rem">Preview Purchase Order</h3>
+        <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem">
+            <div><span class="muted">Date:</span> ${orderDate}</div>
+            <div><span class="muted">Shipping:</span> &yen;${fmt(shippingJpy, 0)}</div>
+            <div><span class="muted">Split by:</span> ${useWeight ? 'weight' : 'quantity (no weights set)'}</div>
+            ${notes ? `<div><span class="muted">Notes:</span> ${notes}</div>` : ''}
+        </div>
+        <table class="data-table">
+            <thead><tr>
+                <th>Product</th><th>Variant</th><th>Qty</th><th>Weight</th>
+                <th>Item JPY</th><th>+ Shipping</th><th>Total JPY</th><th>NOK</th>
+            </tr></thead>
+            <tbody>
+                ${rows.map(r => `
+                    <tr>
+                        <td>${r.product_title}</td>
+                        <td>${r.variant_title}</td>
+                        <td class="mono">${r.quantity}</td>
+                        <td class="mono muted">${r.lineWeight ? fmt(r.lineWeight, 0) + 'g' : '—'}</td>
+                        <td class="mono">&yen;${fmt(r.lineJpy, 0)}</td>
+                        <td class="mono muted">&yen;${fmt(r.shippingShare, 0)}</td>
+                        <td class="mono">&yen;${fmt(r.lineTotalJpy, 0)}</td>
+                        <td class="mono"><strong>${fmtNok(r.lineNok)}</strong></td>
+                    </tr>
+                `).join('')}
+            </tbody>
+            <tfoot><tr>
+                <td colspan="2" style="text-align:right"><strong>Totals</strong></td>
+                <td class="mono"><strong>${totalQty}</strong></td>
+                <td class="mono muted">${totalWeight ? fmt(totalWeight, 0) + 'g' : '—'}</td>
+                <td class="mono"><strong>&yen;${fmt(totalItemJpy, 0)}</strong></td>
+                <td class="mono muted">&yen;${fmt(shippingJpy, 0)}</td>
+                <td class="mono"><strong>&yen;${fmt(totalItemJpy + shippingJpy, 0)}</strong></td>
+                <td class="mono"><strong>${fmtNok(totalNok)}</strong></td>
+            </tr></tfoot>
+        </table>
+        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+            <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem">
+                <div><span class="muted">Effective rate:</span> <strong>${effectiveRate}</strong> NOK/JPY</div>
+                <div><span class="muted">Total paid:</span> <strong>${fmtNok(totalNok)}</strong></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:.5rem">
+                <button class="btn" onclick="closePoModal()">Back to edit</button>
+                <button class="btn btn-primary" id="btn-confirm-po" onclick="confirmSavePurchaseOrder()">
+                    Confirm &amp; Save
+                </button>
+            </div>
+        </div>`;
+    modal.classList.add('open');
+}
+
+// ── Save ─────────────────────────────────────────────────────────────────────
+
+async function confirmSavePurchaseOrder() {
+    const btn = document.getElementById('btn-confirm-po');
     if (btn) btn.disabled = true;
 
     const orderDate = document.getElementById('po-order-date')?.value || null;
     const shippingJpy = parseFloat(document.getElementById('po-shipping-jpy')?.value) || 0;
+    const totalNok = parseFloat(document.getElementById('po-total-nok')?.value);
     const notes = document.getElementById('po-notes')?.value?.trim() || null;
 
     try {
@@ -1742,9 +1850,11 @@ async function savePurchaseOrder() {
                     variant_id: i.variant_id,
                     quantity: i.quantity,
                     price_jpy: i.price_jpy,
+                    weight_grams: i.weight_grams || null,
                 })),
             }),
         });
+        closePoModal();
         toast(`PO #${result.id} saved — inventory updated`, 'success');
         clearPoForm();
         loadPurchaseOrders();
@@ -1755,6 +1865,8 @@ async function savePurchaseOrder() {
     }
 }
 
+// ── View / Cancel ────────────────────────────────────────────────────────────
+
 async function viewPurchaseOrder(poId) {
     try {
         const po = await api(`/purchase-orders/${poId}`);
@@ -1764,6 +1876,23 @@ async function viewPurchaseOrder(poId) {
 
         const totalItemJpy = (po.items || []).reduce((s, i) => s + (i.price_jpy * i.quantity), 0);
         const totalQty = (po.items || []).reduce((s, i) => s + i.quantity, 0);
+        const totalWeight = (po.items || []).reduce((s, i) => s + (i.weight_grams || 0) * i.quantity, 0);
+        const useWeight = totalWeight > 0;
+
+        const rows = (po.items || []).map(i => {
+            const lineJpy = i.price_jpy * i.quantity;
+            const lineWeight = (i.weight_grams || 0) * i.quantity;
+            let shippingShare;
+            if (useWeight) {
+                shippingShare = totalWeight > 0 ? (lineWeight / totalWeight) * po.shipping_cost_jpy : 0;
+            } else {
+                shippingShare = totalQty > 0 ? (i.quantity / totalQty) * po.shipping_cost_jpy : 0;
+            }
+            const lineTotalJpy = lineJpy + shippingShare;
+            const grandTotalJpy = totalItemJpy + po.shipping_cost_jpy;
+            const lineNok = grandTotalJpy > 0 ? (lineTotalJpy / grandTotalJpy) * po.total_nok : 0;
+            return { ...i, lineJpy, lineWeight, shippingShare, lineTotalJpy, lineNok };
+        });
 
         body.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
@@ -1780,37 +1909,40 @@ async function viewPurchaseOrder(poId) {
             </div>
             <table class="data-table">
                 <thead><tr>
-                    <th>Product</th><th>Variant</th><th>SKU</th>
-                    <th>Qty</th><th>Price (JPY)</th><th>Line Total (JPY)</th>
+                    <th>Product</th><th>Variant</th><th>SKU</th><th>Qty</th><th>Weight</th>
+                    <th>Item JPY</th><th>+ Shipping</th><th>Total JPY</th><th>NOK</th>
                 </tr></thead>
                 <tbody>
-                    ${(po.items || []).map(i => `
+                    ${rows.map(r => `
                         <tr>
-                            <td>${i.product_title || '—'}</td>
-                            <td>${i.variant_title || '—'}</td>
-                            <td class="mono muted">${i.sku || '—'}</td>
-                            <td class="mono">${i.quantity}</td>
-                            <td class="mono">&yen;${fmt(i.price_jpy, 0)}</td>
-                            <td class="mono">&yen;${fmt(i.price_jpy * i.quantity, 0)}</td>
+                            <td>${r.product_title || '—'}</td>
+                            <td>${r.variant_title || '—'}</td>
+                            <td class="mono muted">${r.sku || '—'}</td>
+                            <td class="mono">${r.quantity}</td>
+                            <td class="mono muted">${r.lineWeight ? fmt(r.lineWeight, 0) + 'g' : '—'}</td>
+                            <td class="mono">&yen;${fmt(r.lineJpy, 0)}</td>
+                            <td class="mono muted">&yen;${fmt(r.shippingShare, 0)}</td>
+                            <td class="mono">&yen;${fmt(r.lineTotalJpy, 0)}</td>
+                            <td class="mono"><strong>${fmtNok(r.lineNok)}</strong></td>
                         </tr>
                     `).join('')}
                 </tbody>
                 <tfoot><tr>
                     <td colspan="3" style="text-align:right"><strong>Totals</strong></td>
                     <td class="mono"><strong>${totalQty}</strong></td>
-                    <td></td>
+                    <td class="mono muted">${totalWeight ? fmt(totalWeight, 0) + 'g' : '—'}</td>
                     <td class="mono"><strong>&yen;${fmt(totalItemJpy, 0)}</strong></td>
+                    <td class="mono muted">&yen;${fmt(po.shipping_cost_jpy, 0)}</td>
+                    <td class="mono"><strong>&yen;${fmt(totalItemJpy + po.shipping_cost_jpy, 0)}</strong></td>
+                    <td class="mono"><strong>${fmtNok(po.total_nok)}</strong></td>
                 </tr></tfoot>
             </table>
             <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
                 <div style="display:flex;gap:2rem;flex-wrap:wrap">
-                    <div><span class="muted">Items JPY:</span> &yen;${fmt(totalItemJpy, 0)}</div>
-                    <div><span class="muted">+ Shipping:</span> &yen;${fmt(po.shipping_cost_jpy, 0)}</div>
-                    <div><span class="muted">= Total JPY:</span> <strong>&yen;${fmt(totalItemJpy + po.shipping_cost_jpy, 0)}</strong></div>
-                    <div><span class="muted">Paid NOK:</span> <strong>${fmtNok(po.total_nok)}</strong></div>
-                    <div><span class="muted">Effective rate:</span> ${po.total_nok && (totalItemJpy + po.shipping_cost_jpy) > 0
+                    <div><span class="muted">Effective rate:</span> <strong>${(totalItemJpy + po.shipping_cost_jpy) > 0
                         ? (po.total_nok / (totalItemJpy + po.shipping_cost_jpy)).toFixed(4)
-                        : '—'} NOK/JPY</div>
+                        : '—'}</strong> NOK/JPY</div>
+                    <div><span class="muted">Total paid:</span> <strong>${fmtNok(po.total_nok)}</strong></div>
                 </div>
             </div>`;
         modal.classList.add('open');
@@ -1875,6 +2007,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('po-modal')?.addEventListener('click', e => {
         if (e.target === e.currentTarget) closePoModal();
     });
+
+    // PO search results — delegated click handler
+    document.getElementById('po-search-results')?.addEventListener('click', _handlePoSearchClick);
 
     // Close PO search dropdown when clicking outside
     document.addEventListener('click', e => {
