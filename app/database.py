@@ -34,6 +34,21 @@ def get_db():
 
 
 def init_db():
-    """Initialize database tables."""
+    """Initialize database tables and add any missing columns."""
     import app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
+    # Add missing columns to existing tables (create_all won't do this)
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    for table_name, table in Base.metadata.tables.items():
+        if not insp.has_table(table_name):
+            continue
+        existing_cols = {c["name"] for c in insp.get_columns(table_name)}
+        for col in table.columns:
+            if col.name not in existing_cols:
+                col_type = col.type.compile(engine.dialect)
+                with engine.begin() as conn:
+                    conn.execute(text(
+                        f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}"
+                    ))
