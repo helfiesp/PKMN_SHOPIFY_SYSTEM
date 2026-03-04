@@ -1910,7 +1910,7 @@ function previewPurchaseOrder() {
     const effectiveRate = grandTotalJpy > 0 ? (totalNok / grandTotalJpy).toFixed(4) : '—';
 
     // Hide the form, show inline preview
-    document.querySelector('#tab-purchase-orders > .card:first-of-type').style.display = 'none';
+    document.getElementById('po-form-card').style.display = 'none';
 
     _showPoDetail(`
         <h3 style="margin:0 0 .75rem">Preview Purchase Order</h3>
@@ -1940,7 +1940,7 @@ function previewPurchaseOrder() {
 
 function closePoPreview() {
     _hidePoDetail();
-    document.querySelector('#tab-purchase-orders > .card:first-of-type').style.display = '';
+    document.getElementById('po-form-card').style.display = '';
 }
 
 // ── Save ─────────────────────────────────────────────────────────────────────
@@ -2000,7 +2000,7 @@ async function viewPurchaseOrder(poId) {
         const storeName = po.store_name;
 
         // Hide the form card, show detail inline
-        document.querySelector('#tab-purchase-orders > .card:first-of-type').style.display = 'none';
+        document.getElementById('po-form-card').style.display = 'none';
 
         _showPoDetail(`
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
