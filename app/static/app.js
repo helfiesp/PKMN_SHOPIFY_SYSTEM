@@ -774,6 +774,12 @@ async function loadSettings() {
     } catch (e) {
         document.getElementById('settings-list').innerHTML = `<p class="error">${e.message}</p>`;
     }
+    // Load auto-update toggle state
+    try {
+        const dict = await api('/settings/dict?mask_sensitive=false');
+        const toggle = document.getElementById('toggle-auto-shopify');
+        if (toggle) toggle.checked = dict['auto_update_shopify_inventory'] === 'true';
+    } catch (_) { /* setting may not exist yet */ }
 }
 
 function renderSettings(settings) {
@@ -811,6 +817,27 @@ async function saveSetting(key) {
         toast(`Saved: ${key}`, 'success');
     } catch (e) {
         toast(`Failed to save ${key}: ${e.message}`, 'error');
+    }
+}
+
+async function toggleAutoShopifyUpdate(enabled) {
+    try {
+        await api('/settings/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                key: 'auto_update_shopify_inventory',
+                value: enabled ? 'true' : 'false',
+                description: 'Automatically update Shopify inventory when creating purchase orders',
+                is_sensitive: false,
+            }),
+        });
+        toast(enabled ? 'Auto Shopify update enabled' : 'Auto Shopify update disabled', 'success');
+    } catch (e) {
+        toast(`Failed to save setting: ${e.message}`, 'error');
+        // Revert toggle
+        const toggle = document.getElementById('toggle-auto-shopify');
+        if (toggle) toggle.checked = !enabled;
     }
 }
 
@@ -1609,6 +1636,7 @@ function poSearchProducts() {
                             price: v.price,
                             inventory_quantity: v.inventory_quantity || 0,
                             weight_grams: v.weight_grams || null,
+                            product_shopify_id: p.shopify_id || null,
                         });
                     }
                 }
@@ -1651,6 +1679,7 @@ function _handlePoSearchClick(e) {
         price_jpy: 0,
         weight_grams: m.weight_grams || 0,
         inventory_quantity: m.inventory_quantity,
+        product_shopify_id: m.product_shopify_id,
     });
     document.getElementById('po-product-search').value = '';
     document.getElementById('po-search-results').style.display = 'none';
@@ -1738,6 +1767,28 @@ function clearPoForm() {
 
 // ── Preview ──────────────────────────────────────────────────────────────────
 
+function _poCalcRows(items, shippingJpy, totalNok) {
+    const totalItemJpy = items.reduce((s, i) => s + (i.quantity || 0) * (i.price_jpy || 0), 0);
+    const totalWeight = items.reduce((s, i) => s + ((i.weight_grams || 0) * (i.quantity || 0)), 0);
+    const totalQty = items.reduce((s, i) => s + (i.quantity || 0), 0);
+    const useWeight = totalWeight > 0;
+    const grandTotalJpy = totalItemJpy + shippingJpy;
+
+    const rows = items.map(i => {
+        const lineJpy = i.quantity * i.price_jpy;
+        const lineWeight = (i.weight_grams || 0) * i.quantity;
+        const shippingShare = useWeight
+            ? (totalWeight > 0 ? (lineWeight / totalWeight) * shippingJpy : 0)
+            : (totalQty > 0 ? (i.quantity / totalQty) * shippingJpy : 0);
+        const lineTotalJpy = lineJpy + shippingShare;
+        const lineNok = grandTotalJpy > 0 ? (lineTotalJpy / grandTotalJpy) * totalNok : 0;
+        const unitNok = i.quantity > 0 ? lineNok / i.quantity : 0;
+        return { ...i, lineJpy, lineWeight, shippingShare, lineTotalJpy, lineNok, unitNok };
+    });
+
+    return { rows, totalItemJpy, totalWeight, totalQty, useWeight, grandTotalJpy };
+}
+
 function previewPurchaseOrder() {
     if (!poLineItems.length) { toast('Add at least one line item', 'warning'); return; }
     const totalNok = parseFloat(document.getElementById('po-total-nok')?.value);
@@ -1748,80 +1799,69 @@ function previewPurchaseOrder() {
     }
 
     const shippingJpy = parseFloat(document.getElementById('po-shipping-jpy')?.value) || 0;
-    const totalItemJpy = poLineItems.reduce((s, i) => s + i.quantity * i.price_jpy, 0);
-    const totalWeight = poLineItems.reduce((s, i) => s + (i.weight_grams || 0) * i.quantity, 0);
-    const totalQty = poLineItems.reduce((s, i) => s + i.quantity, 0);
-
-    // Split shipping by weight (proportional). If no weights, split evenly by quantity.
-    const useWeight = totalWeight > 0;
-    const rows = poLineItems.map(i => {
-        const lineJpy = i.quantity * i.price_jpy;
-        const lineWeight = (i.weight_grams || 0) * i.quantity;
-        let shippingShare;
-        if (useWeight) {
-            shippingShare = totalWeight > 0 ? (lineWeight / totalWeight) * shippingJpy : 0;
-        } else {
-            shippingShare = (i.quantity / totalQty) * shippingJpy;
-        }
-        const lineTotalJpy = lineJpy + shippingShare;
-        // NOK share proportional to total JPY (items + shipping)
-        const grandTotalJpy = totalItemJpy + shippingJpy;
-        const lineNok = grandTotalJpy > 0 ? (lineTotalJpy / grandTotalJpy) * totalNok : 0;
-        return { ...i, lineJpy, lineWeight, shippingShare, lineTotalJpy, lineNok };
-    });
+    const { rows, totalItemJpy, totalWeight, totalQty, useWeight, grandTotalJpy } =
+        _poCalcRows(poLineItems, shippingJpy, totalNok);
 
     const orderDate = document.getElementById('po-order-date')?.value || new Date().toISOString().slice(0, 10);
     const notes = document.getElementById('po-notes')?.value?.trim() || '';
-    const effectiveRate = (totalItemJpy + shippingJpy) > 0
-        ? (totalNok / (totalItemJpy + shippingJpy)).toFixed(4) : '—';
+    const effectiveRate = grandTotalJpy > 0 ? (totalNok / grandTotalJpy).toFixed(4) : '—';
 
     const modal = document.getElementById('po-modal');
     const body = document.getElementById('po-modal-body');
     if (!modal || !body) return;
 
     body.innerHTML = `
-        <h3 style="margin:0 0 1rem">Preview Purchase Order</h3>
-        <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem">
-            <div><span class="muted">Date:</span> ${orderDate}</div>
-            <div><span class="muted">Shipping:</span> &yen;${fmt(shippingJpy, 0)}</div>
-            <div><span class="muted">Split by:</span> ${useWeight ? 'weight' : 'quantity (no weights set)'}</div>
-            ${notes ? `<div><span class="muted">Notes:</span> ${notes}</div>` : ''}
+        <h3 style="margin:0 0 .75rem">Preview Purchase Order</h3>
+        <div class="po-meta-grid">
+            <div class="po-meta-item"><span class="po-meta-label">Date</span><span>${orderDate}</span></div>
+            <div class="po-meta-item"><span class="po-meta-label">Shipping</span><span>&yen;${fmt(shippingJpy, 0)}</span></div>
+            <div class="po-meta-item"><span class="po-meta-label">Split by</span><span>${useWeight ? 'weight' : 'quantity'}</span></div>
+            <div class="po-meta-item"><span class="po-meta-label">Rate</span><span>${effectiveRate} NOK/JPY</span></div>
+            ${notes ? `<div class="po-meta-item" style="grid-column:1/-1"><span class="po-meta-label">Notes</span><span>${notes}</span></div>` : ''}
         </div>
-        <table class="data-table">
+
+        <div class="po-table-wrap">
+        <table class="data-table po-detail-table">
             <thead><tr>
-                <th>Product</th><th>Variant</th><th>Qty</th><th>Weight</th>
-                <th>Item JPY</th><th>+ Shipping</th><th>Total JPY</th><th>NOK</th>
+                <th>Product / Variant</th><th class="r">Qty</th><th class="r">Weight</th>
+                <th class="r">Unit JPY</th><th class="r">Line JPY</th><th class="r">+ Ship</th>
+                <th class="r">Total JPY</th><th class="r">Unit NOK</th><th class="r">Line NOK</th>
             </tr></thead>
             <tbody>
                 ${rows.map(r => `
                     <tr>
-                        <td>${r.product_title}</td>
-                        <td>${r.variant_title}</td>
-                        <td class="mono">${r.quantity}</td>
-                        <td class="mono muted">${r.lineWeight ? fmt(r.lineWeight, 0) + 'g' : '—'}</td>
-                        <td class="mono">&yen;${fmt(r.lineJpy, 0)}</td>
-                        <td class="mono muted">&yen;${fmt(r.shippingShare, 0)}</td>
-                        <td class="mono">&yen;${fmt(r.lineTotalJpy, 0)}</td>
-                        <td class="mono"><strong>${fmtNok(r.lineNok)}</strong></td>
+                        <td><strong>${r.product_title}</strong><br><span class="muted" style="font-size:.75rem">${r.variant_title}${r.sku ? ' &middot; ' + r.sku : ''}</span></td>
+                        <td class="mono r">${r.quantity}</td>
+                        <td class="mono r muted">${r.lineWeight ? fmt(r.lineWeight, 0) + 'g' : '—'}</td>
+                        <td class="mono r">&yen;${fmt(r.price_jpy, 0)}</td>
+                        <td class="mono r">&yen;${fmt(r.lineJpy, 0)}</td>
+                        <td class="mono r muted">&yen;${fmt(r.shippingShare, 0)}</td>
+                        <td class="mono r">&yen;${fmt(r.lineTotalJpy, 0)}</td>
+                        <td class="mono r">${fmtNok(r.unitNok)}</td>
+                        <td class="mono r"><strong>${fmtNok(r.lineNok)}</strong></td>
                     </tr>
                 `).join('')}
             </tbody>
-            <tfoot><tr>
-                <td colspan="2" style="text-align:right"><strong>Totals</strong></td>
-                <td class="mono"><strong>${totalQty}</strong></td>
-                <td class="mono muted">${totalWeight ? fmt(totalWeight, 0) + 'g' : '—'}</td>
-                <td class="mono"><strong>&yen;${fmt(totalItemJpy, 0)}</strong></td>
-                <td class="mono muted">&yen;${fmt(shippingJpy, 0)}</td>
-                <td class="mono"><strong>&yen;${fmt(totalItemJpy + shippingJpy, 0)}</strong></td>
-                <td class="mono"><strong>${fmtNok(totalNok)}</strong></td>
+            <tfoot><tr class="po-totals-row">
+                <td><strong>Totals</strong></td>
+                <td class="mono r"><strong>${totalQty}</strong></td>
+                <td class="mono r muted">${totalWeight ? fmt(totalWeight, 0) + 'g' : ''}</td>
+                <td class="r"></td>
+                <td class="mono r"><strong>&yen;${fmt(totalItemJpy, 0)}</strong></td>
+                <td class="mono r muted">&yen;${fmt(shippingJpy, 0)}</td>
+                <td class="mono r"><strong>&yen;${fmt(grandTotalJpy, 0)}</strong></td>
+                <td class="r"></td>
+                <td class="mono r"><strong>${fmtNok(totalNok)}</strong></td>
             </tr></tfoot>
         </table>
-        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
-            <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem">
-                <div><span class="muted">Effective rate:</span> <strong>${effectiveRate}</strong> NOK/JPY</div>
-                <div><span class="muted">Total paid:</span> <strong>${fmtNok(totalNok)}</strong></div>
+        </div>
+
+        <div class="po-footer">
+            <div class="po-summary-bar">
+                <span>Total paid: <strong>${fmtNok(totalNok)}</strong></span>
+                <span>Effective rate: <strong>${effectiveRate}</strong> NOK/JPY</span>
             </div>
-            <div style="display:flex;justify-content:flex-end;gap:.5rem">
+            <div class="po-actions">
                 <button class="btn" onclick="closePoModal()">Back to edit</button>
                 <button class="btn btn-primary" id="btn-confirm-po" onclick="confirmSavePurchaseOrder()">
                     Confirm &amp; Save
@@ -1859,10 +1899,16 @@ async function confirmSavePurchaseOrder() {
                 })),
             }),
         });
+        if (result.auto_update_shopify) {
+            toast(`PO #${result.id} saved — Shopify inventory updated`, 'success');
+        } else {
+            toast(`PO #${result.id} saved — update Shopify inventory manually`, 'success');
+        }
+        // Show the saved PO detail (includes Shopify links)
         closePoModal();
-        toast(`PO #${result.id} saved — inventory updated`, 'success');
         clearPoForm();
         loadPurchaseOrders();
+        viewPurchaseOrder(result.id);
     } catch (e) {
         toast(`Failed to save PO: ${e.message}`, 'error');
     } finally {
@@ -1879,75 +1925,72 @@ async function viewPurchaseOrder(poId) {
         const body = document.getElementById('po-modal-body');
         if (!modal || !body) return;
 
-        const totalItemJpy = (po.items || []).reduce((s, i) => s + (i.price_jpy * i.quantity), 0);
-        const totalQty = (po.items || []).reduce((s, i) => s + i.quantity, 0);
-        const totalWeight = (po.items || []).reduce((s, i) => s + (i.weight_grams || 0) * i.quantity, 0);
-        const useWeight = totalWeight > 0;
+        const { rows, totalItemJpy, totalWeight, totalQty, grandTotalJpy } =
+            _poCalcRows(po.items || [], po.shipping_cost_jpy, po.total_nok);
 
-        const rows = (po.items || []).map(i => {
-            const lineJpy = i.price_jpy * i.quantity;
-            const lineWeight = (i.weight_grams || 0) * i.quantity;
-            let shippingShare;
-            if (useWeight) {
-                shippingShare = totalWeight > 0 ? (lineWeight / totalWeight) * po.shipping_cost_jpy : 0;
-            } else {
-                shippingShare = totalQty > 0 ? (i.quantity / totalQty) * po.shipping_cost_jpy : 0;
-            }
-            const lineTotalJpy = lineJpy + shippingShare;
-            const grandTotalJpy = totalItemJpy + po.shipping_cost_jpy;
-            const lineNok = grandTotalJpy > 0 ? (lineTotalJpy / grandTotalJpy) * po.total_nok : 0;
-            return { ...i, lineJpy, lineWeight, shippingShare, lineTotalJpy, lineNok };
-        });
+        const effectiveRate = grandTotalJpy > 0 ? (po.total_nok / grandTotalJpy).toFixed(4) : '—';
+        const storeName = po.store_name;
+        const shopifyUrl = sid => storeName ? `https://admin.shopify.com/store/${storeName}/products/${sid}` : null;
 
         body.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
                 <h3 style="margin:0">Purchase Order #${po.id}
                     <span class="badge ${po.status === 'completed' ? 'badge-success' : 'badge-neutral'}">${po.status}</span>
                 </h3>
             </div>
-            <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem">
-                <div><span class="muted">Date:</span> ${fmtDate(po.order_date)}</div>
-                <div><span class="muted">FX Rate:</span> ${po.fx_rate_snapshot ? po.fx_rate_snapshot.toFixed(4) : '—'}</div>
-                <div><span class="muted">Shipping:</span> &yen;${fmt(po.shipping_cost_jpy, 0)}</div>
-                <div><span class="muted">Total NOK:</span> <strong>${fmtNok(po.total_nok)}</strong></div>
-                ${po.notes ? `<div><span class="muted">Notes:</span> ${po.notes}</div>` : ''}
+            <div class="po-meta-grid">
+                <div class="po-meta-item"><span class="po-meta-label">Date</span><span>${fmtDate(po.order_date)}</span></div>
+                <div class="po-meta-item"><span class="po-meta-label">FX Rate</span><span>${po.fx_rate_snapshot ? po.fx_rate_snapshot.toFixed(4) : '—'}</span></div>
+                <div class="po-meta-item"><span class="po-meta-label">Shipping</span><span>&yen;${fmt(po.shipping_cost_jpy, 0)}</span></div>
+                <div class="po-meta-item"><span class="po-meta-label">Total paid</span><span><strong>${fmtNok(po.total_nok)}</strong></span></div>
+                ${po.notes ? `<div class="po-meta-item" style="grid-column:1/-1"><span class="po-meta-label">Notes</span><span>${po.notes}</span></div>` : ''}
             </div>
-            <table class="data-table">
+
+            <div class="po-table-wrap">
+            <table class="data-table po-detail-table">
                 <thead><tr>
-                    <th>Product</th><th>Variant</th><th>SKU</th><th>Qty</th><th>Weight</th>
-                    <th>Item JPY</th><th>+ Shipping</th><th>Total JPY</th><th>NOK</th>
+                    <th>Product / Variant</th><th class="r">Qty</th><th class="r">Weight</th>
+                    <th class="r">Unit JPY</th><th class="r">Line JPY</th><th class="r">+ Ship</th>
+                    <th class="r">Total JPY</th><th class="r">Unit NOK</th><th class="r">Line NOK</th>
+                    ${storeName ? '<th>Shopify</th>' : ''}
                 </tr></thead>
                 <tbody>
-                    ${rows.map(r => `
+                    ${rows.map(r => {
+                        const url = r.product_shopify_id ? shopifyUrl(r.product_shopify_id) : null;
+                        return `
                         <tr>
-                            <td>${r.product_title || '—'}</td>
-                            <td>${r.variant_title || '—'}</td>
-                            <td class="mono muted">${r.sku || '—'}</td>
-                            <td class="mono">${r.quantity}</td>
-                            <td class="mono muted">${r.lineWeight ? fmt(r.lineWeight, 0) + 'g' : '—'}</td>
-                            <td class="mono">&yen;${fmt(r.lineJpy, 0)}</td>
-                            <td class="mono muted">&yen;${fmt(r.shippingShare, 0)}</td>
-                            <td class="mono">&yen;${fmt(r.lineTotalJpy, 0)}</td>
-                            <td class="mono"><strong>${fmtNok(r.lineNok)}</strong></td>
-                        </tr>
-                    `).join('')}
+                            <td><strong>${r.product_title || '—'}</strong><br><span class="muted" style="font-size:.75rem">${r.variant_title || '—'}${r.sku ? ' &middot; ' + r.sku : ''}</span></td>
+                            <td class="mono r">${r.quantity}</td>
+                            <td class="mono r muted">${r.lineWeight ? fmt(r.lineWeight, 0) + 'g' : '—'}</td>
+                            <td class="mono r">&yen;${fmt(r.price_jpy, 0)}</td>
+                            <td class="mono r">&yen;${fmt(r.lineJpy, 0)}</td>
+                            <td class="mono r muted">&yen;${fmt(r.shippingShare, 0)}</td>
+                            <td class="mono r">&yen;${fmt(r.lineTotalJpy, 0)}</td>
+                            <td class="mono r">${fmtNok(r.unitNok)}</td>
+                            <td class="mono r"><strong>${fmtNok(r.lineNok)}</strong></td>
+                            ${storeName ? `<td>${url ? `<a href="${url}" target="_blank" class="btn btn-xs" title="Open in Shopify admin">Edit</a>` : '—'}</td>` : ''}
+                        </tr>`;
+                    }).join('')}
                 </tbody>
-                <tfoot><tr>
-                    <td colspan="3" style="text-align:right"><strong>Totals</strong></td>
-                    <td class="mono"><strong>${totalQty}</strong></td>
-                    <td class="mono muted">${totalWeight ? fmt(totalWeight, 0) + 'g' : '—'}</td>
-                    <td class="mono"><strong>&yen;${fmt(totalItemJpy, 0)}</strong></td>
-                    <td class="mono muted">&yen;${fmt(po.shipping_cost_jpy, 0)}</td>
-                    <td class="mono"><strong>&yen;${fmt(totalItemJpy + po.shipping_cost_jpy, 0)}</strong></td>
-                    <td class="mono"><strong>${fmtNok(po.total_nok)}</strong></td>
+                <tfoot><tr class="po-totals-row">
+                    <td><strong>Totals</strong></td>
+                    <td class="mono r"><strong>${totalQty}</strong></td>
+                    <td class="mono r muted">${totalWeight ? fmt(totalWeight, 0) + 'g' : ''}</td>
+                    <td class="r"></td>
+                    <td class="mono r"><strong>&yen;${fmt(totalItemJpy, 0)}</strong></td>
+                    <td class="mono r muted">&yen;${fmt(po.shipping_cost_jpy, 0)}</td>
+                    <td class="mono r"><strong>&yen;${fmt(grandTotalJpy, 0)}</strong></td>
+                    <td class="r"></td>
+                    <td class="mono r"><strong>${fmtNok(po.total_nok)}</strong></td>
+                    ${storeName ? '<td></td>' : ''}
                 </tr></tfoot>
             </table>
-            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
-                <div style="display:flex;gap:2rem;flex-wrap:wrap">
-                    <div><span class="muted">Effective rate:</span> <strong>${(totalItemJpy + po.shipping_cost_jpy) > 0
-                        ? (po.total_nok / (totalItemJpy + po.shipping_cost_jpy)).toFixed(4)
-                        : '—'}</strong> NOK/JPY</div>
-                    <div><span class="muted">Total paid:</span> <strong>${fmtNok(po.total_nok)}</strong></div>
+            </div>
+
+            <div class="po-footer">
+                <div class="po-summary-bar">
+                    <span>Total paid: <strong>${fmtNok(po.total_nok)}</strong></span>
+                    <span>Effective rate: <strong>${effectiveRate}</strong> NOK/JPY</span>
                 </div>
             </div>`;
         modal.classList.add('open');

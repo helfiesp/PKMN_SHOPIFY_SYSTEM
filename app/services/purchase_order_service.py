@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import requests
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import PurchaseOrder, PurchaseOrderItem, Variant, AuditLog
+from app.models import PurchaseOrder, PurchaseOrderItem, Variant, AuditLog, Setting
 from app.config import settings
 
 
@@ -93,6 +93,11 @@ class PurchaseOrderService:
     # CRUD
     # ------------------------------------------------------------------
 
+    def _is_auto_update_enabled(self, db: Session) -> bool:
+        """Check if automatic Shopify inventory update is enabled."""
+        setting = db.query(Setting).filter(Setting.key == "auto_update_shopify_inventory").first()
+        return setting is not None and setting.value == "true"
+
     async def create_purchase_order(
         self,
         db: Session,
@@ -102,7 +107,7 @@ class PurchaseOrderService:
         notes: Optional[str],
         items: List[dict],
     ) -> dict:
-        """Create PO, update Shopify inventory, return result."""
+        """Create PO, optionally update Shopify inventory, return result."""
         # 1. Validate variants
         variant_map: dict[int, Variant] = {}
         for item in items:
@@ -119,7 +124,10 @@ class PurchaseOrderService:
         # 2. Snapshot FX rate
         fx_rate = self.fetch_jpy_to_nok_rate()
 
-        # 3. Create PO
+        # 3. Check auto-update setting
+        auto_update = self._is_auto_update_enabled(db)
+
+        # 4. Create PO
         po = PurchaseOrder(
             order_date=order_date or datetime.now(timezone.utc),
             shipping_cost_jpy=shipping_cost_jpy,
@@ -131,7 +139,7 @@ class PurchaseOrderService:
         db.add(po)
         db.flush()
 
-        # 4. Create line items
+        # 5. Create line items
         po_items: list[PurchaseOrderItem] = []
         for item in items:
             variant = variant_map[item["variant_id"]]
@@ -145,31 +153,44 @@ class PurchaseOrderService:
                 product_title=product.title if product else None,
                 variant_title=variant.title,
                 sku=variant.sku,
+                product_shopify_id=product.shopify_id if product else None,
             )
             po_items.append(po_item)
             db.add(po_item)
         db.flush()
 
-        # 5. Update Shopify inventory
+        # 6. Update Shopify inventory (only if auto-update enabled)
         inventory_results = []
         for item_data, po_item in zip(items, po_items):
             variant = variant_map[item_data["variant_id"]]
             old_qty = variant.inventory_quantity or 0
             new_qty = old_qty + item_data["quantity"]
 
-            result = self._update_shopify_inventory(variant, new_qty)
-            if result["success"]:
+            if auto_update:
+                result = self._update_shopify_inventory(variant, new_qty)
+                if result["success"]:
+                    variant.inventory_quantity = new_qty
+                    variant.updated_at = datetime.now(timezone.utc)
+                inventory_results.append({
+                    "variant_id": variant.id,
+                    "old_qty": old_qty,
+                    "new_qty": new_qty,
+                    "success": result["success"],
+                    "error": result.get("error"),
+                })
+            else:
+                # Update local DB only
                 variant.inventory_quantity = new_qty
                 variant.updated_at = datetime.now(timezone.utc)
-            inventory_results.append({
-                "variant_id": variant.id,
-                "old_qty": old_qty,
-                "new_qty": new_qty,
-                "success": result["success"],
-                "error": result.get("error"),
-            })
+                inventory_results.append({
+                    "variant_id": variant.id,
+                    "old_qty": old_qty,
+                    "new_qty": new_qty,
+                    "success": True,
+                    "shopify_skipped": True,
+                })
 
-        # 6. Audit log
+        # 7. Audit log
         db.add(AuditLog(
             operation="purchase_order_created",
             entity_type="purchase_order",
@@ -179,6 +200,7 @@ class PurchaseOrderService:
                 "shipping_jpy": shipping_cost_jpy,
                 "item_count": len(po_items),
                 "total_quantity": sum(i["quantity"] for i in items),
+                "auto_update_shopify": auto_update,
                 "inventory_results": inventory_results,
             },
             success=all(r["success"] for r in inventory_results),
@@ -190,6 +212,7 @@ class PurchaseOrderService:
         return {
             "purchase_order": po,
             "inventory_results": inventory_results,
+            "auto_update_shopify": auto_update,
         }
 
     def get_purchase_orders(

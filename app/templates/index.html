@@ -381,6 +381,21 @@
                     </p>
                 </div>
 
+                <!-- Purchase Orders settings -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header"><h3>Purchase Orders</h3></div>
+                    <div class="setting-toggle-row">
+                        <div class="setting-toggle-info">
+                            <strong>Auto-update Shopify inventory</strong>
+                            <span class="muted">When enabled, saving a purchase order will automatically update inventory quantities on Shopify via the API. When disabled, you will be given links to update inventory manually in the Shopify admin.</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggle-auto-shopify" onchange="toggleAutoShopifyUpdate(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
                 <!-- Settings list -->
                 <div class="card">
                     <div class="card-header"><h3>Configuration</h3></div>

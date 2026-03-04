@@ -444,6 +444,7 @@ class PurchaseOrderItemResponse(BaseModel):
     product_title: Optional[str] = None
     variant_title: Optional[str] = None
     sku: Optional[str] = None
+    product_shopify_id: Optional[str] = None
     created_at: datetime
 
     class Config:

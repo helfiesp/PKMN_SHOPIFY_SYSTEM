@@ -1746,3 +1746,105 @@ input[type="checkbox"] {
     background: var(--danger);
     color: #fff;
 }
+
+/* ── PO Detail / Preview ────────────────────────────────────────────────── */
+.po-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: .5rem .75rem;
+    margin-bottom: 1rem;
+    padding: .75rem 1rem;
+    background: var(--bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+.po-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: .125rem;
+}
+.po-meta-label {
+    font-size: .6875rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    font-weight: 600;
+}
+.po-table-wrap {
+    overflow-x: auto;
+    margin: 0 -1.5rem;
+    padding: 0 1.5rem;
+}
+.po-detail-table th.r,
+.po-detail-table td.r { text-align: right; }
+.po-detail-table tbody td { padding-top: .5rem; padding-bottom: .5rem; }
+.po-totals-row td {
+    border-top: 2px solid var(--border);
+    padding-top: .625rem !important;
+}
+.po-footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+.po-summary-bar {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    font-size: .875rem;
+    margin-bottom: .75rem;
+}
+.po-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+}
+
+/* Settings toggle row */
+.setting-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+.setting-toggle-row:last-child { border-bottom: none; }
+.setting-toggle-info { flex: 1; }
+.setting-toggle-info strong { display: block; font-size: .875rem; }
+.setting-toggle-info .muted { font-size: .75rem; }
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background .2s;
+}
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .2s;
+}
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--primary);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}

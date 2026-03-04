@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.config import settings as app_settings
 from app.schemas import (
     PurchaseOrderCreate,
     PurchaseOrderResponse,
@@ -25,8 +26,17 @@ def _serialize_item(i):
         "product_title": i.product_title,
         "variant_title": i.variant_title,
         "sku": i.sku,
+        "product_shopify_id": i.product_shopify_id,
         "created_at": i.created_at,
     }
+
+
+def _get_store_name():
+    """Extract store name from Shopify shop domain for admin URLs."""
+    shop = app_settings.get_shopify_shop()
+    if shop:
+        return shop.replace(".myshopify.com", "")
+    return None
 
 
 def _serialize_po(po, extras=None):
@@ -44,6 +54,7 @@ def _serialize_po(po, extras=None):
         "total_items": len(po.items),
         "total_quantity": sum(i.quantity for i in po.items),
         "total_jpy": sum(i.price_jpy * i.quantity for i in po.items),
+        "store_name": _get_store_name(),
     }
     if extras:
         data.update(extras)
@@ -67,7 +78,10 @@ async def create_purchase_order(
         )
         return _serialize_po(
             result["purchase_order"],
-            {"inventory_results": result["inventory_results"]},
+            {
+                "inventory_results": result["inventory_results"],
+                "auto_update_shopify": result.get("auto_update_shopify", False),
+            },
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
