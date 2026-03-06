@@ -96,9 +96,10 @@ class ShopifyService:
                         inventoryQuantity
                         availableForSale
                         sku
-                        weight
-                        weightUnit
-                        inventoryItem { id }
+                        inventoryItem {
+                          id
+                          measurement { weight { unit value } }
+                        }
                       }
                     }
                   }
@@ -189,11 +190,13 @@ class ShopifyService:
                     Variant.shopify_id == var_data["id"]
                 ).first()
                 
-                inventory_item_id = var_data.get("inventoryItem", {}).get("id") if var_data.get("inventoryItem") else None
+                inventory_item = var_data.get("inventoryItem") or {}
+                inventory_item_id = inventory_item.get("id")
 
-                # Normalize weight to grams
-                raw_weight = var_data.get("weight")
-                weight_unit = (var_data.get("weightUnit") or "").upper()
+                # Normalize weight to grams (weight moved to inventoryItem.measurement in 2024-07+)
+                _weight_node = (inventory_item.get("measurement") or {}).get("weight") or {}
+                raw_weight = _weight_node.get("value")
+                weight_unit = (_weight_node.get("unit") or "").upper()
                 weight_grams = None
                 if raw_weight is not None:
                     w = float(raw_weight)
