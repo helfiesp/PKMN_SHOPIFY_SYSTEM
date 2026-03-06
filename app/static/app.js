@@ -1453,6 +1453,10 @@ function renderProductDetail(p) {
     const displayVariants = boxVariants.length ? boxVariants : variants;
     const refVariant      = displayVariants[0];
 
+    // Stock for the reference (box) variant
+    const refQty = refVariant ? (refVariant.inventory_quantity ?? 0) : 0;
+    const stockSc = refQty <= 0 ? 'pdd-qty-zero' : refQty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
+
     // Margin calculation
     let marginPct = null;
     if (cost && refVariant?.price) {
@@ -1461,6 +1465,17 @@ function renderProductDetail(p) {
     const marginBadge = marginPct != null
         ? `<span class="badge ${marginPct < 10 ? 'badge-danger' : marginPct < 20 ? 'badge-warning' : 'badge-success'}">${marginPct.toFixed(0)}% margin</span>`
         : '';
+
+    // Stock date
+    const sdRaw = p.stock_date || null;
+    let stockDateHtml = '—';
+    if (sdRaw) {
+        const sdDt = new Date(sdRaw + 'T00:00:00');
+        const sdFmt = sdDt.toLocaleDateString('nb-NO', {day:'2-digit', month:'2-digit', year:'numeric'});
+        const daysUntil = Math.round((sdDt - new Date().setHours(0,0,0,0)) / 86400000);
+        const sdClass = daysUntil <= 0 ? 'text-danger' : daysUntil <= 7 ? 'text-warning' : '';
+        stockDateHtml = `<span class="${sdClass}" title="${daysUntil <= 0 ? 'Arrived/expired' : daysUntil + ' days'}">${sdFmt}</span>`;
+    }
 
     // Key metrics row
     const metricsHtml = `
@@ -1498,11 +1513,11 @@ function renderProductDetail(p) {
             <span class="pdd-metric-value mono ${snkRec && refVariant?.price && Math.abs(refVariant.price - snkRec) > 50 ? 'text-warning' : ''}">${snkRec ? fmtNok(snkRec) : '—'}</span>
             <span class="pdd-metric-label">SNK RRP</span>
         </div>
+        <div class="pdd-metric">
+            <span class="pdd-metric-value">${stockDateHtml}</span>
+            <span class="pdd-metric-label">Stock date</span>
+        </div>
     </div>`;
-
-    // Stock for the reference (box) variant
-    const refQty = refVariant ? (refVariant.inventory_quantity ?? 0) : 0;
-    const stockSc = refQty <= 0 ? 'pdd-qty-zero' : refQty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
 
     // Find cheapest competitor — in-stock takes priority, fallback to any priced
     const inStockLinks    = links.filter(l => l.mi_in_stock === true && l.mi_price != null);

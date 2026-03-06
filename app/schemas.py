@@ -52,6 +52,7 @@ class ProductCreate(ProductBase):
 class ProductResponse(ProductBase):
     id: int
     shopify_id: str
+    stock_date: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     last_synced_at: Optional[datetime] = None
