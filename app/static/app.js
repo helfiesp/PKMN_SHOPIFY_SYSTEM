@@ -1360,76 +1360,74 @@ function renderProducts() {
         return;
     }
 
-    // Build split panel on first render only
-    if (!document.getElementById('prod-list-panel')) {
+    // Build grid + detail layout on first render
+    if (!document.getElementById('prod-card-grid')) {
         el.innerHTML = `
-        <div class="prod-layout">
-            <div class="prod-list-panel" id="prod-list-panel"></div>
-            <div class="prod-detail-panel" id="prod-detail-panel">
-                <div class="prod-no-selection">← Select a product</div>
-            </div>
+        <div class="prod-grid-layout">
+            <div class="prod-card-grid" id="prod-card-grid"></div>
+            <div class="prod-detail-panel prod-detail-panel--side" id="prod-detail-panel" style="display:none"></div>
         </div>`;
     }
 
-    const listPanel = document.getElementById('prod-list-panel');
-    listPanel.innerHTML = products.map(p => renderProductListItem(p)).join('');
+    const grid = document.getElementById('prod-card-grid');
+    grid.innerHTML = products.map(p => renderProductCard(p)).join('');
 
-    // Select first product if nothing selected, or restore selection
-    const toSelect = (selectedProductId && shopifyProducts.find(p => p.shopify_id === selectedProductId))
-        ? selectedProductId
-        : products[0]?.shopify_id;
-    if (toSelect) selectProduct(toSelect);
+    // Restore selection
+    if (selectedProductId && shopifyProducts.find(p => p.shopify_id === selectedProductId)) {
+        selectProduct(selectedProductId);
+    }
 }
 
-// ── Product list item (left panel) ───────────────────────────────────────────
+// ── Product card (grid) ───────────────────────────────────────────────────────
 
-function renderProductListItem(p) {
+function renderProductCard(p) {
     const variants   = p.variants || [];
     const links      = productCompLinks[p.shopify_id] || [];
     const snkMapped  = !!snkrdunkMappings.find(m => m.product_shopify_id === p.shopify_id && !m.disabled);
     const cost       = productCostHistory[p.shopify_id];
 
-    // Use box variants only (consistent with detail panel)
-    const boxV = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
-    const dispV = boxV.length ? boxV : variants;
+    const boxV   = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+    const dispV  = boxV.length ? boxV : variants;
 
     const totalStock = dispV.reduce((s, v) => s + (v.inventory_quantity ?? 0), 0);
     const minStock   = dispV.length ? Math.min(...dispV.map(v => v.inventory_quantity ?? 0)) : 0;
     const boxPrice   = dispV[0]?.price;
-    const priceLabel = boxPrice ? fmtNok(boxPrice) : '';
 
     const stockStatus = minStock <= 0 ? 'out' : minStock <= 5 ? 'critical' : minStock <= 10 ? 'low' : 'ok';
-    const stockLabel  = minStock <= 0 ? 'OOS'
-        : minStock <= 5  ? `${totalStock} · Low!`
-        : minStock <= 10 ? `${totalStock} · Low`
-        : String(totalStock);
+    const stockLabel  = minStock <= 0 ? 'OOS' : minStock <= 5 ? `${totalStock} Low!` : minStock <= 10 ? `${totalStock} Low` : String(totalStock);
 
-    // Are we cheapest among in-stock competitors?
-    const inStockPrices = links.filter(l => l.mi_in_stock === true && l.mi_price != null).map(l => l.mi_price);
+    const inStockPrices = links.filter(l => l.mi_in_stock === true && l.mi_price != null).map(l => +l.mi_price);
     const isCheapest = boxPrice && inStockPrices.length && boxPrice <= Math.min(...inStockPrices);
 
-    // Margin indicator
     let marginClass = '';
     if (cost && boxPrice) {
-        const margin = ((boxPrice - cost.last_unit_nok) / boxPrice) * 100;
-        marginClass = margin < 10 ? 'pli-margin-low' : margin >= 25 ? 'pli-margin-good' : '';
+        const m = ((boxPrice - cost.last_unit_nok) / boxPrice) * 100;
+        marginClass = m < 10 ? 'pcard-margin-low' : m >= 25 ? 'pcard-margin-good' : '';
     }
 
     const isSelected = p.shopify_id === selectedProductId;
+    const imgSrc = p.image_url || '';
 
     return `
-    <div class="pli-row pli-${stockStatus}${isSelected ? ' selected' : ''} ${marginClass}"
+    <div class="pcard ${stockStatus === 'out' ? 'pcard-oos' : ''} ${marginClass} ${isSelected ? 'pcard-selected' : ''}"
          data-id="${p.shopify_id}" onclick="selectProduct('${p.shopify_id}')">
-        <div class="pli-body">
-            <span class="pli-name">${p.title}</span>
-            <span class="pli-price">${priceLabel}</span>
+        <div class="pcard-img-wrap">
+            ${imgSrc
+                ? `<img class="pcard-img" src="${imgSrc}" alt="${esc(p.title)}" loading="lazy">`
+                : `<div class="pcard-img-placeholder">?</div>`}
+            <span class="pcard-stock pcard-stock-${stockStatus}">${stockLabel}</span>
+            ${isCheapest ? '<span class="pcard-cheapest-badge" title="We are cheapest">★</span>' : ''}
         </div>
-        <div class="pli-meta">
-            <span class="pli-stock pli-stock-${stockStatus}">${stockLabel}</span>
-            ${cost ? `<span class="pli-dot pli-dot-cost" title="Last cost: ${fmtNok(cost.last_unit_nok)}">C</span>` : ''}
-            ${isCheapest ? '<span class="pli-dot pli-dot-cheapest" title="Our price is the lowest in-stock">★</span>' : ''}
-            ${snkMapped ? '<span class="pli-dot pli-dot-snk">S</span>' : ''}
-            ${links.length ? `<span class="pli-dot pli-dot-comp">${links.length}</span>` : ''}
+        <div class="pcard-body">
+            <div class="pcard-title">${p.title}</div>
+            <div class="pcard-footer">
+                <span class="pcard-price">${boxPrice ? fmtNok(boxPrice) : '—'}</span>
+                <div class="pcard-dots">
+                    ${links.length ? `<span class="pli-dot pli-dot-comp" title="${links.length} competitors">${links.length}</span>` : ''}
+                    ${snkMapped ? '<span class="pli-dot pli-dot-snk" title="SNKRDUNK mapped">S</span>' : ''}
+                    ${cost ? `<span class="pli-dot pli-dot-cost" title="Cost data">C</span>` : ''}
+                </div>
+            </div>
         </div>
     </div>`;
 }
@@ -1609,23 +1607,25 @@ function renderProductDetail(p) {
 
 function selectProduct(shopifyId) {
     selectedProductId = shopifyId;
-    document.querySelectorAll('.pli-row').forEach(el => {
-        el.classList.toggle('selected', el.dataset.id === shopifyId);
+    document.querySelectorAll('.pcard').forEach(el => {
+        el.classList.toggle('pcard-selected', el.dataset.id === shopifyId);
     });
     const panel   = document.getElementById('prod-detail-panel');
     const product = shopifyProducts.find(p => p.shopify_id === shopifyId);
-    if (panel) panel.innerHTML = renderProductDetail(product);
+    if (panel) {
+        panel.style.display = 'flex';
+        panel.innerHTML = renderProductDetail(product);
+    }
 }
 
 function _refreshSelectedProduct() {
     if (!selectedProductId) return;
-    const product  = shopifyProducts.find(p => p.shopify_id === selectedProductId);
-    const listItem = document.querySelector(`.pli-row[data-id="${selectedProductId}"]`);
-    if (listItem && product) {
+    const product = shopifyProducts.find(p => p.shopify_id === selectedProductId);
+    const card    = document.querySelector(`.pcard[data-id="${selectedProductId}"]`);
+    if (card && product) {
         const tmp = document.createElement('div');
-        tmp.innerHTML = renderProductListItem(product);
-        const newItem = tmp.firstElementChild;
-        listItem.replaceWith(newItem);
+        tmp.innerHTML = renderProductCard(product);
+        card.replaceWith(tmp.firstElementChild);
     }
     const panel = document.getElementById('prod-detail-panel');
     if (panel) panel.innerHTML = renderProductDetail(product);

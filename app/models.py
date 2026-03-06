@@ -20,6 +20,7 @@ class Product(Base):
     collection_id = Column(String(255), index=True)
     is_preorder = Column(Boolean, default=False)
     stock_date = Column(String(20), nullable=True)  # custom.stock_date metafield (YYYY-MM-DD)
+    image_url = Column(String(1000), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

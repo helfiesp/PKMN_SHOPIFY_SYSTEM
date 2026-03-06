@@ -127,7 +127,6 @@ def refresh_prices(db: Session = Depends(get_db)):
 
     updated = 0
     errors = 0
-    error_details = []
     now = datetime.now(timezone.utc)
 
     for link in links:
@@ -143,9 +142,8 @@ def refresh_prices(db: Session = Depends(get_db)):
             else:
                 link.mi_updated_at = now
             updated += 1
-        except Exception as e:
+        except Exception:
             errors += 1
-            error_details.append({"mi_product_id": link.mi_product_id, "error": str(e)})
 
     db.commit()
-    return {"updated": updated, "errors": errors, "total_links": len(links), "error_details": error_details}
+    return {"updated": updated, "errors": errors, "total_links": len(links)}
