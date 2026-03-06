@@ -127,6 +127,7 @@ function loadTab(tab) {
     else if (tab === 'competitor-intel')loadCompetitorIntel();
     else if (tab === 'price-plans')     loadPricePlans();
     else if (tab === 'purchase-orders') loadPurchaseOrders();
+    else if (tab === 'stock-dates')     loadStockDates();
     else if (tab === 'settings')        loadSettings();
 }
 
@@ -932,6 +933,140 @@ async function viewPlan(planId) {
 
 function closeModal() {
     document.getElementById('plan-modal')?.classList.remove('open');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STOCK DATES
+// ─────────────────────────────────────────────────────────────────────────────
+let _sdItems = [];
+let _sdEditProductId = null;
+let _sdEditMetafieldId = null;
+
+async function loadStockDates() {
+    document.getElementById('sd-table-wrap').innerHTML = '<div class="loading-spinner">Loading…</div>';
+    try {
+        _sdItems = await api('/stock-dates');
+        renderStockDates();
+    } catch (e) {
+        document.getElementById('sd-table-wrap').innerHTML = `<p class="error">Failed to load: ${e.message}</p>`;
+    }
+}
+
+function renderStockDates() {
+    const wrap = document.getElementById('sd-table-wrap');
+    const count = document.getElementById('sd-count');
+    if (count) count.textContent = `${_sdItems.length} product${_sdItems.length !== 1 ? 's' : ''}`;
+
+    if (_sdItems.length === 0) {
+        wrap.innerHTML = '<p class="muted">No products have a stock date set.</p>';
+        return;
+    }
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
+    wrap.innerHTML = `
+        <table class="data-table">
+            <thead><tr>
+                <th>Product</th>
+                <th>Stock date</th>
+                <th>Days until</th>
+                <th>Status</th>
+                <th></th>
+            </tr></thead>
+            <tbody>
+                ${_sdItems.map(item => {
+                    const dt = item.stock_date ? new Date(item.stock_date + 'T00:00:00') : null;
+                    const fmtDate = dt ? dt.toLocaleDateString('nb-NO', {day:'2-digit', month:'2-digit', year:'numeric'}) : '—';
+                    const days = item.days_until;
+                    let badge, rowClass = '';
+                    if (item.is_expired || days === 0) {
+                        badge = '<span class="badge badge-danger">Due today / expired</span>';
+                        rowClass = 'stock-out';
+                    } else if (days !== null && days <= 3) {
+                        badge = `<span class="badge badge-warning">In ${days} day${days !== 1 ? 's' : ''}</span>`;
+                        rowClass = 'stock-low';
+                    } else if (days !== null) {
+                        badge = `<span class="badge badge-info">${days} days</span>`;
+                    } else {
+                        badge = '<span class="badge">Unknown</span>';
+                    }
+                    return `<tr class="${rowClass}">
+                        <td>${item.title}</td>
+                        <td class="mono">${fmtDate}</td>
+                        <td class="text-center">${days !== null ? days : '—'}</td>
+                        <td>${badge}</td>
+                        <td><button class="btn btn-sm" onclick="openSdModal('${item.product_id}','${item.metafield_id}','${item.title}','${item.stock_date}')">Edit</button></td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+}
+
+function openSdModal(productId, metafieldId, title, currentDate) {
+    _sdEditProductId = productId;
+    _sdEditMetafieldId = metafieldId;
+    document.getElementById('sd-modal-title').textContent = 'Edit Stock Date';
+    document.getElementById('sd-modal-product').textContent = title;
+    document.getElementById('sd-modal-date').value = currentDate || '';
+    document.getElementById('sd-modal').style.display = 'flex';
+}
+
+function closeSdModal() {
+    document.getElementById('sd-modal').style.display = 'none';
+    _sdEditProductId = null;
+    _sdEditMetafieldId = null;
+}
+
+function sdAdjustDays(delta) {
+    const input = document.getElementById('sd-modal-date');
+    const base = input.value ? new Date(input.value + 'T00:00:00') : new Date();
+    base.setDate(base.getDate() + delta);
+    input.value = base.toISOString().slice(0, 10);
+}
+
+async function sdSaveDate() {
+    const newDate = document.getElementById('sd-modal-date').value;
+    if (!newDate) { showToast('Pick a date first', 'error'); return; }
+    if (!_sdEditProductId) return;
+    try {
+        await api(`/stock-dates/${_sdEditProductId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ stock_date: newDate }),
+        });
+        showToast('Stock date updated', 'success');
+        closeSdModal();
+        loadStockDates();
+    } catch (e) {
+        showToast(`Failed: ${e.message}`, 'error');
+    }
+}
+
+async function sdClearDate() {
+    if (!_sdEditProductId) return;
+    if (!confirm('Clear stock date for this product?')) return;
+    try {
+        await api(`/stock-dates/${_sdEditProductId}`, { method: 'DELETE' });
+        showToast('Stock date cleared', 'success');
+        closeSdModal();
+        loadStockDates();
+    } catch (e) {
+        showToast(`Failed: ${e.message}`, 'error');
+    }
+}
+
+async function clearExpiredStockDates() {
+    if (!confirm('Clear all expired stock dates now?')) return;
+    try {
+        const res = await api('/stock-dates/clear-expired', { method: 'POST' });
+        const msg = `Cleared ${res.cleared_count} date${res.cleared_count !== 1 ? 's' : ''}` +
+            (res.errors.length ? ` (${res.errors.length} error${res.errors.length !== 1 ? 's' : ''})` : '');
+        showToast(msg, res.errors.length ? 'warning' : 'success');
+        const el = document.getElementById('sd-last-cleared');
+        if (el) el.textContent = `Last cleared: ${new Date().toLocaleTimeString('nb-NO')}`;
+        loadStockDates();
+    } catch (e) {
+        showToast(`Failed: ${e.message}`, 'error');
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
