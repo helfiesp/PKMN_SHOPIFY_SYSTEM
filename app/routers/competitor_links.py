@@ -117,12 +117,17 @@ def refresh_prices(db: Session = Depends(get_db)):
 
     Returns a summary of how many links were updated.
     """
-    links = db.query(LocalCompetitorLink).all()
+    try:
+        links = db.query(LocalCompetitorLink).all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB query failed: {e}")
+
     if not links:
         return {"updated": 0, "errors": 0}
 
     updated = 0
     errors = 0
+    error_details = []
     now = datetime.now(timezone.utc)
 
     for link in links:
@@ -132,16 +137,15 @@ def refresh_prices(db: Session = Depends(get_db)):
             link.mi_in_stock   = p.get("in_stock")
             if p.get("source_url"):
                 link.mi_source_url = p["source_url"]
-            # Use MarketIntel's own updated_at (when they scraped it), fall back to now
             raw_ts = p.get("updated_at")
             if raw_ts:
-                from datetime import datetime, timezone
                 link.mi_updated_at = datetime.fromisoformat(raw_ts)
             else:
                 link.mi_updated_at = now
             updated += 1
-        except Exception:
+        except Exception as e:
             errors += 1
+            error_details.append({"mi_product_id": link.mi_product_id, "error": str(e)})
 
     db.commit()
-    return {"updated": updated, "errors": errors, "total_links": len(links)}
+    return {"updated": updated, "errors": errors, "total_links": len(links), "error_details": error_details}
