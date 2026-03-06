@@ -1410,6 +1410,7 @@ function renderProductCard(p) {
     const boxPrice   = dispV[0]?.price;
 
     const stockStatus = minStock <= 0 ? 'out' : minStock <= 5 ? 'critical' : minStock <= 10 ? 'low' : 'ok';
+    const stockLabel  = minStock <= 0 ? 'Out of stock' : minStock <= 5 ? `${totalStock} left` : `${totalStock} in stock`;
 
     // Competitive position vs in-stock competitors
     const inStockPrices = links.filter(l => l.mi_in_stock === true && l.mi_price != null).map(l => +l.mi_price);
@@ -1418,36 +1419,24 @@ function renderProductCard(p) {
     const isOverpriced  = boxPrice != null && cheapestComp != null && !isCheapest;
     const priceDelta    = isOverpriced ? Math.round(((boxPrice - cheapestComp) / cheapestComp) * 100) : null;
 
-    const compClass  = links.length === 0 ? '' : isCheapest ? 'pcard-comp-win' : 'pcard-comp-lose';
     const isSelected = p.shopify_id === selectedProductId;
     const imgSrc     = p.image_url || '';
 
-    // Stock bar (50 units = full bar)
-    const stockBarPct = minStock <= 0 ? 0 : Math.min(100, Math.round((totalStock / 50) * 100));
-    const stockBarClr = stockStatus === 'ok' ? 'var(--success)' : stockStatus === 'low' ? 'var(--warning)' : stockStatus === 'critical' ? 'var(--danger)' : '#6b7280';
-    const stockText   = minStock <= 0 ? 'Out of stock' : `${totalStock} unit${totalStock !== 1 ? 's' : ''}${stockStatus === 'critical' ? ' ⚠' : stockStatus === 'low' ? ' ↓' : ''}`;
-
     return `
-    <div class="pcard ${compClass} ${stockStatus === 'out' ? 'pcard-oos' : ''} ${isSelected ? 'pcard-selected' : ''}"
+    <div class="pcard ${stockStatus === 'out' ? 'pcard-oos' : ''} ${isSelected ? 'pcard-selected' : ''}"
          data-id="${p.shopify_id}" onclick="selectProduct('${p.shopify_id}')">
         <div class="pcard-img-wrap">
             ${imgSrc
                 ? `<img class="pcard-img" src="${imgSrc}" alt="${esc(p.title)}" loading="lazy">`
                 : `<div class="pcard-img-placeholder">?</div>`}
-            ${isCheapest  ? '<span class="pcard-comp-badge pcard-comp-badge-win">✓ Lowest</span>' : ''}
-            ${isOverpriced ? `<span class="pcard-comp-badge pcard-comp-badge-lose">+${priceDelta}% vs best</span>` : ''}
+            <span class="pcard-stock pcard-stock-${stockStatus}">${stockLabel}</span>
+            ${isCheapest ? '<span class="pcard-cheapest-badge" title="We have the lowest price">★</span>' : ''}
         </div>
         <div class="pcard-body">
             <div class="pcard-title">${p.title}</div>
-            <div class="pcard-price-row">
+            <div class="pcard-footer">
                 <span class="pcard-price ${isCheapest ? 'pcard-price-win' : isOverpriced ? 'pcard-price-lose' : ''}">${boxPrice ? fmtNok(boxPrice) : '—'}</span>
-                ${isOverpriced && cheapestComp ? `<span class="pcard-vs-price">Best: ${fmtNok(cheapestComp)}</span>` : ''}
-            </div>
-            <div class="pcard-stock-row">
-                <div class="pcard-stock-bar-track">
-                    <div class="pcard-stock-bar-fill" style="width:${stockBarPct}%;background:${stockBarClr}"></div>
-                </div>
-                <span class="pcard-stock-text pcard-stock-${stockStatus}">${stockText}</span>
+                ${isOverpriced && priceDelta ? `<span class="pcard-delta">+${priceDelta}%</span>` : ''}
             </div>
         </div>
     </div>`;
