@@ -1980,3 +1980,19 @@ input[type="checkbox"] {
 .toggle-switch input:checked + .toggle-slider::before {
     transform: translateX(20px);
 }
+
+
+/* Competitor data age pill */
+.comp-age {
+    display: inline-block;
+    font-size: .68rem;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    min-width: 2rem;
+    text-align: center;
+}
+.comp-age-fresh  { background: rgba(34,197,94,.15);  color: #16a34a; }
+.comp-age-warn   { background: rgba(234,179, 8,.15); color: #b45309; }
+.comp-age-stale  { background: rgba(239,68, 68,.15); color: #dc2626; }

@@ -1543,6 +1543,14 @@ function renderProductDetail(p) {
             const oos        = lnk.mi_in_stock === false;
             const isCheapest    = !weCheapest && cheapestLink && lnk.id === cheapestLink.id;
             const delta         = refVariant && lnk.mi_price != null ? deltaBadge(refVariant.price, lnk.mi_price, true) : '';
+            const ageHtml = (() => {
+                if (!lnk.mi_updated_at) return '<span class="comp-age comp-age-stale" title="Never updated">—</span>';
+                const hrs = (Date.now() - new Date(lnk.mi_updated_at).getTime()) / 3600000;
+                if (hrs < 1)   return `<span class="comp-age comp-age-fresh" title="${new Date(lnk.mi_updated_at).toLocaleString('nb-NO')}">${Math.round(hrs*60)}m</span>`;
+                if (hrs < 24)  return `<span class="comp-age comp-age-fresh" title="${new Date(lnk.mi_updated_at).toLocaleString('nb-NO')}">${Math.round(hrs)}h</span>`;
+                if (hrs < 48)  return `<span class="comp-age comp-age-warn" title="${new Date(lnk.mi_updated_at).toLocaleString('nb-NO')}">1d</span>`;
+                return `<span class="comp-age comp-age-stale" title="${new Date(lnk.mi_updated_at).toLocaleString('nb-NO')}">${Math.round(hrs/24)}d</span>`;
+            })();
             return `
             <div class="pdd-comp-row${isCheapest ? ' pdd-comp-cheapest' : ''}">
                 <span class="pdd-stock-dot ${inStock ? 'pdd-stock-in' : oos ? 'pdd-stock-oos' : 'pdd-stock-unknown'}"
@@ -1551,6 +1559,7 @@ function renderProductDetail(p) {
                 <span class="pdd-comp-price">${fmtNok(lnk.mi_price)}</span>
                 ${isCheapest ? '<span class="pdd-best-badge">Best</span>' : ''}
                 ${delta}
+                ${ageHtml}
                 <span class="pdd-comp-title">${lnk.mi_title || '—'}</span>
                 <div class="pdd-comp-btns">
                     ${lnk.mi_source_url ? `<a href="${lnk.mi_source_url}" target="_blank" class="btn btn-xs" title="Open listing">↗</a>` : ''}
