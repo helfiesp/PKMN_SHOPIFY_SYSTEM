@@ -488,6 +488,21 @@
                     </div>
                 </div>
 
+                <!-- Competitor search settings -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header"><h3>Competitor Search</h3></div>
+                    <div style="padding:.75rem 1.25rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+                        <label style="font-size:.8125rem;color:var(--text-secondary);white-space:nowrap">Min price (NOK)</label>
+                        <input type="number" id="comp-min-price-input" class="input-sm"
+                            style="width:100px" min="0" step="50" />
+                        <button class="btn btn-sm btn-primary" onclick="saveCompetitorMinPrice()">Save</button>
+                    </div>
+                    <p class="muted" style="padding:0 1.25rem .75rem;font-size:.8125rem">
+                        Competitor products below this price are hidden in search results and excluded from auto-matching.
+                        Filters out individual card singles when searching for booster boxes.
+                    </p>
+                </div>
+
                 <!-- Settings list -->
                 <div class="card">
                     <div class="card-header"><h3>Configuration</h3></div>

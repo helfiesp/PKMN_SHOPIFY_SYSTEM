@@ -22,6 +22,7 @@ let productSort          = 'name';
 let productLeaderFilter  = null;        // null | 'self' | '<domain>'
 let selectedProductId   = null;
 let hiddenProductIds    = new Set(JSON.parse(localStorage.getItem('hiddenProducts') || '[]'));
+let competitorMinPrice  = parseInt(localStorage.getItem('competitorMinPrice') || '600', 10);
 
 // Link-modal state
 let linkModalProductId  = null;
@@ -1103,6 +1104,9 @@ async function clearExpiredStockDates() {
 // ─────────────────────────────────────────────────────────────────────────────
 async function loadSettings() {
     showTabLoading('settings-list');
+    // Populate competitor min price from in-memory state
+    const minInput = document.getElementById('comp-min-price-input');
+    if (minInput) minInput.value = competitorMinPrice;
     try {
         const s = await api('/settings/?include_sensitive=false');
         renderSettings(s);
@@ -1115,6 +1119,15 @@ async function loadSettings() {
         const toggle = document.getElementById('toggle-auto-shopify');
         if (toggle) toggle.checked = dict['auto_update_shopify_inventory'] === 'true';
     } catch (_) { /* setting may not exist yet */ }
+}
+
+function saveCompetitorMinPrice() {
+    const input = document.getElementById('comp-min-price-input');
+    const val = parseInt(input?.value || '0', 10);
+    if (isNaN(val) || val < 0) { toast('Enter a valid price', 'error'); return; }
+    competitorMinPrice = val;
+    localStorage.setItem('competitorMinPrice', String(val));
+    toast(`Competitor min price set to kr ${val}`, 'success');
 }
 
 function renderSettings(settings) {
@@ -1234,6 +1247,63 @@ function titleScore(ourTitle, compTitle) {
     return hits / ours.size;
 }
 
+async function autoMatchProduct(shopifyId) {
+    const p = shopifyProducts.find(x => x.shopify_id === shopifyId);
+    if (!p) return;
+
+    const variants = p.variants || [];
+    const boxV  = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+    const dispV = boxV.length ? boxV : variants;
+    const ourPrice = dispV[0]?.price;
+    if (!ourPrice) { toast('No price on this product', 'error'); return; }
+
+    const btn = document.querySelector(`.btn-auto-match-single[data-id="${shopifyId}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Matching…'; }
+
+    try {
+        const candidates = await api(`/marketintel/competitor-products?search=${encodeURIComponent(p.title)}&limit=200`);
+        const good = candidates.filter(c => {
+            if (c.price == null || +c.price < competitorMinPrice) return false;
+            const tl = (c.title || '').toLowerCase();
+            if (tl.includes('koreansk') || tl.includes('korean')) return false;
+            const ratio = +c.price / +ourPrice;
+            if (ratio < 0.4 || ratio > 2.0) return false;
+            return titleScore(p.title, c.title || '') >= 0.5;
+        });
+
+        if (!good.length) { toast(`No matches found for "${p.title}"`, 'info'); return; }
+
+        let created = 0;
+        for (const m of good) {
+            try {
+                const link = await api('/competitor-links', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shopify_product_id: p.shopify_id,
+                        mi_product_id:  m.id,
+                        mi_domain:      m.competitor_domain,
+                        mi_title:       m.title,
+                        mi_price:       m.price,
+                        mi_in_stock:    m.in_stock,
+                        mi_source_url:  m.source_url,
+                    }),
+                });
+                (productCompLinks[p.shopify_id] ||= []).push(link);
+                created++;
+            } catch (e) {
+                if (!e.message.includes('409')) console.warn('Auto-link failed:', e.message);
+            }
+        }
+        toast(`Auto-matched "${p.title}" — ${created} link${created !== 1 ? 's' : ''} created`, created > 0 ? 'success' : 'info');
+        _refreshSelectedProduct();
+    } catch (e) {
+        toast(`Auto-match failed: ${e.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Auto-match'; }
+    }
+}
+
 async function autoMatchAll() {
     const unmatched = shopifyProducts.filter(p =>
         !hiddenProductIds.has(p.shopify_id) &&
@@ -1262,13 +1332,15 @@ async function autoMatchAll() {
         if (!ourPrice) { skipped++; continue; }
 
         try {
-            const candidates = await api(`/marketintel/competitor-products?search=${encodeURIComponent(p.title)}&limit=50`);
+            const candidates = await api(`/marketintel/competitor-products?search=${encodeURIComponent(p.title)}&limit=200`);
             const good = candidates.filter(c => {
                 if (c.price == null) return false;
+                // Minimum price threshold (filters out card singles etc.)
+                if (+c.price < competitorMinPrice) return false;
                 // Exclude Korean editions
                 const tl = (c.title || '').toLowerCase();
                 if (tl.includes('koreansk') || tl.includes('korean')) return false;
-                // Price: 40%–200% of ours (filters out single packs and wildly different items)
+                // Price: 40%–200% of ours (filters out wildly different items)
                 const ratio = +c.price / +ourPrice;
                 if (ratio < 0.4 || ratio > 2.0) return false;
                 // Title: at least 50% of our keywords must be found in competitor title
@@ -1766,7 +1838,11 @@ function renderProductDetail(p) {
     <div class="pdd-comp-section">
         <div class="pdd-section-head">
             <span class="pdd-label">Competitors (${links.length})</span>
-            <button class="btn btn-xs btn-primary" onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
+            <div style="display:flex;gap:.35rem">
+                <button class="btn btn-xs btn-auto-match-single" data-id="${p.shopify_id}"
+                    onclick="autoMatchProduct('${p.shopify_id}')" title="Auto-match competitors for this product">Auto-match</button>
+                <button class="btn btn-xs btn-primary" onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
+            </div>
         </div>
         <div class="pdd-comp-list">${compRows}</div>
     </div>
@@ -1810,9 +1886,9 @@ function openLinkModal(shopifyProductId, productTitle) {
     linkModalProductId = shopifyProductId;
     _linkStaged = [];
     _linkSearchResults = [];
-    _linkSortPrice = null;
+    _linkSortPrice = 'desc';   // default: highest price first (boxes before singles)
     const sortBtn = document.getElementById('link-sort-btn');
-    if (sortBtn) { sortBtn.textContent = 'Price ↕'; sortBtn.classList.remove('btn-primary'); }
+    if (sortBtn) { sortBtn.textContent = 'Price ↓'; sortBtn.classList.add('btn-primary'); }
     document.getElementById('link-modal-title').textContent = `Link competitors — ${productTitle}`;
     document.getElementById('link-search-input').value = '';
     document.getElementById('link-search-results').innerHTML =
@@ -1936,7 +2012,7 @@ function searchLinkProducts() {
 
     _linkSearchTimer = setTimeout(async () => {
         try {
-            _linkSearchResults = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=50`);
+            _linkSearchResults = await api(`/marketintel/competitor-products?search=${encodeURIComponent(q)}&limit=200`);
             renderLinkResults();
         } catch (e) {
             el.innerHTML = `<p class="error" style="padding:1rem">Search failed: ${e.message}</p>`;
@@ -1947,11 +2023,13 @@ function searchLinkProducts() {
 function renderLinkResults() {
     const el = document.getElementById('link-search-results');
     if (!el) return;
-    if (!_linkSearchResults.length) {
-        el.innerHTML = '<p class="muted" style="padding:1.25rem;text-align:center">No matches found.</p>';
+    const filtered = _linkSearchResults.filter(r => (r.price ?? 0) >= competitorMinPrice);
+    if (!filtered.length) {
+        const total = _linkSearchResults.length;
+        el.innerHTML = `<p class="muted" style="padding:1.25rem;text-align:center">No results above min price kr ${competitorMinPrice}${total ? ` (${total} results below threshold hidden)` : ''}.</p>`;
         return;
     }
-    let results = _linkSearchResults;
+    let results = filtered;
     if (_linkSortPrice === 'asc')  results = [...results].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
     if (_linkSortPrice === 'desc') results = [...results].sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
     el.innerHTML = results.map(r => {
