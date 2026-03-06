@@ -1503,13 +1503,20 @@ function renderLeaderboard() {
 function hideProduct(shopifyId) {
     hiddenProductIds.add(shopifyId);
     localStorage.setItem('hiddenProducts', JSON.stringify([...hiddenProductIds]));
-    if (selectedProductId === shopifyId) selectedProductId = null;
+    if (selectedProductId === shopifyId) {
+        selectedProductId = null;
+        const panel = document.getElementById('prod-detail-panel');
+        if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+    }
     renderProducts();
 }
 
 function unhideProduct(shopifyId) {
     hiddenProductIds.delete(shopifyId);
     localStorage.setItem('hiddenProducts', JSON.stringify([...hiddenProductIds]));
+    selectedProductId = null;
+    const panel = document.getElementById('prod-detail-panel');
+    if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
     renderProducts();
 }
 
