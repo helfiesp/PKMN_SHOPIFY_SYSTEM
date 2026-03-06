@@ -192,12 +192,20 @@
                 <!-- Controls -->
                 <div class="prod-controls">
                     <input type="search" id="product-search" class="input-sm"
-                        placeholder="Search products or SKU&hellip;" style="flex:1;min-width:200px;max-width:320px" />
-                    <select id="product-stock-filter" class="input-sm" style="min-width:150px">
-                        <option value="all">All products</option>
-                        <option value="out">Out of stock</option>
-                        <option value="low">Low stock (&le; 10)</option>
-                        <option value="hidden">Hidden</option>
+                        placeholder="Search products or SKU&hellip;" style="flex:1;min-width:180px;max-width:280px" />
+                    <div class="prod-filter-pills">
+                        <button class="filter-pill" data-filter="out"          title="Show only out-of-stock products">Out of stock</button>
+                        <button class="filter-pill" data-filter="low"          title="Show low stock (≤ 10 units)">Low stock</button>
+                        <button class="filter-pill" data-filter="cheapest"     title="We have the lowest price">Cheapest ★</button>
+                        <button class="filter-pill" data-filter="not-cheapest" title="A competitor is cheaper">Not cheapest</button>
+                        <button class="filter-pill" data-filter="hidden"       title="Show hidden products">Hidden</button>
+                    </div>
+                    <select id="product-sort" class="input-sm" title="Sort order">
+                        <option value="name">Name A–Z</option>
+                        <option value="price-asc">Price ↑</option>
+                        <option value="price-desc">Price ↓</option>
+                        <option value="stock-asc">Stock ↑</option>
+                        <option value="stock-desc">Stock ↓</option>
                     </select>
                     <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center">
                         <button class="btn btn-primary btn-sm" id="btn-prod-sync" onclick="syncAndReloadProducts()">&#8635; Sync</button>

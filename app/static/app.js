@@ -16,8 +16,9 @@ let competitors = [];          // MarketIntel competitor list
 // Products tab state
 let productCompLinks    = {};  // shopify_product_id → [link, ...]
 let snkrdunkMappings    = [];  // SnkrdunkMapping rows
-let productSearchQuery  = '';
-let productStockFilter  = 'all';
+let productSearchQuery   = '';
+let productActiveFilters = new Set();   // active filter-pill keys
+let productSort          = 'name';
 let selectedProductId   = null;
 let hiddenProductIds    = new Set(JSON.parse(localStorage.getItem('hiddenProducts') || '[]'));
 
@@ -1332,27 +1333,84 @@ async function loadProducts() {
     }
 }
 
-function _filterProducts() {
-    const q   = productSearchQuery.trim().toLowerCase();
-    const stf = productStockFilter;
-    let products = shopifyProducts;
+function _productCompPos(p) {
+    const variants = p.variants || [];
+    const boxV     = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+    const dispV    = boxV.length ? boxV : variants;
+    const boxPrice = dispV[0]?.price;
+    const links    = productCompLinks[p.shopify_id] || [];
+    const inStockPrices = links.filter(l => l.mi_in_stock === true && l.mi_price != null).map(l => +l.mi_price);
+    const cheapestComp  = inStockPrices.length ? Math.min(...inStockPrices) : null;
+    return { boxPrice, cheapestComp };
+}
 
-    // Hidden filter
-    if (stf === 'hidden') {
+function _filterProducts() {
+    const q       = productSearchQuery.trim().toLowerCase();
+    const filters = productActiveFilters;
+    let products  = shopifyProducts;
+
+    if (filters.has('hidden')) {
         products = products.filter(p => hiddenProductIds.has(p.shopify_id));
     } else {
         products = products.filter(p => !hiddenProductIds.has(p.shopify_id));
-        if (stf === 'out') products = products.filter(p =>
-            (p.variants || []).some(v => v.inventory_quantity <= 0));
-        else if (stf === 'low') products = products.filter(p =>
-            (p.variants || []).some(v => v.inventory_quantity > 0 && v.inventory_quantity <= 10));
+
+        if (filters.size > 0) {
+            products = products.filter(p => {
+                const variants = p.variants || [];
+                const boxV     = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+                const dispV    = boxV.length ? boxV : variants;
+                const minStock = dispV.length ? Math.min(...dispV.map(v => v.inventory_quantity ?? 0)) : 0;
+                const { boxPrice, cheapestComp } = _productCompPos(p);
+
+                if (filters.has('out')          && minStock <= 0)                                      return true;
+                if (filters.has('low')          && minStock > 0 && minStock <= 10)                     return true;
+                if (filters.has('cheapest')     && boxPrice != null && cheapestComp != null && boxPrice <= cheapestComp) return true;
+                if (filters.has('not-cheapest') && boxPrice != null && cheapestComp != null && boxPrice >  cheapestComp) return true;
+                return false;
+            });
+        }
     }
 
     if (q) products = products.filter(p =>
         p.title.toLowerCase().includes(q) ||
         (p.variants || []).some(v => (v.sku || '').toLowerCase().includes(q))
     );
+
+    // Sort
+    products = [...products];
+    if (productSort === 'price-asc' || productSort === 'price-desc') {
+        const asc = productSort === 'price-asc';
+        products.sort((a, b) => {
+            const pa = _getBoxPrice(a) ?? (asc ? Infinity : -Infinity);
+            const pb = _getBoxPrice(b) ?? (asc ? Infinity : -Infinity);
+            return asc ? pa - pb : pb - pa;
+        });
+    } else if (productSort === 'stock-asc' || productSort === 'stock-desc') {
+        const asc = productSort === 'stock-asc';
+        products.sort((a, b) => {
+            const sa = _getMinStock(a);
+            const sb = _getMinStock(b);
+            return asc ? sa - sb : sb - sa;
+        });
+    } else {
+        products.sort((a, b) => a.title.localeCompare(b.title, 'nb'));
+    }
+
     return products;
+}
+
+function _getBoxPrice(p) {
+    const variants = p.variants || [];
+    const boxV     = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+    const dispV    = boxV.length ? boxV : variants;
+    return dispV[0]?.price ?? null;
+}
+
+function _getMinStock(p) {
+    const variants = p.variants || [];
+    const boxV     = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+    const dispV    = boxV.length ? boxV : variants;
+    return dispV.length ? Math.min(...dispV.map(v => v.inventory_quantity ?? 0)) : 0;
 }
 
 function hideProduct(shopifyId) {
@@ -2470,13 +2528,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // Stock filter (old stock tab — kept for compatibility)
     document.getElementById('stock-filter')?.addEventListener('change', renderStock);
 
-    // Products tab — search + stock filter
+    // Products tab — search
     document.getElementById('product-search')?.addEventListener('input', e => {
         productSearchQuery = e.target.value;
         renderProducts();
     });
-    document.getElementById('product-stock-filter')?.addEventListener('change', e => {
-        productStockFilter = e.target.value;
+
+    // Products tab — filter pills (toggle)
+    document.querySelectorAll('.filter-pill[data-filter]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const key = btn.dataset.filter;
+            if (key === 'hidden') {
+                // Hidden is exclusive — clear others when activating
+                const willActivate = !productActiveFilters.has('hidden');
+                productActiveFilters.clear();
+                if (willActivate) productActiveFilters.add('hidden');
+            } else {
+                productActiveFilters.delete('hidden');
+                if (productActiveFilters.has(key)) productActiveFilters.delete(key);
+                else productActiveFilters.add(key);
+            }
+            // Sync pill active states
+            document.querySelectorAll('.filter-pill[data-filter]').forEach(b =>
+                b.classList.toggle('filter-pill-active', productActiveFilters.has(b.dataset.filter))
+            );
+            renderProducts();
+        });
+    });
+
+    // Products tab — sort
+    document.getElementById('product-sort')?.addEventListener('change', e => {
+        productSort = e.target.value;
         renderProducts();
     });
 
