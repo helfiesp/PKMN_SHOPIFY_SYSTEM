@@ -23,6 +23,7 @@ let productLeaderFilter  = null;        // null | 'self' | '<domain>'
 let selectedProductId   = null;
 let hiddenProductIds    = new Set(JSON.parse(localStorage.getItem('hiddenProducts') || '[]'));
 let competitorMinPrice  = parseInt(localStorage.getItem('competitorMinPrice') || '600', 10);
+let _selectedCompLinks  = new Set();
 
 // Link-modal state
 let linkModalProductId  = null;
@@ -1791,7 +1792,10 @@ function renderProductDetail(p) {
                 return `<span class="comp-age comp-age-stale" title="${new Date(lnk.mi_updated_at).toLocaleString('nb-NO')}">${Math.round(hrs/24)}d</span>`;
             })();
             return `
-            <div class="pdd-comp-row${isCheapest ? ' pdd-comp-cheapest' : ''}">
+            <div class="pdd-comp-row${isCheapest ? ' pdd-comp-cheapest' : ''}" data-lid="${lnk.id}">
+                <input type="checkbox" class="comp-chk" data-lid="${lnk.id}"
+                    ${_selectedCompLinks.has(lnk.id) ? 'checked' : ''}
+                    onchange="_compToggle(${lnk.id}, this.checked)">
                 <span class="pdd-stock-dot ${inStock ? 'pdd-stock-in' : oos ? 'pdd-stock-oos' : 'pdd-stock-unknown'}"
                       title="${inStock ? 'In stock' : oos ? 'Out of stock' : 'Unknown'}"></span>
                 <span class="pdd-comp-domain">${lnk.mi_domain || '—'}</span>
@@ -1837,12 +1841,20 @@ function renderProductDetail(p) {
 
     <div class="pdd-comp-section">
         <div class="pdd-section-head">
-            <span class="pdd-label">Competitors (${links.length})</span>
+            <label class="comp-select-all-label" title="Select all">
+                <input type="checkbox" id="comp-chk-all" onchange="_compSelectAll(this.checked, ${JSON.stringify(sortedLinks.map(l => l.id))})">
+                <span class="pdd-label">Competitors (${links.length})</span>
+            </label>
             <div style="display:flex;gap:.35rem">
                 <button class="btn btn-xs btn-auto-match-single" data-id="${p.shopify_id}"
                     onclick="autoMatchProduct('${p.shopify_id}')" title="Auto-match competitors for this product">Auto-match</button>
                 <button class="btn btn-xs btn-primary" onclick="openLinkModal('${p.shopify_id}','${esc(p.title)}')">+ Link</button>
             </div>
+        </div>
+        <div id="comp-bulk-bar" class="comp-bulk-bar" style="display:none">
+            <span id="comp-bulk-count">0 selected</span>
+            <button class="btn btn-xs btn-danger" onclick="deleteSelectedComps()">Delete selected</button>
+            <button class="btn btn-xs" onclick="_compSelectAll(false, ${JSON.stringify(sortedLinks.map(l => l.id))})">Clear</button>
         </div>
         <div class="pdd-comp-list">${compRows}</div>
     </div>
@@ -1852,6 +1864,7 @@ function renderProductDetail(p) {
 
 function selectProduct(shopifyId) {
     selectedProductId = shopifyId;
+    _selectedCompLinks.clear();
     document.querySelectorAll('.pcard').forEach(el => {
         el.classList.toggle('pcard-selected', el.dataset.id === shopifyId);
     });
@@ -2074,6 +2087,60 @@ async function unlinkCompetitor(linkId) {
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
     }
+}
+
+function _compToggle(linkId, checked) {
+    if (checked) _selectedCompLinks.add(linkId);
+    else _selectedCompLinks.delete(linkId);
+    _updateCompBulkBar();
+}
+
+function _compSelectAll(checked, allIds) {
+    if (checked) allIds.forEach(id => _selectedCompLinks.add(id));
+    else _selectedCompLinks.clear();
+    document.querySelectorAll('.comp-chk').forEach(cb => { cb.checked = checked; });
+    const allChk = document.getElementById('comp-chk-all');
+    if (allChk) allChk.checked = checked;
+    _updateCompBulkBar();
+}
+
+function _updateCompBulkBar() {
+    const bar = document.getElementById('comp-bulk-bar');
+    const cnt = document.getElementById('comp-bulk-count');
+    if (!bar) return;
+    const n = _selectedCompLinks.size;
+    if (n > 0) {
+        bar.style.display = 'flex';
+        if (cnt) cnt.textContent = `${n} selected`;
+    } else {
+        bar.style.display = 'none';
+    }
+    const allChk = document.getElementById('comp-chk-all');
+    if (allChk) {
+        const total = document.querySelectorAll('.comp-chk').length;
+        allChk.indeterminate = n > 0 && n < total;
+        allChk.checked = total > 0 && n === total;
+    }
+}
+
+async function deleteSelectedComps() {
+    const ids = [..._selectedCompLinks];
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} competitor link${ids.length > 1 ? 's' : ''}?`)) return;
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+        try {
+            await api(`/competitor-links/${id}`, { method: 'DELETE' });
+            for (const pid of Object.keys(productCompLinks)) {
+                productCompLinks[pid] = productCompLinks[pid].filter(l => l.id !== id);
+            }
+            ok++;
+        } catch { fail++; }
+    }
+    _selectedCompLinks.clear();
+    if (fail) toast(`Deleted ${ok}, failed ${fail}`, 'warning');
+    else toast(`Deleted ${ok} link${ok > 1 ? 's' : ''}`, 'success');
+    _refreshSelectedProduct();
 }
 
 async function refreshSingleProduct(shopifyProductId) {
