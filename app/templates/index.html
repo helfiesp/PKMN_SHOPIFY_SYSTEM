@@ -433,13 +433,18 @@
 
                 <!-- Shopify sync -->
                 <div class="card" style="margin-bottom:1.5rem">
-                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                    <div class="card-header">
                         <h3>Shopify Sync</h3>
+                    </div>
+                    <div style="padding:.75rem 1.25rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+                        <label style="font-size:.8125rem;color:var(--text-secondary);white-space:nowrap">Collection ID</label>
+                        <input type="text" id="sync-collection-id" class="input-sm" value="444175384827"
+                            style="width:180px;font-family:monospace" placeholder="444175384827" />
                         <button class="btn btn-primary btn-sm" id="btn-sync-shopify" onclick="syncShopify()">
                             Sync Products from Shopify
                         </button>
                     </div>
-                    <p class="muted" style="padding:.75rem 1.25rem;font-size:.8125rem">
+                    <p class="muted" style="padding:0 1.25rem .75rem;font-size:.8125rem">
                         Pull the latest product and inventory data from your Shopify store.
                     </p>
                 </div>

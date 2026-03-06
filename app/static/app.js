@@ -1151,10 +1151,11 @@ async function syncShopify() {
     const btn = document.getElementById('btn-sync-shopify');
     if (btn) btn.disabled = true;
     try {
+        const collectionId = document.getElementById('sync-collection-id')?.value.trim() || '444175384827';
         await api('/shopify/fetch-collection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: '{}',
+            body: JSON.stringify({ collection_id: collectionId }),
         });
         toast('Shopify sync complete', 'success');
     } catch (e) {

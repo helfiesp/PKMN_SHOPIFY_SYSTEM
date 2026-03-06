@@ -33,9 +33,10 @@ async def fetch_collection(
     This replaces the shopify_fetch_collection.py script functionality.
     """
     try:
+        collection_id = request.collection_id or settings.default_collection_id
         result = await shopify_service.fetch_and_store_collection(
             db=db,
-            collection_id=request.collection_id,
+            collection_id=collection_id,
             exclude_title_contains=request.exclude_title_contains
         )
         return result

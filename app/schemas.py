@@ -336,7 +336,7 @@ class AuditLogResponse(AuditLogCreate):
 # ============================================================================
 
 class FetchCollectionRequest(BaseModel):
-    collection_id: str
+    collection_id: Optional[str] = None  # defaults to settings.default_collection_id when omitted
     exclude_title_contains: Optional[str] = None
 
 
