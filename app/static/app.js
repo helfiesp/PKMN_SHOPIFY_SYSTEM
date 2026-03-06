@@ -2440,7 +2440,26 @@ async function cancelPurchaseOrder(poId) {
 // ─────────────────────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function _applyTheme(dark) {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    const iconDark  = document.getElementById('theme-icon-dark');
+    const iconLight = document.getElementById('theme-icon-light');
+    const label     = document.getElementById('theme-label');
+    if (iconDark)  iconDark.style.display  = dark ? 'none' : '';
+    if (iconLight) iconLight.style.display = dark ? ''     : 'none';
+    if (label)     label.textContent       = dark ? 'Light mode' : 'Dark mode';
+}
+function toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    _applyTheme(!isDark);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Apply saved theme immediately
+    _applyTheme(localStorage.getItem('theme') === 'dark');
+
     // Nav clicks
     document.querySelectorAll('.nav-item[data-tab]').forEach(btn => {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
