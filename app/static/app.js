@@ -841,14 +841,21 @@ function renderPlansList(plans) {
         el.innerHTML = '<p class="muted">No price plans yet. Generate one above.</p>';
         return;
     }
-    el.innerHTML = plans.map(p => `
+    el.innerHTML = plans.map(p => {
+        const skipped = p.total_items - p.applied_items - (p.failed_items || 0);
+        let summary = `${p.total_items} item${p.total_items !== 1 ? 's' : ''}`;
+        if (p.status === 'applied' && p.total_items > 0) {
+            summary = `<span style="color:var(--success)">${p.applied_items} applied</span>`;
+            if (skipped > 0) summary += ` · <span style="color:var(--danger)">${skipped} skipped</span>`;
+        }
+        return `
         <div class="plan-card">
             <div class="plan-card-header">
                 <span class="plan-id">#${p.id}</span>
                 <span class="muted">${p.plan_type || 'standard'}</span>
                 <span class="badge ${p.status === 'pending' ? 'badge-warning' : p.status === 'applied' ? 'badge-success' : 'badge-neutral'}">${p.status}</span>
                 <span class="muted">${fmtDate(p.created_at)}</span>
-                <span class="muted">${p.item_count || 0} items</span>
+                <span class="muted">${summary}</span>
                 <div style="margin-left:auto;display:flex;gap:.5rem">
                     ${p.status === 'pending'
                         ? `<button class="btn btn-primary btn-sm" onclick="applyPlan(${p.id})">Apply</button>`
@@ -856,7 +863,8 @@ function renderPlansList(plans) {
                     <button class="btn btn-sm" onclick="viewPlan(${p.id})">Details</button>
                 </div>
             </div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 }
 
 async function generatePlan() {
@@ -900,8 +908,13 @@ async function viewPlan(planId) {
         const modal = document.getElementById('plan-modal');
         const body  = document.getElementById('plan-modal-body');
         if (!modal || !body) return;
+        const items    = plan.items || [];
+        const applied  = items.filter(i => i.applied).length;
+        const skipped  = items.filter(i => !i.applied && i.error_message).length;
+        const pending  = items.filter(i => !i.applied && !i.error_message).length;
+
         body.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
                 <h3 style="margin:0">Price Plan #${plan.id}
                     <span class="badge ${plan.status === 'pending' ? 'badge-warning' : 'badge-success'}">${plan.status}</span>
                 </h3>
@@ -909,20 +922,33 @@ async function viewPlan(planId) {
                     ? `<button class="btn btn-primary" onclick="applyPlan(${plan.id}); closeModal()">Apply Plan</button>`
                     : ''}
             </div>
-            <p class="muted">${fmtDate(plan.created_at)} · ${plan.item_count || plan.items?.length || 0} items · ${plan.plan_type || 'standard'}</p>
+            <p class="muted" style="margin-bottom:.75rem">${fmtDate(plan.created_at)} · ${plan.plan_type || 'standard'}
+                · <span style="color:var(--success)">${applied} applied</span>
+                ${skipped  ? `· <span style="color:var(--danger)">${skipped} skipped</span>` : ''}
+                ${pending  ? `· <span style="color:var(--text-muted)">${pending} pending</span>` : ''}
+            </p>
             <table class="data-table">
-                <thead><tr><th>Product</th><th>Variant</th><th>Current</th><th>New Price</th><th>Change</th></tr></thead>
+                <thead><tr><th>Product</th><th>Current</th><th>New Price</th><th>Change</th><th>Status</th></tr></thead>
                 <tbody>
-                    ${(plan.items || []).map(i => {
-                        const delta = (i.new_price - i.current_price);
+                    ${items.map(i => {
+                        const delta = i.new_price - i.current_price;
                         const sign  = delta >= 0 ? '+' : '';
-                        return `<tr>
-                            <td>${i.product_title || '—'}</td>
-                            <td class="muted">${i.variant_title || ''}</td>
+                        let statusHtml;
+                        if (i.applied) {
+                            statusHtml = '<span style="color:var(--success);font-weight:600">✓ Applied</span>';
+                        } else if (i.error_message) {
+                            statusHtml = `<span style="color:var(--danger)" title="${i.error_message}">⚠ Skipped</span>`;
+                        } else {
+                            statusHtml = '<span class="muted">Pending</span>';
+                        }
+                        return `<tr ${i.error_message ? 'style="opacity:.6"' : ''}>
+                            <td>${i.current_title || '—'}</td>
                             <td class="mono">${fmtNok(i.current_price)}</td>
                             <td class="mono"><strong>${fmtNok(i.new_price)}</strong></td>
                             <td class="mono ${delta > 0 ? 'text-danger' : 'text-success'}">${sign}${fmtNok(delta)}</td>
-                        </tr>`;
+                            <td>${statusHtml}</td>
+                        </tr>
+                        ${i.error_message && !i.applied ? `<tr style="opacity:.5"><td colspan="5" style="font-size:.72rem;color:var(--danger);padding-top:0">${i.error_message}</td></tr>` : ''}`;
                     }).join('')}
                 </tbody>
             </table>`;
