@@ -1285,6 +1285,24 @@ async function autoMatchAll() {
     toast(`Auto-matched ${matched} products · ${linksCreated} links created · ${skipped} skipped`, matched > 0 ? 'success' : 'info');
 }
 
+async function syncAndReloadProducts() {
+    const btn = document.getElementById('btn-prod-sync');
+    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    try {
+        await api('/shopify/fetch-collection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collection_id: '444175384827' }),
+        });
+        showToast('Sync complete', 'success');
+        await loadProducts();
+    } catch (e) {
+        showToast(`Sync failed: ${e.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '↻ Sync'; }
+    }
+}
+
 async function loadProducts() {
     showTabLoading('products-list');
     try {
@@ -2465,6 +2483,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const resultsEl = document.getElementById('po-search-results');
         if (resultsEl && searchEl && !searchEl.contains(e.target) && !resultsEl.contains(e.target)) {
             resultsEl.style.display = 'none';
+        }
+        // Close any open dropdown menus when clicking outside
+        if (!e.target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
         }
     });
 

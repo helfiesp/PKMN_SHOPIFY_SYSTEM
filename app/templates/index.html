@@ -188,9 +188,15 @@
                         <option value="low">Low stock (&le; 10)</option>
                         <option value="hidden">Hidden</option>
                     </select>
-                    <div style="margin-left:auto;display:flex;gap:.5rem">
-                        <button id="btn-auto-match" class="btn btn-sm" onclick="autoMatchAll()" title="Auto-link competitors for unmatched products">Auto-match</button>
-                        <button class="btn btn-primary btn-sm" onclick="loadProducts()">Refresh</button>
+                    <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center">
+                        <button class="btn btn-primary btn-sm" id="btn-prod-sync" onclick="syncAndReloadProducts()">&#8635; Sync</button>
+                        <div class="dropdown" style="position:relative">
+                            <button class="btn btn-sm" onclick="this.nextElementSibling.classList.toggle('open')" title="More actions">•••</button>
+                            <div class="dropdown-menu" style="right:0;min-width:160px">
+                                <button class="dropdown-item" onclick="loadProducts();this.closest('.dropdown-menu').classList.remove('open')">Reload from DB</button>
+                                <button class="dropdown-item" onclick="autoMatchAll();this.closest('.dropdown-menu').classList.remove('open')">Auto-match competitors</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
