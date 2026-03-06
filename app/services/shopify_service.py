@@ -23,12 +23,20 @@ class ShopifyService:
     def _graphql_request(self, query: str, variables: dict = None) -> dict:
         """Make a GraphQL request to Shopify."""
         shop, token = self._get_credentials()
-        
+
         if not shop or not token:
             raise Exception("Shopify credentials not configured. Please set them in Settings.")
-        
+
+        # GraphQL requires the .myshopify.com domain — custom domains cause redirects
+        # that strip auth headers and won't work.
+        if not shop.lower().endswith(".myshopify.com"):
+            raise Exception(
+                f"shopify_shop must be your .myshopify.com domain (e.g. yourstore.myshopify.com), "
+                f"not a custom domain like '{shop}'. Update it in Settings."
+            )
+
         graphql_url = f"https://{shop}/admin/api/{self.api_version}/graphql.json"
-        
+
         headers = {
             "X-Shopify-Access-Token": token,
             "Content-Type": "application/json"
@@ -37,7 +45,8 @@ class ShopifyService:
             graphql_url,
             json={"query": query, "variables": variables or {}},
             headers=headers,
-            timeout=60
+            timeout=60,
+            allow_redirects=False,  # never follow redirects — they strip auth headers
         )
         response.raise_for_status()
         data = response.json()
