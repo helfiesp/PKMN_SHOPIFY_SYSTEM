@@ -86,6 +86,7 @@ class ShopifyService:
                   handle
                   status
                   templateSuffix
+                  metafield(namespace: "custom", key: "stock_date") { value }
                   variants(first: 250) {
                     edges {
                       node {
@@ -155,7 +156,8 @@ class ShopifyService:
             ).first()
             
             is_preorder = (prod_data.get("templateSuffix", "") or "").lower() == "preorder"
-            
+            stock_date = (prod_data.get("metafield") or {}).get("value") or None
+
             if product:
                 # Update existing
                 product.title = prod_data["title"]
@@ -164,6 +166,7 @@ class ShopifyService:
                 product.template_suffix = prod_data.get("templateSuffix")
                 product.collection_id = collection_id
                 product.is_preorder = is_preorder
+                product.stock_date = stock_date
                 product.last_synced_at = datetime.now(timezone.utc)
             else:
                 # Create new
@@ -175,6 +178,7 @@ class ShopifyService:
                     template_suffix=prod_data.get("templateSuffix"),
                     collection_id=collection_id,
                     is_preorder=is_preorder,
+                    stock_date=stock_date,
                     last_synced_at=datetime.now(timezone.utc)
                 )
                 db.add(product)
