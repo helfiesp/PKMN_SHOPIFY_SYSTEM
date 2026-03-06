@@ -887,7 +887,7 @@ async function applyPlan(planId) {
             headers: { 'Content-Type': 'application/json' },
             body: '{}',
         });
-        toast(`Plan #${planId} applied — ${res.applied_count || 0} prices updated`, 'success');
+        toast(`Plan #${planId} applied — ${res.applied_items || 0} prices updated`, 'success');
         loadPricePlans();
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
@@ -1985,7 +1985,7 @@ async function _createMatchPlan(productShopifyId, variantShopifyId, newPrice, cu
             body: '{}',
         });
 
-        toast(`Price updated: ${fmtNok(currentPrice)} → ${fmtNok(newPrice)} (${res.applied_count || 0} variant updated)`, 'success');
+        toast(`Price updated: ${fmtNok(currentPrice)} → ${fmtNok(newPrice)} (${res.applied_items || 0} variant updated)`, 'success');
 
         // Re-fetch the product so the new price shows in the panel
         try {

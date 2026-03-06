@@ -468,17 +468,23 @@ class PricePlanService:
                     expected_compare = float(item.current_compare_at) if item.current_compare_at else None
                     
                     if abs(live_price - expected_price) > 0.01:
-                        item.error_message = f"Price changed: expected {expected_price}, got {live_price}"
+                        msg = f"Price changed since plan created: expected {expected_price}, live={live_price}"
+                        log(f"  Item {item.id} SKIPPED: {msg}")
+                        item.error_message = msg
                         skipped_count += 1
                         continue
-                    
+
                     if (live_compare is None) != (expected_compare is None):
-                        item.error_message = f"Compare-at price changed"
+                        msg = f"Compare-at price changed: expected {expected_compare}, live={live_compare}"
+                        log(f"  Item {item.id} SKIPPED: {msg}")
+                        item.error_message = msg
                         skipped_count += 1
                         continue
-                    
+
                     if live_compare and expected_compare and abs(live_compare - expected_compare) > 0.01:
-                        item.error_message = f"Compare-at price changed: expected {expected_compare}, got {live_compare}"
+                        msg = f"Compare-at price changed: expected {expected_compare}, live={live_compare}"
+                        log(f"  Item {item.id} SKIPPED: {msg}")
+                        item.error_message = msg
                         skipped_count += 1
                         continue
                     
