@@ -32,6 +32,12 @@ async def fetch_collection(
     
     This replaces the shopify_fetch_collection.py script functionality.
     """
+    shop = settings.get_shopify_shop()
+    if not shop:
+        raise HTTPException(
+            status_code=500,
+            detail="shopify_shop is not set. Go to Settings and save the shop domain."
+        )
     try:
         collection_id = request.collection_id or settings.default_collection_id
         result = await shopify_service.fetch_and_store_collection(
@@ -41,7 +47,7 @@ async def fetch_collection(
         )
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"[shop: {shop}] {e}")
 
 
 @router.get("/products", response_model=List[ProductResponse])

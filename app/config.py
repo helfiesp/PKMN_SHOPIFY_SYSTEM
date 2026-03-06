@@ -13,20 +13,41 @@ def get_db_setting(key: str, default: str = "") -> str:
     try:
         from app.database import SessionLocal
         from app.models import Setting
-        
+
         db = SessionLocal()
         try:
             setting = db.query(Setting).filter(Setting.key == key).first()
-            if setting and setting.value:
-                return setting.value
+            if setting and setting.value and setting.value.strip():
+                return setting.value.strip()
         finally:
             db.close()
-    except:
-        # Database might not be initialized yet
-        pass
-    
+    except Exception as e:
+        print(f"[WARNING] get_db_setting({key!r}) DB read failed: {e}")
+
     # Fallback to environment variable
     return os.getenv(key.upper(), default)
+
+
+def get_db_credential(key: str) -> str:
+    """Read a credential ONLY from the database — no env/pydantic fallback.
+
+    Used for shopify_shop and shopify_token to ensure the UI-saved value
+    is always authoritative and env vars cannot silently override it.
+    """
+    try:
+        from app.database import SessionLocal
+        from app.models import Setting
+
+        db = SessionLocal()
+        try:
+            setting = db.query(Setting).filter(Setting.key == key).first()
+            if setting and setting.value and setting.value.strip():
+                return setting.value.strip()
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[WARNING] get_db_credential({key!r}) DB read failed: {e}")
+    return ""
 
 
 class Settings(BaseSettings):
@@ -49,12 +70,12 @@ class Settings(BaseSettings):
     google_translate_api_key: str = ""
     
     def get_shopify_shop(self) -> str:
-        """Get Shopify shop from DB or env."""
-        return get_db_setting("shopify_shop", self.shopify_shop)
-    
+        """Get Shopify shop from DB only — env vars are not used as fallback."""
+        return get_db_credential("shopify_shop")
+
     def get_shopify_token(self) -> str:
-        """Get Shopify token from DB or env."""
-        return get_db_setting("shopify_token", self.shopify_token)
+        """Get Shopify token from DB only — env vars are not used as fallback."""
+        return get_db_credential("shopify_token")
     
     def get_google_api_key(self) -> str:
         """Get Google API key from DB or env."""
