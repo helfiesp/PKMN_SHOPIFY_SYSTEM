@@ -19,6 +19,7 @@ let snkrdunkMappings    = [];  // SnkrdunkMapping rows
 let productSearchQuery   = '';
 let productActiveFilters = new Set();   // active filter-pill keys
 let productSort          = 'name';
+let productLeaderFilter  = null;        // null | 'self' | '<domain>'
 let selectedProductId   = null;
 let hiddenProductIds    = new Set(JSON.parse(localStorage.getItem('hiddenProducts') || '[]'));
 
@@ -1402,6 +1403,11 @@ function _filterProducts() {
         (p.variants || []).some(v => (v.sku || '').toLowerCase().includes(q))
     );
 
+    // Leader filter
+    if (productLeaderFilter) {
+        products = products.filter(p => _getCheapestSeller(p) === productLeaderFilter);
+    }
+
     // Sort
     products = [...products];
     if (productSort === 'price-asc' || productSort === 'price-desc') {
@@ -1439,6 +1445,61 @@ function _getMinStock(p) {
     return dispV.length ? Math.min(...dispV.map(v => v.inventory_quantity ?? 0)) : 0;
 }
 
+// ── Price leaderboard helpers ─────────────────────────────────────────────────
+
+function _getCheapestSeller(p) {
+    const boxPrice = _getBoxPrice(p);
+    const links    = productCompLinks[p.shopify_id] || [];
+    const inStock  = links.filter(l => l.mi_in_stock === true && l.mi_price != null);
+    if (!inStock.length) return boxPrice != null ? 'self' : null;
+
+    let cheapestPrice  = boxPrice ?? Infinity;
+    let cheapestSeller = boxPrice != null ? 'self' : null;
+    for (const l of inStock) {
+        if (+l.mi_price < cheapestPrice - 0.01) {
+            cheapestPrice  = +l.mi_price;
+            cheapestSeller = l.mi_domain;
+        }
+    }
+    return cheapestSeller;
+}
+
+function _buildPriceLeaderboard() {
+    const counts = {};
+    for (const p of shopifyProducts) {
+        if (hiddenProductIds.has(p.shopify_id)) continue;
+        const seller = _getCheapestSeller(p);
+        if (seller) counts[seller] = (counts[seller] || 0) + 1;
+    }
+    return counts;
+}
+
+function setLeaderFilter(seller) {
+    productLeaderFilter = (productLeaderFilter === seller) ? null : seller;
+    renderProducts();
+}
+
+function renderLeaderboard() {
+    const el = document.getElementById('prod-leaderboard');
+    if (!el) return;
+    const counts = _buildPriceLeaderboard();
+    const entries = Object.entries(counts).sort((a, b) => {
+        if (a[0] === 'self') return -1;
+        if (b[0] === 'self') return 1;
+        return b[1] - a[1];
+    });
+    el.innerHTML = entries.map(([seller, count]) => {
+        const isSelf   = seller === 'self';
+        const label    = isSelf ? 'pokelageret.no' : seller;
+        const isActive = productLeaderFilter === seller;
+        return `<button class="leader-chip ${isSelf ? 'leader-chip-self' : 'leader-chip-comp'} ${isActive ? 'leader-chip-active' : ''}"
+                    onclick="setLeaderFilter('${seller}')"
+                    title="${isActive ? 'Clear filter' : `Show products where ${label} is cheapest`}">
+                    ${label} <strong>${count}</strong>
+                </button>`;
+    }).join('');
+}
+
 function hideProduct(shopifyId) {
     hiddenProductIds.add(shopifyId);
     localStorage.setItem('hiddenProducts', JSON.stringify([...hiddenProductIds]));
@@ -1457,18 +1518,22 @@ function renderProducts() {
     const el = document.getElementById('products-list');
     document.getElementById('products-count').textContent = `${products.length} products`;
 
-    if (!products.length) {
-        el.innerHTML = '<p class="muted" style="padding:2rem">No products match the filter.</p>';
-        return;
-    }
-
-    // Build grid + detail layout on first render
+    // Build scaffold on first render (leaderboard + grid + detail)
     if (!document.getElementById('prod-card-grid')) {
         el.innerHTML = `
+        <div id="prod-leaderboard" class="prod-leaderboard"></div>
         <div class="prod-grid-layout">
             <div class="prod-card-grid" id="prod-card-grid"></div>
             <div class="prod-detail-panel prod-detail-panel--side" id="prod-detail-panel" style="display:none"></div>
         </div>`;
+    }
+
+    renderLeaderboard();
+
+    if (!products.length) {
+        document.getElementById('prod-card-grid').innerHTML =
+            '<p class="muted" style="padding:2rem">No products match the filter.</p>';
+        return;
     }
 
     const grid = document.getElementById('prod-card-grid');
