@@ -1966,8 +1966,8 @@ async function _createMatchPlan(productShopifyId, variantShopifyId, newPrice, cu
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                strategy:   'match_competition',
-                plan_type:  'price_update',
+                strategy:  'match_competition',
+                plan_type: 'price_update',
                 items: [{
                     product_shopify_id: productShopifyId,
                     variant_shopify_id: variantShopifyId,
@@ -1977,7 +1977,23 @@ async function _createMatchPlan(productShopifyId, variantShopifyId, newPrice, cu
                 }],
             }),
         });
-        toast(`Price plan #${plan.id} created — go to Price Plans to review & apply`, 'success');
+
+        // Immediately apply — no manual review needed for single-product matches
+        const res = await api(`/price-plans/${plan.id}/apply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+        });
+
+        toast(`Price updated: ${fmtNok(currentPrice)} → ${fmtNok(newPrice)} (${res.applied_count || 0} variant updated)`, 'success');
+
+        // Re-fetch the product so the new price shows in the panel
+        try {
+            const updated = await api(`/shopify/products/shopify/${productShopifyId}`);
+            const idx = shopifyProducts.findIndex(p => p.shopify_id === productShopifyId);
+            if (idx !== -1 && updated) shopifyProducts[idx] = updated;
+        } catch (_) { /* best-effort */ }
+        _refreshSelectedProduct();
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
     }
