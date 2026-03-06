@@ -2283,3 +2283,69 @@ input[type="checkbox"] {
 
 /* Theme toggle button */
 .theme-toggle { margin-bottom: .25rem; }
+
+/* ── Product card — competitive + stock clarity ────────────────────────────── */
+
+/* Left border signals competitive position */
+.pcard-comp-win  { border-left: 3px solid var(--success); }
+.pcard-comp-lose { border-left: 3px solid var(--danger); }
+
+/* Overlay badge on image */
+.pcard-comp-badge {
+    position: absolute;
+    bottom: .4rem;
+    left: .4rem;
+    font-size: .65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1.5;
+    pointer-events: none;
+}
+.pcard-comp-badge-win  { background: rgba(34,197,94,.9);  color: #fff; }
+.pcard-comp-badge-lose { background: rgba(239,68,68,.88); color: #fff; }
+
+/* Price row */
+.pcard-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: .35rem;
+    margin-bottom: .3rem;
+}
+.pcard-price-win  { color: var(--success) !important; }
+.pcard-price-lose { color: var(--danger)  !important; }
+.pcard-vs-price {
+    font-size: .7rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Stock bar */
+.pcard-stock-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.pcard-stock-bar-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    overflow: hidden;
+}
+.pcard-stock-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width .3s;
+}
+.pcard-stock-text {
+    font-size: .7rem;
+    font-weight: 600;
+}
+.pcard-stock-ok       { color: var(--success); }
+.pcard-stock-low      { color: var(--warning); }
+.pcard-stock-critical { color: var(--danger); }
+.pcard-stock-out      { color: var(--text-muted); }
+
+/* Clean up card body spacing */
+.pcard-body { padding: .5rem .65rem .65rem; gap: 0; }
+.pcard-title { margin-bottom: .35rem; }
