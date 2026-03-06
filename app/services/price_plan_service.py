@@ -284,20 +284,21 @@ class PricePlanService:
         plan_items = []
         
         for item_data in items:
-            # Get variant from database
+            # Look up by shopify_id (what the frontend sends)
             variant = db.query(Variant).filter(
-                Variant.id == item_data.get('variant_id')
+                Variant.shopify_id == item_data.get('variant_shopify_id')
             ).first()
-            
+
             if not variant:
+                print(f"[PricePlan] variant not found: {item_data.get('variant_shopify_id')}")
                 continue
-            
-            # Get product
+
             product = db.query(Product).filter(
-                Product.id == item_data.get('product_id')
+                Product.shopify_id == item_data.get('product_shopify_id')
             ).first()
-            
+
             if not product:
+                print(f"[PricePlan] product not found: {item_data.get('product_shopify_id')}")
                 continue
             
             # Create plan item
