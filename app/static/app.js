@@ -211,7 +211,8 @@ async function loadDashboard() {
         if (!prod) continue;
         const ourPrice = prod.variants?.[0]?.price;
         if (!ourPrice || !cost.last_unit_nok) continue;
-        const margin = ((ourPrice - cost.last_unit_nok) / ourPrice) * 100;
+        const netPrice = ourPrice / 1.25;
+        const margin = ((netPrice - cost.last_unit_nok) / netPrice) * 100;
         marginItems.push({
             title: prod.title,
             ourPrice,
@@ -1500,7 +1501,8 @@ function renderLeaderboard() {
     }).join('');
 }
 
-function hideProduct(shopifyId) {
+function hideProduct(shopifyId, title) {
+    if (!confirm(`Hide "${title || shopifyId}" from the products list?\n\nYou can show it again with the Hidden filter.`)) return;
     hiddenProductIds.add(shopifyId);
     localStorage.setItem('hiddenProducts', JSON.stringify([...hiddenProductIds]));
     if (selectedProductId === shopifyId) {
@@ -1621,10 +1623,11 @@ function renderProductDetail(p) {
     const refQty = refVariant ? (refVariant.inventory_quantity ?? 0) : 0;
     const stockSc = refQty <= 0 ? 'pdd-qty-zero' : refQty <= 10 ? 'pdd-qty-low' : 'pdd-qty-ok';
 
-    // Margin calculation
+    // Margin calculation — price is inc. 25% VAT, so strip VAT before computing margin
     let marginPct = null;
     if (cost && refVariant?.price) {
-        marginPct = ((refVariant.price - cost.last_unit_nok) / refVariant.price) * 100;
+        const netPrice = refVariant.price / 1.25;
+        marginPct = ((netPrice - cost.last_unit_nok) / netPrice) * 100;
     }
     const marginBadge = marginPct != null
         ? `<span class="badge ${marginPct < 10 ? 'badge-danger' : marginPct < 20 ? 'badge-warning' : 'badge-success'}">${marginPct.toFixed(0)}% margin</span>`
@@ -1753,7 +1756,7 @@ function renderProductDetail(p) {
         <div class="pdd-header-actions">
             ${isHidden
                 ? `<button class="btn btn-xs btn-warning" onclick="unhideProduct('${p.shopify_id}')">Unhide</button>`
-                : `<button class="btn btn-xs" onclick="hideProduct('${p.shopify_id}')" title="Hide from list">Hide</button>`}
+                : `<button class="btn btn-xs" onclick="hideProduct('${p.shopify_id}','${esc(p.title)}')" title="Hide from list">Hide</button>`}
             <button class="btn btn-xs btn-refresh" onclick="refreshSingleProduct('${p.shopify_id}')">↻ Refresh</button>
         </div>
     </div>
