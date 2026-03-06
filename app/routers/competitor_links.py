@@ -132,7 +132,13 @@ def refresh_prices(db: Session = Depends(get_db)):
             link.mi_in_stock   = p.get("in_stock")
             if p.get("source_url"):
                 link.mi_source_url = p["source_url"]
-            link.mi_updated_at = now
+            # Use MarketIntel's own updated_at (when they scraped it), fall back to now
+            raw_ts = p.get("updated_at")
+            if raw_ts:
+                from datetime import datetime, timezone
+                link.mi_updated_at = datetime.fromisoformat(raw_ts)
+            else:
+                link.mi_updated_at = now
             updated += 1
         except Exception:
             errors += 1
