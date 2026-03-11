@@ -245,8 +245,12 @@
                         <input type="number" id="snk-margin" value="20" step="1" min="0" max="80" />
                     </label>
                     <label style="display:flex;align-items:center;gap:.35rem;font-size:.8125rem">
-                        <input type="checkbox" id="snk-spikes-only" />
+                        <input type="checkbox" id="snk-spikes-only" onchange="renderSnkrdunkTable()" />
                         Spikes only
+                    </label>
+                    <label style="display:flex;align-items:center;gap:.35rem;font-size:.8125rem">
+                        <input type="checkbox" id="snk-mismatch-only" onchange="renderSnkrdunkTable()" />
+                        Mismatched only
                     </label>
                 </div>
 
@@ -486,6 +490,21 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
+                </div>
+
+                <!-- Shopify cleanup -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header"><h3>Shopify Cleanup</h3></div>
+                    <div style="padding:.75rem 1.25rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+                        <button class="btn btn-danger btn-sm" id="btn-clear-compare-at" onclick="clearCompareAtPrices()">
+                            Clear Compare-at Prices (Booster Boxes)
+                        </button>
+                        <span class="muted" id="clear-compare-at-status" style="font-size:.8125rem"></span>
+                    </div>
+                    <p class="muted" style="padding:0 1.25rem .75rem;font-size:.8125rem">
+                        Removes all compare-at prices from Booster Box variants on Shopify.
+                        This fixes the incorrect "Fra X kr" display when products have both pack and box variants.
+                    </p>
                 </div>
 
                 <!-- Competitor search settings -->

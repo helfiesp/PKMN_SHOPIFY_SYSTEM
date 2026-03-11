@@ -416,6 +416,9 @@ tr.row-danger     { background: var(--danger-light) !important; }
 tr.row-warning    { background: var(--warning-light) !important; }
 tr.row-info       { background: var(--info-light) !important; }
 tr.row-spike      { background: #fef9c3 !important; }
+tr.row-overpriced { background: #fee2e2 !important; }
+tr.row-underpriced{ background: #dbeafe !important; }
+.text-info        { color: var(--info-dark, #1d4ed8); }
 
 /* Compact table */
 .compact-table { font-size: 0.8125rem; }

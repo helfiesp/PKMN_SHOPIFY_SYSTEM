@@ -592,9 +592,16 @@ async function applyBoosterPlan(planId) {
 async function loadSnkrdunk() {
     showTabLoading('snkrdunk-table-wrap');
     try {
-        const res  = await api('/snkrdunk/products');
-        snkrdunkItems = res.items || [];
-        const logs = await api('/snkrdunk/scan-logs?limit=10');
+        const [snkRes, logsRes, prodRes, mapRes] = await Promise.allSettled([
+            api('/snkrdunk/products'),
+            api('/snkrdunk/scan-logs?limit=10'),
+            api('/shopify/products?limit=500'),
+            api('/mappings/snkrdunk?limit=500'),
+        ]);
+        snkrdunkItems    = snkRes.status  === 'fulfilled' ? (snkRes.value.items || []) : [];
+        const logs       = logsRes.status === 'fulfilled' ? logsRes.value : [];
+        shopifyProducts  = prodRes.status === 'fulfilled' ? (prodRes.value.products || prodRes.value || shopifyProducts) : shopifyProducts;
+        snkrdunkMappings = mapRes.status  === 'fulfilled' ? mapRes.value : snkrdunkMappings;
         renderSnkrdunkTable();
         renderSnkrdunkLogs(logs);
     } catch (e) {
@@ -631,6 +638,14 @@ function renderSnkrdunkTable() {
     const prevMap = {};
     for (const p of snkrdunkPrevItems) prevMap[p.id] = p.minPrice || p.minPriceJpy;
 
+    // Build mapping index: snkrdunk_key → Shopify product
+    const snkToShopify = {};
+    for (const m of snkrdunkMappings) {
+        if (m.disabled) continue;
+        const prod = shopifyProducts.find(p => p.shopify_id === m.product_shopify_id);
+        if (prod) snkToShopify[String(m.snkrdunk_key)] = prod;
+    }
+
     const SPIKE = 0.10;
     const rows = snkrdunkItems.map(item => {
         const jpy          = item.minPrice || item.minPriceJpy;
@@ -639,33 +654,78 @@ function renderSnkrdunkTable() {
         const prev         = prevMap[item.id];
         const spike        = prev && Math.abs((jpy - prev) / prev) >= SPIKE;
         const spikePct     = prev ? (((jpy - prev) / prev) * 100).toFixed(1) : null;
-        return { item, jpy, nokRec, spike, spikePct };
+
+        // Match to Shopify product for price comparison
+        const shopProd     = snkToShopify[String(item.id)];
+        let myPrice        = null;
+        if (shopProd) {
+            const variants = shopProd.variants || [];
+            const boxV     = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+            const dispV    = boxV.length ? boxV : variants;
+            myPrice        = dispV[0]?.price ?? null;
+        }
+        const diff         = myPrice != null ? myPrice - nokRec : null;
+        const diffPct      = myPrice != null && nokRec ? ((diff / nokRec) * 100).toFixed(1) : null;
+
+        return { item, jpy, nokRec, spike, spikePct, myPrice, diff, diffPct, shopProd };
     });
 
-    const spikeOnly = document.getElementById('snk-spikes-only')?.checked;
-    const filtered  = spikeOnly ? rows.filter(r => r.spike) : rows;
+    const spikeOnly    = document.getElementById('snk-spikes-only')?.checked;
+    const mismatchOnly = document.getElementById('snk-mismatch-only')?.checked;
+    let filtered       = rows;
+    if (spikeOnly)    filtered = filtered.filter(r => r.spike);
+    if (mismatchOnly) filtered = filtered.filter(r => r.diff != null && Math.abs(r.diff) > 25);
 
+    const COLS = 8;
     document.getElementById('snkrdunk-table-wrap').innerHTML = `
         <table class="data-table">
             <thead><tr>
                 <th>Product</th>
                 <th>Min JPY</th>
                 <th>Rec. NOK</th>
+                <th>My Price</th>
+                <th>Diff (kr)</th>
+                <th>Diff %</th>
+                <th>Action</th>
                 <th>Spike</th>
             </tr></thead>
             <tbody>
                 ${filtered.length === 0
-                    ? '<tr><td colspan="4" class="text-center muted">No items.</td></tr>'
-                    : filtered.map(({ item, jpy, nokRec, spike, spikePct }) => `
-                        <tr class="${spike ? 'row-spike' : ''}">
+                    ? `<tr><td colspan="${COLS}" class="text-center muted">No items.</td></tr>`
+                    : filtered.map(({ item, jpy, nokRec, spike, spikePct, myPrice, diff, diffPct, shopProd }) => {
+                        const hasDiff    = diff != null && Math.abs(diff) > 25;
+                        const overpriced = diff != null && diff > 25;
+                        const underpriced= diff != null && diff < -25;
+                        const rowClass   = [
+                            spike ? 'row-spike' : '',
+                            overpriced ? 'row-overpriced' : '',
+                            underpriced ? 'row-underpriced' : '',
+                        ].filter(Boolean).join(' ');
+
+                        let actionHtml = '<span class="muted">—</span>';
+                        if (myPrice == null) {
+                            actionHtml = '<span class="muted">Not mapped</span>';
+                        } else if (overpriced) {
+                            actionHtml = `<span class="badge badge-danger">Decrease price</span>`;
+                        } else if (underpriced) {
+                            actionHtml = `<span class="badge badge-info">Increase price</span>`;
+                        } else {
+                            actionHtml = `<span class="badge badge-success">OK</span>`;
+                        }
+
+                        return `<tr class="${rowClass}">
                             <td>${item.nameEn || item.name || item.id}</td>
                             <td class="mono">¥${fmt(jpy)}</td>
                             <td class="mono">${fmtNok(nokRec)}</td>
+                            <td class="mono">${myPrice != null ? fmtNok(myPrice) : '<span class="muted">—</span>'}</td>
+                            <td class="mono ${hasDiff ? (overpriced ? 'text-danger' : 'text-info') : ''}">${diff != null ? (diff > 0 ? '+' : '') + fmtNok(diff) : '<span class="muted">—</span>'}</td>
+                            <td class="mono ${hasDiff ? (overpriced ? 'text-danger' : 'text-info') : ''}">${diffPct != null ? (Number(diffPct) > 0 ? '+' : '') + diffPct + '%' : '<span class="muted">—</span>'}</td>
+                            <td>${actionHtml}</td>
                             <td>${spike
                                 ? `<span class="badge ${Number(spikePct) > 0 ? 'badge-danger' : 'badge-info'}">${Number(spikePct) > 0 ? '▲' : '▼'} ${Math.abs(spikePct)}%</span>`
                                 : '<span class="muted">—</span>'}</td>
-                        </tr>`
-                    ).join('')}
+                        </tr>`;
+                    }).join('')}
             </tbody>
         </table>`;
 }
@@ -1187,6 +1247,26 @@ async function toggleAutoShopifyUpdate(enabled) {
         // Revert toggle
         const toggle = document.getElementById('toggle-auto-shopify');
         if (toggle) toggle.checked = !enabled;
+    }
+}
+
+async function clearCompareAtPrices() {
+    if (!confirm('Clear all compare-at prices for Booster Box variants on Shopify?')) return;
+    const btn = document.getElementById('btn-clear-compare-at');
+    const status = document.getElementById('clear-compare-at-status');
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = 'Working…';
+    try {
+        const res = await api('/shopify/clear-compare-at-prices', { method: 'POST' });
+        const msg = `Cleared ${res.cleared} variant(s)`;
+        if (status) status.textContent = msg;
+        toast(msg + (res.errors?.length ? ` (${res.errors.length} error(s))` : ''), res.errors?.length ? 'warning' : 'success');
+        if (res.errors?.length) console.warn('Compare-at clear errors:', res.errors);
+    } catch (e) {
+        toast(`Failed: ${e.message}`, 'error');
+        if (status) status.textContent = 'Failed';
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 

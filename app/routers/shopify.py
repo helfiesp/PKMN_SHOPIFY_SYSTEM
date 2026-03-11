@@ -516,6 +516,90 @@ async def set_variant_inventory(
     return {"message": "Inventory updated", "variant_id": variant_id, "old_quantity": old_qty, "new_quantity": body.quantity}
 
 
+@router.post("/clear-compare-at-prices")
+async def clear_compare_at_prices(db: Session = Depends(get_db)):
+    """Clear compare_at_price for all Booster Box variants on Shopify and in the local DB."""
+    from app.models import Variant, Product
+    from collections import defaultdict
+
+    # Find all booster box variants that have a compare_at_price set
+    variants = (
+        db.query(Variant)
+        .filter(Variant.title.ilike('%booster box%'))
+        .filter(Variant.compare_at_price.isnot(None))
+        .all()
+    )
+
+    if not variants:
+        return {"message": "No booster box variants with compare-at prices found", "cleared": 0, "errors": []}
+
+    shop = settings.get_shopify_shop()
+    token = settings.get_shopify_token()
+    if not shop or not token:
+        raise HTTPException(status_code=500, detail="Shopify credentials not configured")
+
+    graphql_url = f"https://{shop}/admin/api/{settings.shopify_api_version}/graphql.json"
+    headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
+
+    mutation = """
+    mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+        productVariants { id price compareAtPrice }
+        userErrors { field message }
+      }
+    }
+    """
+
+    # Group variants by product for bulk updates
+    grouped = defaultdict(list)
+    for v in variants:
+        grouped[v.product_id].append(v)
+
+    cleared = 0
+    errors = []
+
+    for product_id, prod_variants in grouped.items():
+        product = db.query(Product).filter(Product.id == product_id).first()
+        if not product:
+            errors.append(f"Product id={product_id} not found in DB")
+            continue
+
+        variant_inputs = [
+            {"id": v.shopify_id, "price": str(v.price), "compareAtPrice": None}
+            for v in prod_variants
+        ]
+
+        try:
+            resp = requests.post(
+                graphql_url,
+                json={"query": mutation, "variables": {"productId": product.shopify_id, "variants": variant_inputs}},
+                headers=headers,
+                timeout=60
+            )
+            resp.raise_for_status()
+            result = resp.json()
+
+            if "errors" in result:
+                errors.append(f"{product.title}: GraphQL errors: {result['errors']}")
+                continue
+
+            user_errors = result.get("data", {}).get("productVariantsBulkUpdate", {}).get("userErrors", [])
+            if user_errors:
+                errors.append(f"{product.title}: {user_errors}")
+                continue
+
+            for v in prod_variants:
+                v.compare_at_price = None
+                v.updated_at = datetime.utcnow()
+            db.commit()
+            cleared += len(prod_variants)
+
+        except Exception as e:
+            errors.append(f"{product.title}: {str(e)}")
+
+    return {"message": "Compare-at prices cleared", "cleared": cleared, "errors": errors}
+
+
 @router.get("/price-change-history")
 async def get_price_change_history(
     product_id: Optional[str] = None,
