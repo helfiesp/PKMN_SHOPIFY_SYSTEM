@@ -47,7 +47,7 @@ class ReceiptService:
         )
         resp.raise_for_status()
         data = resp.json()
-        if "errors" in data:
+        if "errors" in data and "data" not in data:
             raise Exception(f"GraphQL errors: {data['errors']}")
         return data.get("data", {})
 
@@ -61,6 +61,7 @@ class ReceiptService:
               node {
                 id
                 name
+                email
                 createdAt
                 displayFinancialStatus
                 displayFulfillmentStatus
@@ -69,22 +70,10 @@ class ReceiptService:
                 totalTaxSet { shopMoney { amount currencyCode } }
                 totalShippingPriceSet { shopMoney { amount currencyCode } }
                 totalDiscountsSet { shopMoney { amount currencyCode } }
-                customer {
+                billingAddress {
                   firstName
                   lastName
-                  email
                   phone
-                  defaultAddress {
-                    address1
-                    address2
-                    city
-                    zip
-                    province
-                    country
-                    company
-                  }
-                }
-                shippingAddress {
                   address1
                   address2
                   city
@@ -92,8 +81,18 @@ class ReceiptService:
                   province
                   country
                   company
+                }
+                shippingAddress {
                   firstName
                   lastName
+                  phone
+                  address1
+                  address2
+                  city
+                  zip
+                  province
+                  country
+                  company
                 }
                 lineItems(first: 100) {
                   edges {
@@ -127,7 +126,16 @@ class ReceiptService:
         if cursor:
             variables["after"] = cursor
         if query_filter:
-            variables["query"] = query_filter
+            # Shopify order search: if it looks like an order number (#1234 or 1234),
+            # search by name. Otherwise treat as free-text which searches across
+            # customer name, email, and order fields.
+            q = query_filter.strip()
+            if q.startswith("#"):
+                variables["query"] = f"name:{q}"
+            elif q.isdigit():
+                variables["query"] = f"name:#{q}"
+            else:
+                variables["query"] = q
 
         result = self._graphql_request(gql, variables)
         orders_data = result.get("orders", {})
@@ -151,6 +159,7 @@ class ReceiptService:
           order(id: $id) {
             id
             name
+            email
             createdAt
             displayFinancialStatus
             displayFulfillmentStatus
@@ -159,22 +168,10 @@ class ReceiptService:
             totalTaxSet { shopMoney { amount currencyCode } }
             totalShippingPriceSet { shopMoney { amount currencyCode } }
             totalDiscountsSet { shopMoney { amount currencyCode } }
-            customer {
+            billingAddress {
               firstName
               lastName
-              email
               phone
-              defaultAddress {
-                address1
-                address2
-                city
-                zip
-                province
-                country
-                company
-              }
-            }
-            shippingAddress {
               address1
               address2
               city
@@ -182,8 +179,18 @@ class ReceiptService:
               province
               country
               company
+            }
+            shippingAddress {
               firstName
               lastName
+              phone
+              address1
+              address2
+              city
+              zip
+              province
+              country
+              company
             }
             lineItems(first: 100) {
               edges {
@@ -224,8 +231,8 @@ class ReceiptService:
             m = s.get("shopMoney") or {}
             return {"amount": m.get("amount", "0.00"), "currency": m.get("currencyCode", "NOK")}
 
-        customer = node.get("customer") or {}
-        addr = node.get("shippingAddress") or customer.get("defaultAddress") or {}
+        # Use billingAddress for receipt (fallback to shippingAddress)
+        addr = node.get("billingAddress") or node.get("shippingAddress") or {}
 
         line_items = []
         for edge in (node.get("lineItems") or {}).get("edges", []):
@@ -278,10 +285,10 @@ class ReceiptService:
             "total_shipping": money("totalShippingPriceSet"),
             "total_discounts": money("totalDiscountsSet"),
             "customer": {
-                "first_name": customer.get("firstName", ""),
-                "last_name": customer.get("lastName", ""),
-                "email": customer.get("email", ""),
-                "phone": customer.get("phone", ""),
+                "first_name": addr.get("firstName", ""),
+                "last_name": addr.get("lastName", ""),
+                "email": node.get("email", ""),
+                "phone": addr.get("phone", ""),
                 "company": addr.get("company", ""),
                 "address1": addr.get("address1", ""),
                 "address2": addr.get("address2", ""),
