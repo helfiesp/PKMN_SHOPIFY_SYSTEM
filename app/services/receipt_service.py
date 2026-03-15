@@ -12,7 +12,8 @@ class ReceiptService:
         "name": "Pokelageret AS",
         "org_nr": "934 641 434",
         "address": "H. Halvorsens vei 5",
-        "city": "Tønsberg",
+        "zip": "1734",
+        "city": "Hafslundsøy",
         "country": "Norge",
         "email": "kontakt@pokelageret.no",
         "website": "pokelageret.no",
@@ -314,28 +315,28 @@ class ReceiptService:
 
         # Build line items rows
         rows_html = ""
-        for li in order["line_items"]:
+        for i, li in enumerate(order["line_items"]):
             name = li["title"]
             if li["variant_title"]:
                 name += f' — {li["variant_title"]}'
             qty = li["quantity"]
             unit = float(li["unit_price"])
             line_total = qty * unit
-            # Calculate ex-VAT (assuming 25% VAT included)
             vat_rate = 0.25
             if li["tax_lines"]:
                 vat_rate = float(li["tax_lines"][0].get("rate", 0.25))
-            ex_vat = line_total / (1 + vat_rate)
-            vat_amount = line_total - ex_vat
+            unit_ex_vat = unit / (1 + vat_rate)
+            line_ex_vat = qty * unit_ex_vat
+            line_vat = line_total - line_ex_vat
+            bg = "#f9fafb" if i % 2 == 0 else "#ffffff"
 
             rows_html += f"""
-            <tr>
-                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:left">{_esc(name)}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:12px;color:#6b7280">{_esc(li['sku'])}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center">{qty}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right">{_fmt_nok(unit)}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right">{int(vat_rate * 100)} %</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">{_fmt_nok(line_total)}</td>
+            <tr style="background:{bg}">
+                <td class="td-prod">{_esc(name)}{f'<span class="sku-inline">{_esc(li["sku"])}</span>' if li['sku'] else ''}</td>
+                <td class="td-num">{qty}</td>
+                <td class="td-num">{_fmt_nok(unit)}</td>
+                <td class="td-num">{int(vat_rate * 100)} %</td>
+                <td class="td-num td-bold">{_fmt_nok(line_total)}</td>
             </tr>"""
 
         subtotal = float(order["subtotal"]["amount"])
@@ -344,264 +345,224 @@ class ReceiptService:
         total_discounts = float(order["total_discounts"]["amount"])
         total = float(order["total"]["amount"])
 
-        # Calculate ex-VAT totals
-        subtotal_ex_vat = subtotal / 1.25
-        shipping_ex_vat = total_shipping / 1.25
         total_ex_vat = total / 1.25
         calculated_vat = total - total_ex_vat
 
         # Customer address block
         cust_lines = []
         if customer.get("company"):
-            cust_lines.append(customer["company"])
+            cust_lines.append(f'<strong>{_esc(customer["company"])}</strong>')
         name_parts = [customer.get("first_name", ""), customer.get("last_name", "")]
         cust_name = " ".join(p for p in name_parts if p)
         if cust_name:
-            cust_lines.append(cust_name)
+            cust_lines.append(_esc(cust_name))
         if customer.get("address1"):
-            cust_lines.append(customer["address1"])
+            cust_lines.append(_esc(customer["address1"]))
         if customer.get("address2"):
-            cust_lines.append(customer["address2"])
+            cust_lines.append(_esc(customer["address2"]))
         zip_city = " ".join(p for p in [customer.get("zip", ""), customer.get("city", "")] if p)
         if zip_city:
-            cust_lines.append(zip_city)
+            cust_lines.append(_esc(zip_city))
+        if customer.get("country"):
+            cust_lines.append(_esc(customer["country"]))
         if customer.get("email"):
-            cust_lines.append(customer["email"])
+            cust_lines.append(f'<span style="color:#6366f1">{_esc(customer["email"])}</span>')
+        if customer.get("phone"):
+            cust_lines.append(_esc(customer["phone"]))
 
-        cust_html = "<br>".join(_esc(l) for l in cust_lines) if cust_lines else "<em>Ingen kundeinformasjon</em>"
+        cust_html = "<br>".join(cust_lines) if cust_lines else "<em>Ingen kundeinformasjon</em>"
 
-        discount_row = ""
+        # Summary rows
+        summary_rows = f"""
+        <tr>
+          <td class="sum-label">Subtotal ekskl. MVA</td>
+          <td class="sum-val">{_fmt_nok(total_ex_vat)}</td>
+        </tr>
+        <tr>
+          <td class="sum-label">MVA (25 %)</td>
+          <td class="sum-val">{_fmt_nok(calculated_vat)}</td>
+        </tr>"""
+
         if total_discounts > 0:
-            discount_row = f"""
-            <tr>
-                <td style="padding:6px 0;color:#6b7280">Rabatt</td>
-                <td style="padding:6px 0;text-align:right;color:#dc2626">-{_fmt_nok(total_discounts)}</td>
-            </tr>"""
+            summary_rows += f"""
+        <tr>
+          <td class="sum-label">Rabatt</td>
+          <td class="sum-val" style="color:#dc2626">-{_fmt_nok(total_discounts)}</td>
+        </tr>"""
 
-        shipping_row = ""
         if total_shipping > 0:
-            shipping_row = f"""
-            <tr>
-                <td style="padding:6px 0;color:#6b7280">Frakt</td>
-                <td style="padding:6px 0;text-align:right">{_fmt_nok(total_shipping)}</td>
-            </tr>"""
+            summary_rows += f"""
+        <tr>
+          <td class="sum-label">Frakt</td>
+          <td class="sum-val">{_fmt_nok(total_shipping)}</td>
+        </tr>"""
 
         return f"""<!DOCTYPE html>
 <html lang="no">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kvittering — {_esc(order['name'])} — Pokelageret</title>
+<title>Kvittering {_esc(order['name'])} — Pokelageret</title>
 <style>
   @media print {{
-    body {{ margin: 0; }}
+    html, body {{ background: #fff; }}
     .no-print {{ display: none !important; }}
-    @page {{ margin: 20mm 15mm; }}
+    .receipt {{ box-shadow: none; margin: 0; border-radius: 0; }}
+    @page {{ size: A4; margin: 12mm 14mm; }}
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    color: #1f2937;
-    background: #f9fafb;
-    line-height: 1.5;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #1e293b;
+    background: #eef2f7;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
   }}
-  .receipt-container {{
-    max-width: 800px;
-    margin: 20px auto;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  .no-print {{ max-width: 820px; margin: 16px auto 10px; display: flex; justify-content: flex-end; gap: 8px; padding: 0 10px; }}
+  .btn-action {{
+    padding: 9px 22px; border: none; border-radius: 8px; font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: background .15s;
+  }}
+  .btn-print {{ background: #1e293b; color: #fff; }}
+  .btn-print:hover {{ background: #334155; }}
+
+  .receipt {{
+    max-width: 820px; margin: 0 auto 40px; background: #fff;
+    border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08);
     overflow: hidden;
   }}
-  .receipt-header {{
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-    color: #fff;
-    padding: 32px 40px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+
+  /* ── Header ── */
+  .r-header {{
+    padding: 36px 44px 32px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    border-bottom: 3px solid #f1f5f9;
   }}
-  .receipt-header .logo-area {{
-    display: flex;
-    align-items: center;
-    gap: 14px;
+  .r-header-left {{ display: flex; align-items: center; gap: 16px; }}
+  .r-logo {{ height: 56px; width: auto; }}
+  .r-header-right {{ text-align: right; }}
+  .r-doc-type {{
+    font-size: 28px; font-weight: 300; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: 4px;
   }}
-  .receipt-header .logo-icon {{
-    width: 48px;
-    height: 48px;
-    background: rgba(255,255,255,.15);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .r-order-no {{
+    font-size: 22px; font-weight: 700; color: #1e293b; margin-top: 2px;
   }}
-  .receipt-header h1 {{
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: -0.3px;
+  .r-date {{ font-size: 13px; color: #94a3b8; margin-top: 4px; }}
+
+  /* ── Info blocks ── */
+  .r-info {{
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0; border-bottom: 3px solid #f1f5f9;
   }}
-  .receipt-header .subtitle {{
-    font-size: 12px;
-    opacity: .7;
-    margin-top: 2px;
+  .r-info-block {{
+    padding: 28px 44px;
   }}
-  .receipt-header .doc-title {{
-    text-align: right;
+  .r-info-block:first-child {{ border-right: 1px solid #f1f5f9; }}
+  .r-info-label {{
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: #94a3b8; font-weight: 700; margin-bottom: 10px;
   }}
-  .receipt-header .doc-title h2 {{
-    font-size: 26px;
-    font-weight: 300;
-    text-transform: uppercase;
-    letter-spacing: 3px;
-  }}
-  .receipt-header .doc-title .order-no {{
-    font-size: 14px;
-    opacity: .8;
-    margin-top: 4px;
-  }}
-  .receipt-body {{
-    padding: 32px 40px;
-  }}
-  .info-grid {{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    margin-bottom: 32px;
-  }}
-  .info-block label {{
-    display: block;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #9ca3af;
-    margin-bottom: 6px;
-    font-weight: 600;
-  }}
-  .info-block p {{
-    font-size: 14px;
-    color: #374151;
-  }}
-  table {{
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-  }}
+  .r-info-body {{ font-size: 13.5px; color: #475569; line-height: 1.7; }}
+  .r-info-body strong {{ color: #1e293b; font-weight: 600; }}
+
+  /* ── Table ── */
+  .r-table-wrap {{ padding: 0 44px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 13.5px; }}
   thead th {{
-    background: #f8fafc;
-    padding: 10px 12px;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .5px;
-    color: #6b7280;
-    font-weight: 600;
-    border-bottom: 2px solid #e5e7eb;
+    padding: 14px 16px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1px; color: #94a3b8; font-weight: 700;
+    border-bottom: 2px solid #e2e8f0; white-space: nowrap;
   }}
-  .totals-table {{
-    width: 320px;
-    margin-left: auto;
-    margin-top: 24px;
-    font-size: 14px;
+  .td-prod {{ padding: 14px 16px; text-align: left; color: #1e293b; font-weight: 500; }}
+  .td-num  {{ padding: 14px 16px; text-align: right; color: #475569; white-space: nowrap; font-variant-numeric: tabular-nums; }}
+  .td-bold {{ font-weight: 700; color: #1e293b; }}
+  .sku-inline {{
+    display: block; font-size: 11px; color: #94a3b8; font-weight: 400; margin-top: 1px;
   }}
-  .totals-table td {{
-    padding: 6px 0;
+  tbody tr {{ border-bottom: 1px solid #f1f5f9; }}
+  tbody tr:last-child {{ border-bottom: none; }}
+
+  /* ── Summary ── */
+  .r-summary {{
+    padding: 24px 44px 32px;
+    display: flex; justify-content: flex-end;
   }}
-  .totals-table .total-row td {{
-    padding-top: 12px;
-    border-top: 2px solid #1e293b;
-    font-size: 18px;
-    font-weight: 700;
+  .r-summary table {{ width: 340px; }}
+  .sum-label {{ padding: 7px 0; font-size: 13.5px; color: #64748b; }}
+  .sum-val {{ padding: 7px 0; text-align: right; font-size: 13.5px; color: #334155; font-variant-numeric: tabular-nums; }}
+  .sum-divider td {{ padding: 0; height: 1px; }}
+  .sum-divider td div {{ height: 2px; background: #1e293b; margin: 8px 0; }}
+  .sum-total td {{
+    padding-top: 10px; font-size: 20px; font-weight: 800; color: #1e293b;
   }}
-  .receipt-footer {{
-    border-top: 1px solid #e5e7eb;
-    padding: 24px 40px;
-    text-align: center;
-    font-size: 12px;
-    color: #9ca3af;
+  .sum-total .sum-val {{ font-size: 20px; }}
+
+  /* ── Badge ── */
+  .r-badge {{
+    display: inline-block; padding: 3px 12px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
   }}
-  .receipt-footer strong {{
-    color: #6b7280;
+  .r-badge-paid {{ background: #dcfce7; color: #15803d; }}
+  .r-badge-pending {{ background: #fef3c7; color: #92400e; }}
+  .r-badge-refund {{ background: #fee2e2; color: #b91c1c; }}
+
+  /* ── Footer ── */
+  .r-footer {{
+    background: #f8fafc; border-top: 1px solid #e2e8f0;
+    padding: 20px 44px; text-align: center;
+    font-size: 11.5px; color: #94a3b8; line-height: 1.8;
   }}
-  .print-bar {{
-    max-width: 800px;
-    margin: 0 auto 12px;
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-  }}
-  .print-bar button {{
-    padding: 8px 20px;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    cursor: pointer;
-    font-weight: 500;
-  }}
-  .btn-print {{
-    background: #1e293b;
-    color: #fff;
-  }}
-  .btn-print:hover {{ background: #334155; }}
+  .r-footer strong {{ color: #64748b; }}
 </style>
 </head>
 <body>
 
-<div class="no-print print-bar">
-  <button class="btn-print" onclick="window.print()">Skriv ut / Lagre som PDF</button>
+<div class="no-print">
+  <button class="btn-action btn-print" onclick="window.print()">Skriv ut / Lagre som PDF</button>
 </div>
 
-<div class="receipt-container">
-  <div class="receipt-header">
-    <div class="logo-area">
-      <div class="logo-icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <circle cx="12" cy="12" r="3"/>
-          <line x1="2" y1="12" x2="9" y2="12"/>
-          <line x1="15" y1="12" x2="22" y2="12"/>
-        </svg>
-      </div>
-      <div>
-        <h1>{_esc(company['name'])}</h1>
-        <div class="subtitle">Org.nr {_esc(company['org_nr'])}</div>
-      </div>
+<div class="receipt">
+
+  <!-- Header -->
+  <div class="r-header">
+    <div class="r-header-left">
+      <img src="/static/pokelageret_logo.png" alt="Pokelageret" class="r-logo">
     </div>
-    <div class="doc-title">
-      <h2>Kvittering</h2>
-      <div class="order-no">{_esc(order['name'])}</div>
+    <div class="r-header-right">
+      <div class="r-doc-type">Kvittering</div>
+      <div class="r-order-no">{_esc(order['name'])}</div>
+      <div class="r-date">{date_str} &nbsp;&middot;&nbsp;
+        <span class="r-badge {_status_badge_class(order['financial_status'])}">{_esc(_translate_status(order['financial_status']))}</span>
+      </div>
     </div>
   </div>
 
-  <div class="receipt-body">
-    <div class="info-grid">
-      <div class="info-block">
-        <label>Selger</label>
-        <p>
-          {_esc(company['name'])}<br>
-          Org.nr {_esc(company['org_nr'])}<br>
-          {_esc(company['address'])}<br>
-          {_esc(company['city'])}, {_esc(company['country'])}
-        </p>
-      </div>
-      <div class="info-block">
-        <label>Kjøper</label>
-        <p>{cust_html}</p>
-      </div>
-      <div class="info-block">
-        <label>Ordredato</label>
-        <p>{date_str}</p>
-      </div>
-      <div class="info-block">
-        <label>Betalingsstatus</label>
-        <p>{_esc(_translate_status(order['financial_status']))}</p>
+  <!-- Seller / Buyer -->
+  <div class="r-info">
+    <div class="r-info-block">
+      <div class="r-info-label">Selger</div>
+      <div class="r-info-body">
+        <strong>{_esc(company['name'])}</strong><br>
+        Org.nr {_esc(company['org_nr'])}<br>
+        {_esc(company['address'])}<br>
+        {_esc(company['zip'])} {_esc(company['city'])}<br>
+        {_esc(company['country'])}
       </div>
     </div>
+    <div class="r-info-block">
+      <div class="r-info-label">Kjøper</div>
+      <div class="r-info-body">{cust_html}</div>
+    </div>
+  </div>
 
+  <!-- Line items -->
+  <div class="r-table-wrap">
     <table>
       <thead>
         <tr>
           <th style="text-align:left">Produkt</th>
-          <th style="text-align:left">SKU</th>
-          <th style="text-align:center">Antall</th>
+          <th style="text-align:right">Antall</th>
           <th style="text-align:right">Enhetspris</th>
           <th style="text-align:right">MVA</th>
           <th style="text-align:right">Sum</th>
@@ -611,33 +572,28 @@ class ReceiptService:
         {rows_html}
       </tbody>
     </table>
+  </div>
 
-    <table class="totals-table">
+  <!-- Totals -->
+  <div class="r-summary">
+    <table>
       <tbody>
-        <tr>
-          <td style="color:#6b7280">Subtotal ekskl. MVA</td>
-          <td style="text-align:right">{_fmt_nok(total_ex_vat)}</td>
-        </tr>
-        <tr>
-          <td style="color:#6b7280">MVA (25 %)</td>
-          <td style="text-align:right">{_fmt_nok(calculated_vat)}</td>
-        </tr>
-        {discount_row}
-        {shipping_row}
-        <tr class="total-row">
+        {summary_rows}
+        <tr class="sum-divider"><td colspan="2"><div></div></td></tr>
+        <tr class="sum-total">
           <td>Totalt inkl. MVA</td>
-          <td style="text-align:right">{_fmt_nok(total)}</td>
+          <td class="sum-val">{_fmt_nok(total)}</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <div class="receipt-footer">
-    <p>
-      <strong>{_esc(company['name'])}</strong> &middot; Org.nr {_esc(company['org_nr'])} &middot;
-      {_esc(company['address'])}, {_esc(company['city'])} &middot; {_esc(company['website'])}
-    </p>
-    <p style="margin-top:4px">Kvittering generert {datetime.now().strftime('%d.%m.%Y kl. %H:%M')}</p>
+  <!-- Footer -->
+  <div class="r-footer">
+    <strong>{_esc(company['name'])}</strong> &middot; Org.nr {_esc(company['org_nr'])} &middot;
+    {_esc(company['address'])}, {_esc(company['zip'])} {_esc(company['city'])} &middot;
+    {_esc(company['website'])}<br>
+    Kvittering generert {datetime.now().strftime('%d.%m.%Y kl. %H:%M')}
   </div>
 </div>
 
@@ -678,6 +634,16 @@ def _translate_status(status: str) -> str:
         "EXPIRED": "Utløpt",
     }
     return translations.get(status.upper() if status else "", status or "Ukjent")
+
+
+def _status_badge_class(status: str) -> str:
+    """Return CSS class for payment status badge."""
+    s = (status or "").upper()
+    if s == "PAID":
+        return "r-badge-paid"
+    if s in ("REFUNDED", "PARTIALLY_REFUNDED", "VOIDED"):
+        return "r-badge-refund"
+    return "r-badge-pending"
 
 
 receipt_service = ReceiptService()
