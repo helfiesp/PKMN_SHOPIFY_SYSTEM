@@ -132,6 +132,7 @@ function loadTab(tab) {
     else if (tab === 'price-plans')     loadPricePlans();
     else if (tab === 'purchase-orders') loadPurchaseOrders();
     else if (tab === 'stock-dates')     loadStockDates();
+    else if (tab === 'receipts')        loadReceiptOrders();
     else if (tab === 'settings')        loadSettings();
 }
 
@@ -1158,6 +1159,125 @@ async function clearExpiredStockDates() {
     } catch (e) {
         showToast(`Failed: ${e.message}`, 'error');
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECEIPTS
+// ─────────────────────────────────────────────────────────────────────────────
+let _receiptOrders = [];
+let _receiptCursor = null;
+let _receiptHasMore = false;
+
+async function loadReceiptOrders() {
+    const wrap = document.getElementById('receipt-orders-list');
+    wrap.innerHTML = '<div class="loading-spinner">Laster ordrer&hellip;</div>';
+    document.getElementById('receipt-search').value = '';
+    _receiptCursor = null;
+    try {
+        const data = await api('/receipts/orders?limit=30');
+        _receiptOrders = data.orders || [];
+        _receiptCursor = data.end_cursor || null;
+        _receiptHasMore = data.has_next_page || false;
+        renderReceiptOrders(false);
+    } catch (e) {
+        wrap.innerHTML = `<p class="muted" style="padding:1rem">Feil ved lasting av ordrer: ${e.message}</p>`;
+    }
+}
+
+async function searchReceiptOrders() {
+    const q = document.getElementById('receipt-search').value.trim();
+    if (!q) { loadReceiptOrders(); return; }
+    const wrap = document.getElementById('receipt-orders-list');
+    wrap.innerHTML = '<div class="loading-spinner">Søker&hellip;</div>';
+    _receiptCursor = null;
+    try {
+        const data = await api(`/receipts/orders?limit=30&search=${encodeURIComponent(q)}`);
+        _receiptOrders = data.orders || [];
+        _receiptCursor = data.end_cursor || null;
+        _receiptHasMore = data.has_next_page || false;
+        renderReceiptOrders(false);
+    } catch (e) {
+        wrap.innerHTML = `<p class="muted" style="padding:1rem">Feil: ${e.message}</p>`;
+    }
+}
+
+async function loadMoreReceiptOrders() {
+    if (!_receiptCursor) return;
+    const q = document.getElementById('receipt-search').value.trim();
+    let url = `/receipts/orders?limit=30&cursor=${encodeURIComponent(_receiptCursor)}`;
+    if (q) url += `&search=${encodeURIComponent(q)}`;
+    try {
+        const data = await api(url);
+        _receiptOrders = _receiptOrders.concat(data.orders || []);
+        _receiptCursor = data.end_cursor || null;
+        _receiptHasMore = data.has_next_page || false;
+        renderReceiptOrders(false);
+    } catch (e) {
+        showToast('Feil ved lasting av flere ordrer', 'error');
+    }
+}
+
+function renderReceiptOrders() {
+    const wrap = document.getElementById('receipt-orders-list');
+    const countEl = document.getElementById('receipts-count');
+    const moreBtn = document.getElementById('receipt-load-more');
+    countEl.textContent = `${_receiptOrders.length} ordrer`;
+    moreBtn.style.display = _receiptHasMore ? '' : 'none';
+
+    if (!_receiptOrders.length) {
+        wrap.innerHTML = '<p class="muted" style="padding:1rem;text-align:center">Ingen ordrer funnet.</p>';
+        return;
+    }
+
+    let html = '<div class="receipt-orders-grid">';
+    for (const o of _receiptOrders) {
+        const dt = o.created_at ? new Date(o.created_at) : null;
+        const dateStr = dt ? dt.toLocaleDateString('nb-NO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+        const custName = [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(' ') || 'Ukjent kunde';
+        const total = parseFloat(o.total?.amount || 0);
+        const totalStr = total.toLocaleString('nb-NO', { style: 'currency', currency: 'NOK' });
+        const statusClass = o.financial_status === 'PAID' ? 'badge-success' : 'badge-warning';
+        const statusText = _translateFinStatus(o.financial_status);
+        const itemCount = o.line_items ? o.line_items.length : 0;
+
+        html += `
+        <div class="receipt-order-card" onclick="openReceipt('${encodeURIComponent(o.id)}')">
+            <div class="receipt-order-top">
+                <span class="receipt-order-name">${esc(o.name)}</span>
+                <span class="badge badge-sm ${statusClass}">${esc(statusText)}</span>
+            </div>
+            <div class="receipt-order-details">
+                <span>${esc(custName)}</span>
+                <span class="muted">${dateStr}</span>
+            </div>
+            <div class="receipt-order-bottom">
+                <span class="muted">${itemCount} ${itemCount === 1 ? 'produkt' : 'produkter'}</span>
+                <span class="receipt-order-total">${totalStr}</span>
+            </div>
+            <button class="btn btn-primary btn-sm receipt-gen-btn" onclick="event.stopPropagation();openReceipt('${encodeURIComponent(o.id)}')">
+                Generer kvittering
+            </button>
+        </div>`;
+    }
+    html += '</div>';
+    wrap.innerHTML = html;
+}
+
+function openReceipt(encodedGid) {
+    const gid = decodeURIComponent(encodedGid);
+    // Extract numeric ID from GID for the URL path
+    const numericId = gid.replace('gid://shopify/Order/', '');
+    const url = `${API}/receipts/generate/gid://shopify/Order/${numericId}`;
+    window.open(url, '_blank');
+}
+
+function _translateFinStatus(s) {
+    const map = {
+        'PAID': 'Betalt', 'PENDING': 'Venter', 'AUTHORIZED': 'Autorisert',
+        'PARTIALLY_PAID': 'Delvis betalt', 'PARTIALLY_REFUNDED': 'Delvis refundert',
+        'REFUNDED': 'Refundert', 'VOIDED': 'Annullert', 'EXPIRED': 'Utløpt',
+    };
+    return map[(s || '').toUpperCase()] || s || 'Ukjent';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
