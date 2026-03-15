@@ -434,12 +434,12 @@ class ReceiptService:
 
   /* ── Header ── */
   .r-header {{
-    padding: 36px 44px 32px;
-    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 30px 44px;
+    display: flex; justify-content: space-between; align-items: center;
     border-bottom: 3px solid #f1f5f9;
   }}
   .r-header-left {{ display: flex; align-items: center; gap: 16px; }}
-  .r-logo {{ height: 56px; width: auto; }}
+  .r-logo {{ height: 90px; width: auto; }}
   .r-header-right {{ text-align: right; }}
   .r-doc-type {{
     font-size: 28px; font-weight: 300; color: #94a3b8;
@@ -456,47 +456,47 @@ class ReceiptService:
     gap: 0; border-bottom: 3px solid #f1f5f9;
   }}
   .r-info-block {{
-    padding: 28px 44px;
+    padding: 22px 44px;
   }}
   .r-info-block:first-child {{ border-right: 1px solid #f1f5f9; }}
   .r-info-label {{
     font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
     color: #94a3b8; font-weight: 700; margin-bottom: 10px;
   }}
-  .r-info-body {{ font-size: 13.5px; color: #475569; line-height: 1.7; }}
+  .r-info-body {{ font-size: 12.5px; color: #475569; line-height: 1.65; }}
   .r-info-body strong {{ color: #1e293b; font-weight: 600; }}
 
   /* ── Table ── */
   .r-table-wrap {{ padding: 0 44px; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 13.5px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 12.5px; }}
   thead th {{
-    padding: 14px 16px; font-size: 10px; text-transform: uppercase;
+    padding: 10px 10px; font-size: 9px; text-transform: uppercase;
     letter-spacing: 1px; color: #94a3b8; font-weight: 700;
     border-bottom: 2px solid #e2e8f0; white-space: nowrap;
   }}
-  .td-prod {{ padding: 14px 16px; text-align: left; color: #1e293b; font-weight: 500; }}
-  .td-num  {{ padding: 14px 16px; text-align: right; color: #475569; white-space: nowrap; font-variant-numeric: tabular-nums; }}
+  .td-prod {{ padding: 8px 10px; text-align: left; color: #1e293b; font-weight: 500; line-height: 1.35; }}
+  .td-num  {{ padding: 8px 10px; text-align: right; color: #475569; white-space: nowrap; font-variant-numeric: tabular-nums; }}
   .td-bold {{ font-weight: 700; color: #1e293b; }}
   .sku-inline {{
-    display: block; font-size: 11px; color: #94a3b8; font-weight: 400; margin-top: 1px;
+    display: block; font-size: 10px; color: #b0b8c4; font-weight: 400; margin-top: 1px;
   }}
   tbody tr {{ border-bottom: 1px solid #f1f5f9; }}
   tbody tr:last-child {{ border-bottom: none; }}
 
   /* ── Summary ── */
   .r-summary {{
-    padding: 24px 44px 32px;
+    padding: 20px 44px 28px;
     display: flex; justify-content: flex-end;
   }}
-  .r-summary table {{ width: 340px; }}
-  .sum-label {{ padding: 7px 0; font-size: 13.5px; color: #64748b; }}
-  .sum-val {{ padding: 7px 0; text-align: right; font-size: 13.5px; color: #334155; font-variant-numeric: tabular-nums; }}
+  .r-summary table {{ width: 320px; }}
+  .sum-label {{ padding: 5px 0; font-size: 12.5px; color: #64748b; }}
+  .sum-val {{ padding: 5px 0; text-align: right; font-size: 12.5px; color: #334155; font-variant-numeric: tabular-nums; }}
   .sum-divider td {{ padding: 0; height: 1px; }}
   .sum-divider td div {{ height: 2px; background: #1e293b; margin: 8px 0; }}
   .sum-total td {{
-    padding-top: 10px; font-size: 20px; font-weight: 800; color: #1e293b;
+    padding-top: 10px; font-size: 17px; font-weight: 800; color: #1e293b;
   }}
-  .sum-total .sum-val {{ font-size: 20px; }}
+  .sum-total .sum-val {{ font-size: 17px; }}
 
   /* ── Badge ── */
   .r-badge {{
