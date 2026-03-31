@@ -3507,24 +3507,31 @@ async function loadMvaCollectionSettings() {
     const grid = document.getElementById('mva-collection-grid');
     if (!grid) return;
 
-    let dict = {};
-    try {
-        dict = await api('/settings/dict?mask_sensitive=false');
-    } catch (_) {}
-
-    let html = '';
-    for (let i = 0; i <= 24; i++) {
-        const key = `mva_collection_${i}`;
-        const val = dict[key] || '';
-        html += `
-            <div style="display:flex;align-items:center;gap:.25rem">
-                <span style="font-size:.8125rem;min-width:42px;font-weight:600">${i}%</span>
-                <input type="text" class="input-sm mva-coll-input" data-bucket="${i}"
-                    value="${val}" placeholder="Collection ID" style="width:100%;font-family:monospace;font-size:.75rem" />
-            </div>
-        `;
+    // Render inputs immediately so they're visible
+    function renderGrid(dict) {
+        let html = '';
+        for (let i = 0; i <= 24; i++) {
+            const key = `mva_collection_${i}`;
+            const val = (dict && dict[key]) || '';
+            html += `
+                <div style="display:flex;align-items:center;gap:.25rem">
+                    <span style="font-size:.8125rem;min-width:42px;font-weight:600">${i}%</span>
+                    <input type="text" class="input-sm mva-coll-input" data-bucket="${i}"
+                        value="${val}" placeholder="Collection ID" style="width:100%;font-family:monospace;font-size:.75rem" />
+                </div>
+            `;
+        }
+        grid.innerHTML = html;
     }
-    grid.innerHTML = html;
+
+    // Show empty grid first
+    renderGrid({});
+
+    // Then fill in saved values
+    try {
+        const dict = await api('/settings/dict?mask_sensitive=false');
+        renderGrid(dict);
+    } catch (_) { /* keep empty grid */ }
 }
 
 async function saveMvaCollections() {
