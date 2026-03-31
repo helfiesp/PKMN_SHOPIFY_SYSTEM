@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(xargs grep:*)",
-      "Bash(grep -l \"collection\\\\|product\\\\|image\" /c/Users/cmhag/Documents/Projects/Shopify/app/routers/*.py)"
+      "Bash(grep -l \"collection\\\\|product\\\\|image\" /c/Users/cmhag/Documents/Projects/Shopify/app/routers/*.py)",
+      "Bash(python -c \"from app.main import app; print\\(''OK''\\)\")"
     ]
   }
 }

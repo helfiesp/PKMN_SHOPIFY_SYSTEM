@@ -234,42 +234,56 @@
             <!-- ─── SNKRDUNK ───────────────────────────────────────────────── -->
             <div id="tab-snkrdunk" class="tab-panel">
                 <div class="section-header">
-                    <h2>SNKRDUNK Intelligence</h2>
+                    <h2>SNKRDUNK Price Monitor</h2>
+                    <div style="display:flex;gap:.5rem;align-items:center">
+                        <span class="muted" id="snk-count"></span>
+                        <button class="btn btn-primary btn-sm" id="btn-fetch-snkrdunk" onclick="fetchSnkrdunk()">
+                            Refresh Prices
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Controls bar -->
-                <div class="snk-controls">
-                    <button class="btn btn-primary" id="btn-fetch-snkrdunk" onclick="fetchSnkrdunk()">
-                        Refresh SNKRDUNK Data
-                    </button>
-                    <label>
-                        JPY&rarr;NOK rate
-                        <input type="number" id="snk-rate" value="0.063" step="0.001" min="0.01" />
-                    </label>
-                    <label>
-                        Shipping (JPY)
-                        <input type="number" id="snk-shipping" value="500" step="100" min="0" />
-                    </label>
-                    <label>
-                        Min margin %
-                        <input type="number" id="snk-margin" value="20" step="1" min="0" max="80" />
-                    </label>
-                    <label style="display:flex;align-items:center;gap:.35rem;font-size:.8125rem">
-                        <input type="checkbox" id="snk-spikes-only" onchange="renderSnkrdunkTable()" />
-                        Spikes only
-                    </label>
-                    <label style="display:flex;align-items:center;gap:.35rem;font-size:.8125rem">
-                        <input type="checkbox" id="snk-mismatch-only" onchange="renderSnkrdunkTable()" />
-                        Mismatched only
-                    </label>
+                <!-- Summary stats -->
+                <div id="snk-summary" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem"></div>
+
+                <!-- Controls -->
+                <div class="card" style="margin-bottom:1rem">
+                    <div style="padding:.75rem 1.25rem;display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">
+                        <div>
+                            <label class="form-label">JPY→NOK rate</label>
+                            <input type="number" id="snk-rate" class="input-sm" value="0.063" step="0.001" min="0.01" style="width:90px" />
+                        </div>
+                        <div>
+                            <label class="form-label">Shipping (JPY)</label>
+                            <input type="number" id="snk-shipping" class="input-sm" value="500" step="100" min="0" style="width:80px" />
+                        </div>
+                        <div>
+                            <label class="form-label">Min margin %</label>
+                            <input type="number" id="snk-margin" class="input-sm" value="20" step="1" min="0" max="80" style="width:70px" />
+                        </div>
+                        <div style="display:flex;gap:.75rem;align-items:center;margin-left:auto">
+                            <label style="display:flex;align-items:center;gap:.35rem;font-size:.8125rem;cursor:pointer">
+                                <input type="checkbox" id="snk-spikes-only" onchange="renderSnkrdunkTable()" /> Spikes only
+                            </label>
+                            <label style="display:flex;align-items:center;gap:.35rem;font-size:.8125rem;cursor:pointer">
+                                <input type="checkbox" id="snk-mismatch-only" onchange="renderSnkrdunkTable()" /> Mismatched only
+                            </label>
+                            <label style="display:flex;align-items:center;gap:.35rem;font-size:.8125rem;cursor:pointer">
+                                <input type="checkbox" id="snk-underpriced-only" onchange="renderSnkrdunkTable()" /> Underpriced only
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
-                <div id="snkrdunk-table-wrap"><div class="loading-spinner">Loading&hellip;</div></div>
+                <!-- Product table -->
+                <div class="card">
+                    <div id="snkrdunk-table-wrap"><div class="loading-spinner">Loading&hellip;</div></div>
+                </div>
 
                 <!-- Scan logs -->
-                <div class="card" style="margin-top:2rem">
-                    <div class="card-header"><h3>Recent Scans</h3></div>
-                    <div id="snkrdunk-logs" style="padding:.5rem 0"></div>
+                <div class="card" style="margin-top:1.25rem">
+                    <div class="card-header"><h3>Scan History</h3></div>
+                    <div id="snkrdunk-logs"></div>
                 </div>
             </div>
 
@@ -667,11 +681,15 @@
                         <input type="text" id="sync-collection-id" class="input-sm" value="444175384827"
                             style="width:180px;font-family:monospace" placeholder="444175384827" />
                         <button class="btn btn-primary btn-sm" id="btn-sync-shopify" onclick="syncShopify()">
-                            Sync Products from Shopify
+                            Sync Collection
+                        </button>
+                        <span style="color:var(--text-secondary)">or</span>
+                        <button class="btn btn-sm btn-success" id="btn-sync-all" onclick="syncAllProducts()">
+                            Sync Entire Catalogue
                         </button>
                     </div>
                     <p class="muted" style="padding:0 1.25rem .75rem;font-size:.8125rem">
-                        Pull the latest product and inventory data from your Shopify store.
+                        Sync a specific collection, or pull your entire Shopify catalogue into the app.
                     </p>
                 </div>
 

@@ -2455,6 +2455,39 @@ input[type="checkbox"] {
     box-shadow: 0 4px 20px rgba(0,0,0,.4);
 }
 
+/* ── SNKRDUNK ────────────────────────────────────────────────────────── */
+
+.snk-stat-card {
+    padding: .5rem .875rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    min-width: 100px;
+    text-align: center;
+}
+.snk-stat-card.snk-stat-ok { border-left: 3px solid var(--success, #22c55e); }
+.snk-stat-card.snk-stat-warn { border-left: 3px solid var(--warning, #f59e0b); }
+.snk-stat-card.snk-stat-danger { border-left: 3px solid var(--danger, #ef4444); }
+.snk-stat-num { font-size: 1.25rem; font-weight: 700; }
+.snk-stat-label { font-size: .6875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .03em; }
+
+.snk-row-under { background: rgba(245, 158, 11, 0.04) !important; }
+.snk-row-over { background: rgba(239, 68, 68, 0.04) !important; }
+[data-theme="dark"] .snk-row-under { background: rgba(245, 158, 11, 0.08) !important; }
+[data-theme="dark"] .snk-row-over { background: rgba(239, 68, 68, 0.08) !important; }
+
+.snk-spike {
+    display: inline-block;
+    font-size: .6875rem;
+    font-weight: 600;
+    padding: .1rem .35rem;
+    border-radius: 3px;
+    margin-left: .35rem;
+    vertical-align: middle;
+}
+.snk-spike-up { background: rgba(239,68,68,.12); color: var(--danger, #ef4444); }
+.snk-spike-down { background: rgba(59,130,246,.12); color: var(--info, #3b82f6); }
+
 /* ── Margin VAT ──────────────────────────────────────────────────────── */
 
 .mvat-bucket-card {

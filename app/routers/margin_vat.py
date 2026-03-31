@@ -140,7 +140,7 @@ async def sync_collections(db: Session = Depends(get_db)):
 
 # ── Shopify Product Management ───────────────────────────────────────────
 
-@router.get("/product-detail/{shopify_id}")
+@router.get("/product-detail")
 async def get_product_detail(shopify_id: str):
     """Fetch full product details from Shopify for templating."""
     try:

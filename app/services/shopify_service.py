@@ -281,6 +281,158 @@ class ShopifyService:
     ) -> dict:
         """Alias for fetch_and_store_collection."""
         return await self.fetch_and_store_collection(db, collection_id, exclude_title_contains)
+
+    async def fetch_all_products(self, db: Session) -> dict:
+        """Fetch ALL products from the Shopify store and store in database."""
+        query = """
+        query($first: Int!, $after: String) {
+          products(first: $first, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            edges {
+              node {
+                id
+                title
+                handle
+                status
+                templateSuffix
+                featuredImage { url }
+                metafield(namespace: "custom", key: "stock_date") { value }
+                variants(first: 250) {
+                  edges {
+                    node {
+                      id
+                      title
+                      price
+                      compareAtPrice
+                      inventoryQuantity
+                      availableForSale
+                      sku
+                      inventoryItem {
+                        id
+                        measurement { weight { unit value } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+        all_products = []
+        has_next_page = True
+        cursor = None
+
+        while has_next_page:
+            variables = {"first": 50, "after": cursor}
+            result = self._graphql_request(query, variables)
+            products_data = result.get("products", {})
+
+            for edge in products_data.get("edges", []):
+                all_products.append(edge["node"])
+
+            page_info = products_data.get("pageInfo", {})
+            has_next_page = page_info.get("hasNextPage", False)
+            cursor = page_info.get("endCursor")
+
+        # Reuse the same upsert logic from fetch_and_store_collection
+        total_products = 0
+        total_variants = 0
+
+        for prod_data in all_products:
+            product = db.query(Product).filter(
+                Product.shopify_id == prod_data["id"]
+            ).first()
+
+            is_preorder = (prod_data.get("templateSuffix", "") or "").lower() == "preorder"
+            stock_date = (prod_data.get("metafield") or {}).get("value") or None
+            image_url = (prod_data.get("featuredImage") or {}).get("url") or None
+
+            if product:
+                product.title = prod_data["title"]
+                product.handle = prod_data["handle"]
+                product.status = prod_data["status"]
+                product.template_suffix = prod_data.get("templateSuffix")
+                product.is_preorder = is_preorder
+                product.stock_date = stock_date
+                product.image_url = image_url
+                product.last_synced_at = datetime.now(timezone.utc)
+            else:
+                product = Product(
+                    shopify_id=prod_data["id"],
+                    title=prod_data["title"],
+                    handle=prod_data["handle"],
+                    status=prod_data["status"],
+                    template_suffix=prod_data.get("templateSuffix"),
+                    is_preorder=is_preorder,
+                    stock_date=stock_date,
+                    image_url=image_url,
+                    last_synced_at=datetime.now(timezone.utc)
+                )
+                db.add(product)
+                db.flush()
+
+            total_products += 1
+
+            for var_edge in prod_data.get("variants", {}).get("edges", []):
+                var_data = var_edge["node"]
+
+                variant = db.query(Variant).filter(
+                    Variant.shopify_id == var_data["id"]
+                ).first()
+
+                inventory_item = var_data.get("inventoryItem") or {}
+                inventory_item_id = inventory_item.get("id")
+
+                _weight_node = (inventory_item.get("measurement") or {}).get("weight") or {}
+                raw_weight = _weight_node.get("value")
+                weight_unit = (_weight_node.get("unit") or "").upper()
+                weight_grams = None
+                if raw_weight is not None:
+                    w = float(raw_weight)
+                    if weight_unit == "KILOGRAMS":
+                        weight_grams = w * 1000
+                    elif weight_unit == "POUNDS":
+                        weight_grams = w * 453.592
+                    elif weight_unit == "OUNCES":
+                        weight_grams = w * 28.3495
+                    else:
+                        weight_grams = w
+
+                if variant:
+                    variant.title = var_data["title"]
+                    variant.sku = var_data.get("sku")
+                    variant.price = float(var_data["price"])
+                    variant.compare_at_price = float(var_data["compareAtPrice"]) if var_data.get("compareAtPrice") else None
+                    variant.inventory_quantity = var_data.get("inventoryQuantity", 0)
+                    variant.available_for_sale = var_data.get("availableForSale", True)
+                    variant.inventory_item_id = inventory_item_id
+                    variant.weight_grams = weight_grams
+                else:
+                    variant = Variant(
+                        shopify_id=var_data["id"],
+                        product_id=product.id,
+                        title=var_data["title"],
+                        sku=var_data.get("sku"),
+                        price=float(var_data["price"]),
+                        compare_at_price=float(var_data["compareAtPrice"]) if var_data.get("compareAtPrice") else None,
+                        inventory_quantity=var_data.get("inventoryQuantity", 0),
+                        available_for_sale=var_data.get("availableForSale", True),
+                        inventory_item_id=inventory_item_id,
+                        weight_grams=weight_grams
+                    )
+                    db.add(variant)
+
+                total_variants += 1
+
+        db.commit()
+
+        return {
+            "total_products": total_products,
+            "total_variants": total_variants,
+            "synced_at": datetime.now(timezone.utc)
+        }
     
     def get_products(
         self,

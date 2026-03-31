@@ -50,6 +50,19 @@ async def fetch_collection(
         raise HTTPException(status_code=500, detail=f"[shop: {shop}] {e}")
 
 
+@router.post("/fetch-all-products", response_model=FetchCollectionResponse)
+async def fetch_all_products(db: Session = Depends(get_db)):
+    """Fetch ALL products from the Shopify store (entire catalogue)."""
+    shop = settings.get_shopify_shop()
+    if not shop:
+        raise HTTPException(status_code=500, detail="shopify_shop is not set.")
+    try:
+        result = await shopify_service.fetch_all_products(db=db)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"[shop: {shop}] {e}")
+
+
 @router.get("/products", response_model=List[ProductResponse])
 async def get_products(
     collection_id: Optional[str] = None,
