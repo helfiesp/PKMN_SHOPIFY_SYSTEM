@@ -2514,7 +2514,7 @@ input[type="checkbox"] {
     border-bottom-color: var(--primary);
     font-weight: 600;
 }
-.mvat-tab-panel { display: none; }
+.mvat-tab-panel { display: none; max-width: 900px; }
 .mvat-tab-panel.active { display: block; }
 
 /* ── Margin VAT ──────────────────────────────────────────────────────── */
