@@ -594,16 +594,26 @@ async function applyBoosterPlan(planId) {
 async function loadSnkrdunk() {
     showTabLoading('snkrdunk-table-wrap');
     try {
+        // First: refresh live prices from Shopify for mapped products
+        api('/shopify/refresh-mapped-prices', { method: 'POST' }).catch(() => {});
+
         const [snkRes, logsRes, prodRes, mapRes] = await Promise.allSettled([
             api('/snkrdunk/products'),
             api('/snkrdunk/scan-logs?limit=10'),
-            api('/shopify/products?limit=500'),
+            api('/shopify/products?limit=2000'),
             api('/mappings/snkrdunk?limit=500'),
         ]);
         snkrdunkItems    = snkRes.status  === 'fulfilled' ? (snkRes.value.items || []) : [];
         const logs       = logsRes.status === 'fulfilled' ? logsRes.value : [];
         shopifyProducts  = prodRes.status === 'fulfilled' ? (prodRes.value.products || prodRes.value || shopifyProducts) : shopifyProducts;
         snkrdunkMappings = mapRes.status  === 'fulfilled' ? mapRes.value : snkrdunkMappings;
+
+        // Re-fetch products after price refresh completes (may have updated by now)
+        try {
+            const freshProds = await api('/shopify/products?limit=2000');
+            shopifyProducts = freshProds.products || freshProds || shopifyProducts;
+        } catch (_) {}
+
         renderSnkrdunkTable();
         renderSnkrdunkLogs(logs);
     } catch (e) {
@@ -749,7 +759,7 @@ function renderSnkRow({ item, jpy, nokRec, spike, spikePct, myPrice, diff, diffP
     // Action button
     let actionHtml = '';
     if (myPrice == null) {
-        actionHtml = '<span class="muted" style="font-size:.75rem">—</span>';
+        actionHtml = `<button class="btn btn-xs btn-sm" onclick="event.stopPropagation();snkOpenMapping('${item.id}', '${(item.nameEn || item.name || '').replace(/'/g, "\\'")}')">Map</button>`;
     } else if (Math.abs(diff) > 25 && variantDbId) {
         actionHtml = `<button class="btn btn-sm ${underpriced ? 'btn-primary' : 'btn-warning'}"
             onclick="event.stopPropagation();snkUpdatePrice(${variantDbId}, ${nokRec}, this)"
@@ -760,7 +770,7 @@ function renderSnkRow({ item, jpy, nokRec, spike, spikePct, myPrice, diff, diffP
         actionHtml = '<span class="muted" style="font-size:.75rem">—</span>';
     }
 
-    return `<tr class="${rowClass}">
+    return `<tr class="${rowClass}" data-snk-id="${item.id}">
         <td>${img}</td>
         <td>
             <strong style="font-size:.8125rem">${item.nameEn || item.name || item.id}</strong>
@@ -794,6 +804,95 @@ async function snkUpdatePrice(variantDbId, newPrice, btnEl) {
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
         if (btnEl) { btnEl.disabled = false; btnEl.textContent = `Update to kr ${fmtNum(newPrice)}`; }
+    }
+}
+
+// ── SNKRDUNK Mapping ────────────────────────────────────────────────────
+let snkMappingTimeout = null;
+
+function snkOpenMapping(snkrdunkKey, snkrdunkName) {
+    // Close any existing mapping row
+    document.querySelectorAll('.snk-mapping-row').forEach(el => el.remove());
+
+    // Find the row for this item and insert a mapping row after it
+    const rows = document.querySelectorAll('#snkrdunk-table-wrap tbody tr');
+    let targetRow = null;
+    for (const row of rows) {
+        if (row.querySelector(`[data-snk-id="${snkrdunkKey}"]`) || row.innerHTML.includes(`snkOpenMapping('${snkrdunkKey}'`)) {
+            targetRow = row;
+            break;
+        }
+    }
+
+    const mapRow = document.createElement('tr');
+    mapRow.className = 'snk-mapping-row';
+    mapRow.innerHTML = `
+        <td colspan="8" style="background:var(--bg-secondary);padding:.75rem 1rem">
+            <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+                <strong style="font-size:.8125rem">Map "${snkrdunkName}" to Shopify product:</strong>
+                <div style="position:relative;flex:1;min-width:200px">
+                    <input type="text" class="input-sm" id="snk-map-search-${snkrdunkKey}" style="width:100%"
+                        placeholder="Search Shopify product..." oninput="snkMapSearch('${snkrdunkKey}', this.value)" autocomplete="off" />
+                    <div id="snk-map-results-${snkrdunkKey}" class="mvat-dropdown"></div>
+                </div>
+                <button class="btn btn-xs" onclick="this.closest('tr').remove()">Cancel</button>
+            </div>
+        </td>
+    `;
+
+    if (targetRow && targetRow.nextSibling) {
+        targetRow.parentNode.insertBefore(mapRow, targetRow.nextSibling);
+    } else if (targetRow) {
+        targetRow.parentNode.appendChild(mapRow);
+    }
+
+    document.getElementById(`snk-map-search-${snkrdunkKey}`)?.focus();
+}
+
+function snkMapSearch(snkrdunkKey, query) {
+    clearTimeout(snkMappingTimeout);
+    const el = document.getElementById(`snk-map-results-${snkrdunkKey}`);
+    if (!query || query.length < 2) { el.style.display = 'none'; return; }
+    snkMappingTimeout = setTimeout(async () => {
+        // Search from already-loaded shopifyProducts
+        const q = query.toLowerCase();
+        const matches = shopifyProducts.filter(p => p.title.toLowerCase().includes(q)).slice(0, 10);
+        if (!matches.length) {
+            el.innerHTML = '<div class="mvat-search-item muted">No products found</div>';
+            el.style.display = 'block';
+            return;
+        }
+        el.innerHTML = matches.map(p => `
+            <div class="mvat-search-item" onclick="snkMapProduct('${snkrdunkKey}', '${p.shopify_id}', '${p.title.replace(/'/g, "\\'")}')">
+                ${p.image_url ? `<img src="${p.image_url}" style="width:28px;height:28px;object-fit:cover;border-radius:3px">` : ''}
+                <div style="flex:1"><strong style="font-size:.8125rem">${p.title}</strong></div>
+                <span class="mono" style="font-size:.75rem">kr ${fmtNum(p.variants?.[0]?.price || 0)}</span>
+            </div>
+        `).join('');
+        el.style.display = 'block';
+    }, 150);
+}
+
+async function snkMapProduct(snkrdunkKey, productShopifyId, productTitle) {
+    try {
+        await api('/mappings/snkrdunk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                snkrdunk_key: snkrdunkKey,
+                product_shopify_id: productShopifyId,
+            }),
+        });
+        toast(`Mapped to "${productTitle}"`, 'success');
+        // Remove mapping row and reload
+        document.querySelectorAll('.snk-mapping-row').forEach(el => el.remove());
+        // Refresh mappings
+        try {
+            snkrdunkMappings = await api('/mappings/snkrdunk?limit=500');
+        } catch (_) {}
+        renderSnkrdunkTable();
+    } catch (e) {
+        toast(`Mapping failed: ${e.message}`, 'error');
     }
 }
 

@@ -398,6 +398,67 @@ async def refresh_all_prices(db: Session = Depends(get_db)):
     }
 
 
+@router.post("/refresh-mapped-prices")
+async def refresh_mapped_prices(db: Session = Depends(get_db)):
+    """Refresh Shopify prices for all SNKRDUNK-mapped products only (fast)."""
+    from app.models import Variant, Product, SnkrdunkMapping
+
+    shop = settings.get_shopify_shop()
+    token = settings.get_shopify_token()
+    if not shop or not token:
+        raise HTTPException(status_code=500, detail="Shopify credentials not configured")
+
+    # Get unique product shopify IDs from active mappings
+    mappings = db.query(SnkrdunkMapping).filter(SnkrdunkMapping.disabled == False).all()
+    product_ids = list(set(m.product_shopify_id for m in mappings if m.product_shopify_id))
+    if not product_ids:
+        return {"updated_count": 0, "error_count": 0}
+
+    graphql_url = f"https://{shop}/admin/api/{settings.shopify_api_version}/graphql.json"
+    headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
+
+    updated_count = 0
+    error_count = 0
+
+    for pid in product_ids:
+        try:
+            query = """
+            query($id: ID!) {
+              product(id: $id) {
+                variants(first: 100) {
+                  edges { node { id price compareAtPrice inventoryQuantity } }
+                }
+              }
+            }
+            """
+            response = requests.post(
+                graphql_url,
+                json={"query": query, "variables": {"id": pid}},
+                headers=headers, timeout=30
+            )
+            response.raise_for_status()
+            result = response.json()
+            if "errors" in result:
+                error_count += 1
+                continue
+
+            for edge in result.get("data", {}).get("product", {}).get("variants", {}).get("edges", []):
+                vn = edge["node"]
+                variant = db.query(Variant).filter(Variant.shopify_id == vn["id"]).first()
+                if variant and vn.get("price"):
+                    variant.price = float(vn["price"])
+                    if vn.get("compareAtPrice"):
+                        variant.compare_at_price = float(vn["compareAtPrice"])
+                    if vn.get("inventoryQuantity") is not None:
+                        variant.inventory_quantity = int(vn["inventoryQuantity"])
+                    updated_count += 1
+        except Exception:
+            error_count += 1
+
+    db.commit()
+    return {"updated_count": updated_count, "error_count": error_count}
+
+
 @router.post("/products/{product_id}/refresh")
 async def refresh_product(product_id: int, db: Session = Depends(get_db)):
     """Refresh prices and inventory for a single product from Shopify GraphQL."""
