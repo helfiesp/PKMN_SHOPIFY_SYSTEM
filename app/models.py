@@ -920,37 +920,56 @@ class PurchaseOrderItem(Base):
 # MARGIN VAT SCHEME (BRUKTMOMSORDNINGEN)
 # ============================================================================
 
-class MarginVatProduct(Base):
-    """Product under the margin VAT scheme (bruktmomsordningen).
+class MarginVatPurchase(Base):
+    """A purchase order from a private seller (bruktmomsordningen).
 
-    When buying from private individuals, VAT is only charged on the profit margin.
-    Each product gets a unique effective tax rate based on purchase vs selling price.
-    Products are bucketed by rate (rounded up to nearest 1%) and assigned to
-    corresponding Shopify tax-override collections.
+    Groups line items bought in the same transaction. Each purchase has a seller,
+    date, and optional proof-of-purchase images.
     """
-    __tablename__ = "margin_vat_products"
+    __tablename__ = "margin_vat_purchases"
 
     id = Column(Integer, primary_key=True, index=True)
+    seller = Column(String(500))
+    purchase_date = Column(DateTime(timezone=True))
+    notes = Column(Text)
+    status = Column(String(50), default="active")  # active, archived
 
-    # Link to Shopify product/variant (nullable — can record purchase before linking)
-    product_shopify_id = Column(String(255), nullable=True, index=True)
-    variant_shopify_id = Column(String(255), nullable=True, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Cached product info (for display without joins)
+    # Relationships
+    items = relationship("MarginVatItem", back_populates="purchase", cascade="all, delete-orphan")
+    proof_images = relationship("MarginVatProofImage", back_populates="purchase", cascade="all, delete-orphan")
+
+
+class MarginVatItem(Base):
+    """A line item in a margin VAT purchase.
+
+    Each item tracks: what was bought, quantity, unit price, and optionally
+    links to a Shopify product for VAT calculation and collection assignment.
+    """
+    __tablename__ = "margin_vat_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_id = Column(Integer, ForeignKey("margin_vat_purchases.id"), nullable=False)
+
+    # What was bought
+    description = Column(String(500), nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    unit_price_nok = Column(Float, nullable=False)
+
+    # Link to Shopify product/variant (set later when linking)
+    product_shopify_id = Column(String(255), index=True)
+    variant_shopify_id = Column(String(255), index=True)
     product_title = Column(String(500))
     variant_title = Column(String(500))
     sku = Column(String(255))
     image_url = Column(String(1000))
 
-    # Purchase info
-    purchase_price_nok = Column(Float, nullable=False)
-    purchase_date = Column(DateTime(timezone=True))
-    seller_description = Column(String(500))
-
-    # Selling price (snapshot from Shopify variant, updated on sync/recalc)
+    # Selling price (from Shopify or manually set)
     selling_price_nok = Column(Float)
 
-    # Calculated VAT fields
+    # Calculated VAT fields (per unit)
     margin_nok = Column(Float)
     vat_amount_nok = Column(Float)
     effective_rate_pct = Column(Float)
@@ -961,29 +980,25 @@ class MarginVatProduct(Base):
     tax_collection_name = Column(String(100))
     needs_reassignment = Column(Boolean, default=False)
 
-    # Status
     status = Column(String(50), default="active")  # active, sold, archived
-    notes = Column(Text)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    proof_images = relationship(
-        "MarginVatProofImage", back_populates="margin_vat_product", cascade="all, delete-orphan"
-    )
+    purchase = relationship("MarginVatPurchase", back_populates="items")
 
     __table_args__ = (
-        Index('idx_mvp_bucket_status', 'bucket_rate_pct', 'status'),
+        Index('idx_mvi_bucket_status', 'bucket_rate_pct', 'status'),
     )
 
 
 class MarginVatProofImage(Base):
-    """Proof-of-purchase image for margin VAT products."""
+    """Proof-of-purchase image for a margin VAT purchase."""
     __tablename__ = "margin_vat_proof_images"
 
     id = Column(Integer, primary_key=True, index=True)
-    margin_vat_product_id = Column(Integer, ForeignKey("margin_vat_products.id"), nullable=False)
+    purchase_id = Column(Integer, ForeignKey("margin_vat_purchases.id"), nullable=False)
 
     filename = Column(String(500), nullable=False)
     stored_filename = Column(String(500), nullable=False)
@@ -995,4 +1010,4 @@ class MarginVatProofImage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationship
-    margin_vat_product = relationship("MarginVatProduct", back_populates="proof_images")
+    purchase = relationship("MarginVatPurchase", back_populates="proof_images")

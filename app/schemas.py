@@ -507,62 +507,67 @@ class MarginVatProofImageResponse(BaseModel):
     file_path: str
     content_type: Optional[str] = None
     file_size_bytes: Optional[int] = None
-    description: Optional[str] = None
-    created_at: datetime
-
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
+class MarginVatItemCreate(BaseModel):
+    description: str
+    quantity: int = Field(ge=1, default=1)
+    unit_price_nok: float = Field(gt=0)
 
-class MarginVatProductCreate(BaseModel):
+class MarginVatItemUpdate(BaseModel):
+    description: Optional[str] = None
+    quantity: Optional[int] = Field(None, ge=1)
+    unit_price_nok: Optional[float] = Field(None, gt=0)
+    selling_price_nok: Optional[float] = Field(None, ge=0)
     product_shopify_id: Optional[str] = None
     variant_shopify_id: Optional[str] = None
-    purchase_price_nok: float = Field(gt=0)
-    purchase_date: Optional[datetime] = None
-    seller_description: Optional[str] = None
-    product_title: Optional[str] = None  # For unlinked purchases — what you bought
-    notes: Optional[str] = None
-
-
-class MarginVatProductUpdate(BaseModel):
-    product_shopify_id: Optional[str] = None
-    variant_shopify_id: Optional[str] = None
-    purchase_price_nok: Optional[float] = Field(None, gt=0)
-    selling_price_nok: Optional[float] = Field(None, gt=0)
-    seller_description: Optional[str] = None
-    product_title: Optional[str] = None
-    notes: Optional[str] = None
     status: Optional[str] = None
 
-
-class MarginVatProductResponse(BaseModel):
+class MarginVatItemResponse(BaseModel):
     id: int
-    product_shopify_id: str
-    variant_shopify_id: str
+    purchase_id: int
+    description: str
+    quantity: int
+    unit_price_nok: float
+    product_shopify_id: Optional[str] = None
+    variant_shopify_id: Optional[str] = None
     product_title: Optional[str] = None
     variant_title: Optional[str] = None
     sku: Optional[str] = None
     image_url: Optional[str] = None
-    purchase_price_nok: float
-    purchase_date: Optional[datetime] = None
-    seller_description: Optional[str] = None
     selling_price_nok: Optional[float] = None
     margin_nok: Optional[float] = None
     vat_amount_nok: Optional[float] = None
     effective_rate_pct: Optional[float] = None
     bucket_rate_pct: Optional[int] = None
-    tax_collection_id: Optional[str] = None
     tax_collection_name: Optional[str] = None
     needs_reassignment: bool = False
     status: str = "active"
-    notes: Optional[str] = None
     created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    proof_images: List[MarginVatProofImageResponse] = []
-
     class Config:
         from_attributes = True
 
+class MarginVatPurchaseCreate(BaseModel):
+    seller: Optional[str] = None
+    purchase_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    items: List[MarginVatItemCreate] = Field(min_length=1)
+
+class MarginVatPurchaseResponse(BaseModel):
+    id: int
+    seller: Optional[str] = None
+    purchase_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    status: str = "active"
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    items: List[MarginVatItemResponse] = []
+    proof_images: List[MarginVatProofImageResponse] = []
+    total_nok: Optional[float] = None
+    class Config:
+        from_attributes = True
 
 class MarginVatCalculation(BaseModel):
     selling_price: float
@@ -572,16 +577,16 @@ class MarginVatCalculation(BaseModel):
     effective_rate_pct: float
     bucket_rate_pct: int
 
-
 class MarginVatSyncResult(BaseModel):
     products_added: int = 0
     products_removed: int = 0
     products_already_correct: int = 0
     errors: List[str] = []
 
-
 class MarginVatBucketSummary(BaseModel):
     bucket_rate_pct: int
     product_count: int
     collection_configured: bool
     collection_name: Optional[str] = None
+
+

@@ -2534,6 +2534,25 @@ input[type="checkbox"] {
 .mvat-needs-attention { background: rgba(245, 158, 11, 0.06) !important; }
 [data-theme="dark"] .mvat-needs-attention { background: rgba(245, 158, 11, 0.1) !important; }
 
+.mvat-purchase-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: .75rem;
+    overflow: hidden;
+}
+.mvat-purchase-header {
+    display: flex;
+    align-items: center;
+    padding: .625rem 1rem;
+    background: var(--surface);
+    cursor: pointer;
+    font-size: .8125rem;
+    gap: .5rem;
+}
+.mvat-purchase-header:hover { background: var(--bg-secondary); }
+.mvat-purchase-body { display: none; border-top: 1px solid var(--border); }
+.mvat-purchase-body.open { display: block; }
+
 .mvat-dropdown {
     display: none;
     position: absolute;
