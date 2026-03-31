@@ -3250,6 +3250,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Initial tab from hash
+    // Default date fields to today
+    const today = new Date().toISOString().split('T')[0];
+    ['mvat-rec-date', 'mvat-purchase-date', 'mvat-new-date'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = today;
+    });
+
     const hash = window.location.hash.slice(1);
     switchTab(hash || 'dashboard');
 });
