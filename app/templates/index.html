@@ -87,6 +87,11 @@
                     <span class="nav-label">Kvitteringer</span>
                 </button>
 
+                <button class="nav-item" data-tab="margin-vat">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                    <span class="nav-label">Margin VAT</span>
+                </button>
+
                 <button class="nav-item" data-tab="stock-dates">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                     <span class="nav-label">Stock Dates</span>
@@ -488,6 +493,86 @@
             </div>
 
             <!-- ─── SETTINGS ───────────────────────────────────────────────── -->
+            <!-- ── MARGIN VAT TAB ─────────────────────────────── -->
+            <div id="tab-margin-vat" class="tab-panel">
+                <div class="section-header">
+                    <h2>Margin VAT (Bruktmoms)</h2>
+                    <span class="muted" id="mvat-count"></span>
+                </div>
+
+                <!-- Bucket summary -->
+                <div id="mvat-bucket-summary" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem"></div>
+
+                <!-- Action buttons -->
+                <div style="margin-bottom:1.25rem;display:flex;gap:.5rem">
+                    <button class="btn btn-primary btn-sm" onclick="mvatSyncCollections()">Sync Tax Collections</button>
+                    <button class="btn btn-sm" onclick="mvatRecalculateAll()">Recalculate All</button>
+                </div>
+
+                <!-- Register product form -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header"><h3>Register Product (Bruktmoms)</h3></div>
+                    <div style="padding:1rem 1.25rem">
+                        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.75rem">
+                            <div style="flex:1;min-width:200px">
+                                <label class="form-label">Search Product</label>
+                                <input type="text" id="mvat-product-search" class="input-sm" style="width:100%"
+                                    placeholder="Type product name or SKU..." oninput="mvatSearchProducts(this.value)" />
+                            </div>
+                            <div>
+                                <label class="form-label">Purchase Price (NOK)</label>
+                                <input type="number" id="mvat-purchase-price" class="input-sm" style="width:120px"
+                                    min="0" step="1" oninput="mvatCalculatePreview()" />
+                            </div>
+                            <div>
+                                <label class="form-label">Purchase Date</label>
+                                <input type="date" id="mvat-purchase-date" class="input-sm" style="width:150px" />
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.75rem">
+                            <div style="flex:1;min-width:200px">
+                                <label class="form-label">Seller Description</label>
+                                <input type="text" id="mvat-seller-desc" class="input-sm" style="width:100%"
+                                    placeholder="e.g. SNKRDUNK private seller" />
+                            </div>
+                            <div style="flex:1;min-width:200px">
+                                <label class="form-label">Notes</label>
+                                <input type="text" id="mvat-notes" class="input-sm" style="width:100%" placeholder="Optional" />
+                            </div>
+                        </div>
+
+                        <!-- Search results dropdown -->
+                        <div id="mvat-search-results" style="display:none;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-bottom:.75rem"></div>
+
+                        <!-- Selected product display -->
+                        <div id="mvat-selected-product" style="display:none;padding:.75rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.75rem;background:var(--bg-secondary)"></div>
+
+                        <!-- VAT preview -->
+                        <div id="mvat-calc-preview" style="display:none;padding:.75rem;border:1px solid var(--accent);border-radius:6px;margin-bottom:.75rem;background:var(--bg-secondary)"></div>
+
+                        <button class="btn btn-primary" id="mvat-register-btn" onclick="mvatRegisterProduct()" disabled>
+                            Register Product
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Product list -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Registered Products</h3>
+                        <div style="display:flex;gap:.5rem">
+                            <select id="mvat-filter-status" class="input-sm" onchange="loadMarginVat()">
+                                <option value="">All statuses</option>
+                                <option value="active" selected>Active</option>
+                                <option value="sold">Sold</option>
+                                <option value="archived">Archived</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="mvat-product-list"><div class="loading-spinner">Loading&hellip;</div></div>
+                </div>
+            </div>
+
             <div id="tab-settings" class="tab-panel">
                 <div class="section-header">
                     <h2>Settings</h2>
@@ -554,6 +639,20 @@
                         Competitor products below this price are hidden in search results and excluded from auto-matching.
                         Filters out individual card singles when searching for booster boxes.
                     </p>
+                </div>
+
+                <!-- MVA Collection IDs -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header">
+                        <h3>MVA Collections (Bruktmoms)</h3>
+                        <button class="btn btn-sm btn-primary" onclick="saveMvaCollections()">Save All</button>
+                    </div>
+                    <p class="muted" style="padding:.5rem 1.25rem 0;font-size:.8125rem">
+                        Enter the Shopify collection ID for each MVA rate bucket.
+                        Find the ID in the Shopify admin URL when viewing the collection (e.g. 444175384827).
+                    </p>
+                    <div id="mva-collection-grid" style="padding:.75rem 1.25rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.5rem">
+                    </div>
                 </div>
 
                 <!-- Settings list -->

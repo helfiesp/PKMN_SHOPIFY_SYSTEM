@@ -2454,3 +2454,83 @@ input[type="checkbox"] {
     border-color: var(--primary);
     box-shadow: 0 4px 20px rgba(0,0,0,.4);
 }
+
+/* ── Margin VAT ──────────────────────────────────────────────────────── */
+
+.mvat-bucket-card {
+    padding: .625rem .875rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    min-width: 110px;
+    text-align: center;
+}
+.mvat-bucket-card.mvat-bucket-warn {
+    border-color: var(--warning, #f59e0b);
+}
+.mvat-bucket-rate {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.mvat-bucket-count {
+    font-size: .75rem;
+    color: var(--text-secondary);
+    margin-bottom: .25rem;
+}
+
+.mvat-needs-attention {
+    background: rgba(245, 158, 11, 0.06) !important;
+}
+[data-theme="dark"] .mvat-needs-attention {
+    background: rgba(245, 158, 11, 0.1) !important;
+}
+
+.mvat-search-item {
+    display: flex;
+    align-items: center;
+    padding: .5rem .75rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    font-size: .8125rem;
+    gap: .5rem;
+}
+.mvat-search-item:hover {
+    background: var(--bg-secondary);
+}
+.mvat-search-item:last-child {
+    border-bottom: none;
+}
+
+.mvat-proof-grid {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+.mvat-proof-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.mvat-proof-thumb {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+}
+.mvat-proof-thumb:hover {
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
+.mvat-proof-pdf {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: .875rem;
+    text-decoration: none;
+}

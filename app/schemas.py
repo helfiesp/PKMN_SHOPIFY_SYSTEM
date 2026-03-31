@@ -494,3 +494,90 @@ class PurchaseOrderSummary(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ============================================================================
+# Margin VAT Schemas
+# ============================================================================
+
+class MarginVatProofImageResponse(BaseModel):
+    id: int
+    filename: str
+    stored_filename: str
+    file_path: str
+    content_type: Optional[str] = None
+    file_size_bytes: Optional[int] = None
+    description: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MarginVatProductCreate(BaseModel):
+    product_shopify_id: str
+    variant_shopify_id: str
+    purchase_price_nok: float = Field(gt=0)
+    purchase_date: Optional[datetime] = None
+    seller_description: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class MarginVatProductUpdate(BaseModel):
+    purchase_price_nok: Optional[float] = Field(None, gt=0)
+    selling_price_nok: Optional[float] = Field(None, gt=0)
+    seller_description: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+
+
+class MarginVatProductResponse(BaseModel):
+    id: int
+    product_shopify_id: str
+    variant_shopify_id: str
+    product_title: Optional[str] = None
+    variant_title: Optional[str] = None
+    sku: Optional[str] = None
+    image_url: Optional[str] = None
+    purchase_price_nok: float
+    purchase_date: Optional[datetime] = None
+    seller_description: Optional[str] = None
+    selling_price_nok: Optional[float] = None
+    margin_nok: Optional[float] = None
+    vat_amount_nok: Optional[float] = None
+    effective_rate_pct: Optional[float] = None
+    bucket_rate_pct: Optional[int] = None
+    tax_collection_id: Optional[str] = None
+    tax_collection_name: Optional[str] = None
+    needs_reassignment: bool = False
+    status: str = "active"
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    proof_images: List[MarginVatProofImageResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class MarginVatCalculation(BaseModel):
+    selling_price: float
+    purchase_price: float
+    margin_nok: float
+    vat_amount_nok: float
+    effective_rate_pct: float
+    bucket_rate_pct: int
+
+
+class MarginVatSyncResult(BaseModel):
+    products_added: int = 0
+    products_removed: int = 0
+    products_already_correct: int = 0
+    errors: List[str] = []
+
+
+class MarginVatBucketSummary(BaseModel):
+    bucket_rate_pct: int
+    product_count: int
+    collection_configured: bool
+    collection_name: Optional[str] = None

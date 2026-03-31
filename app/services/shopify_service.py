@@ -288,19 +288,23 @@ class ShopifyService:
         collection_id: Optional[str] = None,
         status: Optional[str] = None,
         template_suffix: Optional[str] = None,
+        search: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[Product]:
         """Get products from database."""
         query = db.query(Product)
-        
+
         if collection_id:
             query = query.filter(Product.collection_id == collection_id)
         if status:
             query = query.filter(Product.status == status)
         if template_suffix:
             query = query.filter(Product.template_suffix == template_suffix)
-        
+        if search:
+            pattern = f"%{search}%"
+            query = query.filter(Product.title.ilike(pattern))
+
         return query.offset(skip).limit(limit).all()
     
     def get_product_by_id(self, db: Session, product_id: int) -> Optional[Product]:

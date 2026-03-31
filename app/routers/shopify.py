@@ -55,6 +55,7 @@ async def get_products(
     collection_id: Optional[str] = None,
     status: Optional[str] = None,
     template_suffix: Optional[str] = None,
+    search: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
@@ -65,6 +66,7 @@ async def get_products(
         collection_id=collection_id,
         template_suffix=template_suffix,
         status=status,
+        search=search,
         skip=skip,
         limit=limit
     )

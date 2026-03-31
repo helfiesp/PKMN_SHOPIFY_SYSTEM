@@ -29,6 +29,7 @@ from app.routers import (
     purchase_orders,
     stock_dates,
     receipts,
+    margin_vat,
 )
 from app.routers import settings as settings_router
 
@@ -44,6 +45,13 @@ app = FastAPI(
 # Setup static files and templates
 app_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=app_dir / "static"), name="static")
+
+# Mount uploads directory for proof-of-purchase images etc.
+uploads_dir = app_dir.parent / "uploads"
+uploads_dir.mkdir(parents=True, exist_ok=True)
+(uploads_dir / "margin_vat").mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
 templates = Jinja2Templates(directory=app_dir / "templates")
 
 # CORS middleware
@@ -76,6 +84,7 @@ app.include_router(competitor_links.router, prefix="/api/v1/competitor-links", t
 app.include_router(purchase_orders.router, prefix="/api/v1/purchase-orders", tags=["Purchase Orders"])
 app.include_router(stock_dates.router, prefix="/api/v1/stock-dates", tags=["Stock Dates"])
 app.include_router(receipts.router, prefix="/api/v1/receipts", tags=["Receipts"])
+app.include_router(margin_vat.router, prefix="/api/v1/margin-vat", tags=["Margin VAT"])
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -539,6 +539,12 @@ class PricePlanService:
                                 variant.price = float(item.new_price)
                                 variant.updated_at = datetime.now(timezone.utc)
                                 log(f"    Updated variant {variant.id} price to {variant.price}")
+                            # Flag margin VAT product for recalculation if applicable
+                            try:
+                                from app.services.margin_vat_service import margin_vat_service
+                                margin_vat_service.recalculate_for_variant(db, item.variant_shopify_id, float(item.new_price))
+                            except Exception:
+                                pass  # margin VAT recalc is non-critical
                         applied_count += len(items_to_mark)
                 
                 except Exception as e:

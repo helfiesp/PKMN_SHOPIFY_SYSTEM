@@ -914,3 +914,85 @@ class PurchaseOrderItem(Base):
     __table_args__ = (
         Index('idx_poi_order_variant', 'purchase_order_id', 'variant_id'),
     )
+
+
+# ============================================================================
+# MARGIN VAT SCHEME (BRUKTMOMSORDNINGEN)
+# ============================================================================
+
+class MarginVatProduct(Base):
+    """Product under the margin VAT scheme (bruktmomsordningen).
+
+    When buying from private individuals, VAT is only charged on the profit margin.
+    Each product gets a unique effective tax rate based on purchase vs selling price.
+    Products are bucketed by rate (rounded up to nearest 1%) and assigned to
+    corresponding Shopify tax-override collections.
+    """
+    __tablename__ = "margin_vat_products"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Link to Shopify product/variant
+    product_shopify_id = Column(String(255), nullable=False, index=True)
+    variant_shopify_id = Column(String(255), nullable=False, unique=True, index=True)
+
+    # Cached product info (for display without joins)
+    product_title = Column(String(500))
+    variant_title = Column(String(500))
+    sku = Column(String(255))
+    image_url = Column(String(1000))
+
+    # Purchase info
+    purchase_price_nok = Column(Float, nullable=False)
+    purchase_date = Column(DateTime(timezone=True))
+    seller_description = Column(String(500))
+
+    # Selling price (snapshot from Shopify variant, updated on sync/recalc)
+    selling_price_nok = Column(Float)
+
+    # Calculated VAT fields
+    margin_nok = Column(Float)
+    vat_amount_nok = Column(Float)
+    effective_rate_pct = Column(Float)
+    bucket_rate_pct = Column(Integer)
+
+    # Shopify collection assignment
+    tax_collection_id = Column(String(255))
+    tax_collection_name = Column(String(100))
+    needs_reassignment = Column(Boolean, default=False)
+
+    # Status
+    status = Column(String(50), default="active")  # active, sold, archived
+    notes = Column(Text)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    proof_images = relationship(
+        "MarginVatProofImage", back_populates="margin_vat_product", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index('idx_mvp_bucket_status', 'bucket_rate_pct', 'status'),
+    )
+
+
+class MarginVatProofImage(Base):
+    """Proof-of-purchase image for margin VAT products."""
+    __tablename__ = "margin_vat_proof_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    margin_vat_product_id = Column(Integer, ForeignKey("margin_vat_products.id"), nullable=False)
+
+    filename = Column(String(500), nullable=False)
+    stored_filename = Column(String(500), nullable=False)
+    file_path = Column(String(1000), nullable=False)
+    content_type = Column(String(100))
+    file_size_bytes = Column(Integer)
+    description = Column(String(500))
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationship
+    margin_vat_product = relationship("MarginVatProduct", back_populates="proof_images")
