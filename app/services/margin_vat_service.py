@@ -93,9 +93,11 @@ class MarginVatService:
             "margin_nok": 0, "vat_amount_nok": 0, "effective_rate_pct": 0, "bucket_rate_pct": 0
         }
 
+        # Use unique placeholder for unlinked records (DB has NOT NULL + UNIQUE constraints)
+        import uuid
         mvp = MarginVatProduct(
-            product_shopify_id=data.get("product_shopify_id"),
-            variant_shopify_id=data.get("variant_shopify_id"),
+            product_shopify_id=data.get("product_shopify_id") or f"unlinked:{uuid.uuid4().hex[:12]}",
+            variant_shopify_id=data.get("variant_shopify_id") or f"unlinked:{uuid.uuid4().hex[:12]}",
             product_title=data.get("product_title") or (product.title if product else None),
             variant_title=variant.title if variant else None,
             sku=variant.sku if variant else None,
@@ -108,7 +110,7 @@ class MarginVatService:
             vat_amount_nok=calc["vat_amount_nok"],
             effective_rate_pct=calc["effective_rate_pct"],
             bucket_rate_pct=calc["bucket_rate_pct"],
-            needs_reassignment=True if data.get("variant_shopify_id") else False,
+            needs_reassignment=True if data.get("variant_shopify_id") and not data.get("variant_shopify_id", "").startswith("unlinked:") else False,
             status="active",
             notes=data.get("notes"),
         )
@@ -131,7 +133,7 @@ class MarginVatService:
         newly_linked = False
 
         # Check if we're linking to a Shopify product for the first time
-        if data.get("variant_shopify_id") and not mvp.variant_shopify_id:
+        if data.get("variant_shopify_id") and (not mvp.variant_shopify_id or mvp.variant_shopify_id.startswith("unlinked:")):
             newly_linked = True
 
         for key, value in data.items():

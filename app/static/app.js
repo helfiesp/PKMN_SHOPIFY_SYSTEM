@@ -3380,7 +3380,7 @@ function renderMvatTable(products) {
 }
 
 function renderMvatRow(p) {
-    const isLinked = !!p.variant_shopify_id;
+    const isLinked = p.variant_shopify_id && !p.variant_shopify_id.startsWith('unlinked:');
     const img = p.image_url
         ? `<img src="${p.image_url}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:4px">`
         : '<div style="width:32px;height:32px;background:var(--bg-secondary);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--text-secondary)">' + (isLinked ? '' : '?') + '</div>';
