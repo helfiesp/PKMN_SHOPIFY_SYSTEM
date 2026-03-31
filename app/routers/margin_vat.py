@@ -50,6 +50,15 @@ async def calculate_rate(selling_price: float, purchase_price: float):
     )
 
 
+@router.get("/product-detail")
+async def get_product_detail(shopify_id: str):
+    """Fetch full product details from Shopify for templating."""
+    try:
+        return margin_vat_service.fetch_product_detail(shopify_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{mvp_id}", response_model=MarginVatProductResponse)
 async def get_margin_vat_product(mvp_id: int, db: Session = Depends(get_db)):
     """Get a single margin VAT product."""
@@ -139,15 +148,6 @@ async def sync_collections(db: Session = Depends(get_db)):
 
 
 # ── Shopify Product Management ───────────────────────────────────────────
-
-@router.get("/product-detail")
-async def get_product_detail(shopify_id: str):
-    """Fetch full product details from Shopify for templating."""
-    try:
-        return margin_vat_service.fetch_product_detail(shopify_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/create-product")
 async def create_shopify_product(
