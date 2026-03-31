@@ -136,3 +136,34 @@ async def sync_collections(db: Session = Depends(get_db)):
         return margin_vat_service.sync_collections(db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Shopify Product Management ───────────────────────────────────────────
+
+@router.post("/create-product")
+async def create_shopify_product(
+    data: dict,
+    db: Session = Depends(get_db),
+):
+    """Create a new draft product on Shopify and optionally register it for margin VAT."""
+    try:
+        result = margin_vat_service.create_shopify_product(db, data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/update-product")
+async def update_shopify_product(
+    data: dict,
+    db: Session = Depends(get_db),
+):
+    """Update a product on Shopify (title, status, price)."""
+    product_shopify_id = data.pop("product_shopify_id", None)
+    if not product_shopify_id:
+        raise HTTPException(status_code=400, detail="product_shopify_id required")
+    try:
+        result = margin_vat_service.update_shopify_product(db, product_shopify_id, data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

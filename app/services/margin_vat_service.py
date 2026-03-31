@@ -468,4 +468,163 @@ class MarginVatService:
         }
 
 
+    # ── Shopify Product Creation ────────────────────────────────────────────
+
+    def create_shopify_product(self, db: Session, data: dict) -> dict:
+        """Create a new product on Shopify as DRAFT.
+
+        data keys: title, price (selling price NOK), sku, product_type,
+                   vendor, tags, description
+        Returns the created product data from Shopify.
+        """
+        variant_input = {"price": str(data.get("price", "0"))}
+        if data.get("sku"):
+            variant_input["sku"] = data["sku"]
+
+        product_input = {
+            "title": data["title"],
+            "status": "DRAFT",
+            "variants": [variant_input],
+        }
+        if data.get("product_type"):
+            product_input["productType"] = data["product_type"]
+        if data.get("vendor"):
+            product_input["vendor"] = data["vendor"]
+        if data.get("tags"):
+            product_input["tags"] = data["tags"]
+        if data.get("description"):
+            product_input["descriptionHtml"] = data["description"]
+
+        mutation = """
+        mutation($input: ProductInput!) {
+          productCreate(input: $input) {
+            product {
+              id
+              title
+              handle
+              status
+              variants(first: 10) {
+                edges { node { id title price sku } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        """
+        result = self._graphql_request(mutation, {"input": product_input})
+        pc = result.get("productCreate", {})
+        errors = pc.get("userErrors", [])
+        if errors:
+            raise Exception(f"Shopify errors: {[e['message'] for e in errors]}")
+
+        product = pc.get("product", {})
+
+        # Store in local database
+        from app.models import Product as ProductModel, Variant as VariantModel
+        # Extract numeric ID from GID
+        shopify_id = product["id"]  # gid://shopify/Product/xxx
+
+        db_product = ProductModel(
+            shopify_id=shopify_id,
+            title=product["title"],
+            handle=product["handle"],
+            status=product["status"].lower(),
+        )
+        db.add(db_product)
+        db.flush()
+
+        variants_data = []
+        for edge in product.get("variants", {}).get("edges", []):
+            v = edge["node"]
+            db_variant = VariantModel(
+                shopify_id=v["id"],
+                product_id=db_product.id,
+                title=v.get("title", "Default Title"),
+                price=float(v.get("price", 0)),
+                sku=v.get("sku"),
+            )
+            db.add(db_variant)
+            variants_data.append(v)
+
+        db.commit()
+
+        return {
+            "product_shopify_id": shopify_id,
+            "product_title": product["title"],
+            "handle": product["handle"],
+            "status": product["status"],
+            "variants": variants_data,
+            "local_product_id": db_product.id,
+        }
+
+    def update_shopify_product(self, db: Session, product_shopify_id: str, data: dict) -> dict:
+        """Update an existing product on Shopify.
+
+        data keys: title, status (ACTIVE/DRAFT/ARCHIVED), price, description
+        """
+        product_input = {"id": product_shopify_id}
+        if data.get("title"):
+            product_input["title"] = data["title"]
+        if data.get("status"):
+            product_input["status"] = data["status"].upper()
+        if data.get("description"):
+            product_input["descriptionHtml"] = data["description"]
+
+        mutation = """
+        mutation($input: ProductInput!) {
+          productUpdate(input: $input) {
+            product { id title status handle }
+            userErrors { field message }
+          }
+        }
+        """
+        result = self._graphql_request(mutation, {"input": product_input})
+        pu = result.get("productUpdate", {})
+        errors = pu.get("userErrors", [])
+        if errors:
+            raise Exception(f"Shopify errors: {[e['message'] for e in errors]}")
+
+        product = pu.get("product", {})
+
+        # Update price if provided
+        if data.get("price") and data.get("variant_shopify_id"):
+            price_mutation = """
+            mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                productVariants { id price }
+                userErrors { field message }
+              }
+            }
+            """
+            self._graphql_request(price_mutation, {
+                "productId": product_shopify_id,
+                "variants": [{"id": data["variant_shopify_id"], "price": str(data["price"])}],
+            })
+
+            # Update local DB variant price
+            variant = db.query(Variant).filter(
+                Variant.shopify_id == data["variant_shopify_id"]
+            ).first()
+            if variant:
+                variant.price = float(data["price"])
+
+        # Update local DB product
+        db_product = db.query(Product).filter(
+            Product.shopify_id == product_shopify_id
+        ).first()
+        if db_product:
+            if data.get("title"):
+                db_product.title = data["title"]
+            if data.get("status"):
+                db_product.status = data["status"].lower()
+
+        db.commit()
+
+        return {
+            "product_shopify_id": product.get("id"),
+            "title": product.get("title"),
+            "status": product.get("status"),
+        }
+
+
 margin_vat_service = MarginVatService()

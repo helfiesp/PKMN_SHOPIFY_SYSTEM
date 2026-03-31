@@ -3082,6 +3082,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 let mvatSelectedVariant = null;
+let mvatSearchTimeout = null;
 
 async function loadMarginVat() {
     showTabLoading('mvat-product-list');
@@ -3099,23 +3100,48 @@ async function loadMarginVat() {
     }
 }
 
+function fmtNum(n) {
+    if (n == null) return '0';
+    return Number(n).toLocaleString('nb-NO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function mvatCalc(sellingPrice, purchasePrice) {
+    const margin = sellingPrice - purchasePrice;
+    if (margin <= 0) return { margin: 0, vat: 0, rate: 0, bucket: 0 };
+    const vat = margin * 25 / 125;
+    const denom = 5 * sellingPrice - margin;
+    const rate = denom > 0 ? (100 * margin / denom) : 25;
+    const bucket = Math.min(Math.ceil(rate), 25);
+    return { margin, vat, rate, bucket };
+}
+
+function renderMvatCalcBox(sellingPrice, purchasePrice) {
+    const c = mvatCalc(sellingPrice, purchasePrice);
+    if (c.margin <= 0) return `<span class="muted">No margin</span> &rarr; <strong>0% MVA</strong>`;
+    return `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;font-size:.8125rem">
+            <div>Margin<br><strong>kr ${fmtNum(c.margin)}</strong></div>
+            <div>VAT<br><strong>kr ${c.vat.toFixed(2)}</strong></div>
+            <div>Rate<br><strong>${c.rate.toFixed(2)}%</strong></div>
+            <div>Bucket<br><strong class="badge badge-info badge-sm">${c.bucket}% MVA</strong></div>
+        </div>
+    `;
+}
+
+// ── Bucket Summary ──────────────────────────────────────────────────────
+
 function renderMvatBucketSummary(summary) {
     const el = document.getElementById('mvat-bucket-summary');
-    if (!summary?.length) {
-        el.innerHTML = '<p class="muted" style="font-size:.8125rem">No products registered yet.</p>';
-        return;
-    }
+    if (!summary?.length) { el.innerHTML = ''; return; }
     el.innerHTML = summary.map(b => `
         <div class="mvat-bucket-card ${b.collection_configured ? '' : 'mvat-bucket-warn'}">
             <div class="mvat-bucket-rate">${b.bucket_rate_pct}%</div>
-            <div class="mvat-bucket-count">${b.product_count} product${b.product_count !== 1 ? 's' : ''}</div>
-            <div class="mvat-bucket-status">${b.collection_configured
-                ? '<span class="badge badge-success badge-sm">Configured</span>'
-                : '<span class="badge badge-warning badge-sm">No collection</span>'
-            }</div>
+            <div class="mvat-bucket-count">${b.product_count}</div>
         </div>
     `).join('');
 }
+
+// ── Product Table ───────────────────────────────────────────────────────
 
 function renderMvatTable(products) {
     const el = document.getElementById('mvat-product-list');
@@ -3125,187 +3151,135 @@ function renderMvatTable(products) {
     }
     el.innerHTML = `
         <table class="data-table compact-table">
-            <thead>
-                <tr>
-                    <th></th>
-                    <th>Product</th>
-                    <th>Purchase</th>
-                    <th>Selling</th>
-                    <th>Margin</th>
-                    <th>Rate</th>
-                    <th>Bucket</th>
-                    <th>Collection</th>
-                    <th>Proof</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${products.map(p => renderMvatRow(p)).join('')}
-            </tbody>
-        </table>
-    `;
+            <thead><tr>
+                <th></th><th>Product</th><th>Purchase</th><th>Selling</th>
+                <th>Margin</th><th>Rate</th><th>Bucket</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody>${products.map(renderMvatRow).join('')}</tbody>
+        </table>`;
 }
 
 function renderMvatRow(p) {
     const img = p.image_url
-        ? `<img src="${p.image_url}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:4px">`
-        : '<div style="width:36px;height:36px;background:var(--bg-secondary);border-radius:4px"></div>';
-
-    const needsSync = p.needs_reassignment
-        ? '<span class="badge badge-warning badge-sm" title="Needs sync">!</span>'
-        : '';
-
-    const collBadge = p.tax_collection_name
+        ? `<img src="${p.image_url}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:4px">`
+        : '<div style="width:32px;height:32px;background:var(--bg-secondary);border-radius:4px"></div>';
+    const sync = p.needs_reassignment ? ' <span class="badge badge-warning badge-sm">!</span>' : '';
+    const coll = p.tax_collection_name
         ? `<span class="badge badge-success badge-sm">${p.tax_collection_name}</span>`
-        : '<span class="badge badge-neutral badge-sm">Not assigned</span>';
-
-    const proofCount = p.proof_images?.length || 0;
-    const proofBadge = proofCount > 0
-        ? `<span class="badge badge-info badge-sm">${proofCount} file${proofCount > 1 ? 's' : ''}</span>`
-        : '<span class="muted" style="font-size:.75rem">None</span>';
-
-    const statusBadge = p.status !== 'active'
-        ? ` <span class="badge badge-neutral badge-sm">${p.status}</span>` : '';
+        : '<span class="badge badge-neutral badge-sm">Unsynced</span>';
+    const proofN = p.proof_images?.length || 0;
+    const shopifyStatus = p.status === 'active' ? '' : ` <span class="badge badge-neutral badge-sm">${p.status}</span>`;
 
     return `
-        <tr class="${p.needs_reassignment ? 'mvat-needs-attention' : ''}">
+        <tr class="${p.needs_reassignment ? 'mvat-needs-attention' : ''}" style="cursor:pointer" onclick="mvatToggleDetail(${p.id})">
             <td>${img}</td>
-            <td>
-                <strong style="font-size:.8125rem">${p.product_title || 'Unknown'}</strong>${statusBadge}
-                ${p.variant_title ? `<br><span class="muted" style="font-size:.75rem">${p.variant_title}</span>` : ''}
-                ${p.sku ? `<br><span class="muted" style="font-size:.75rem">SKU: ${p.sku}</span>` : ''}
-            </td>
+            <td><strong style="font-size:.8125rem">${p.product_title || '—'}</strong>${shopifyStatus}
+                ${p.sku ? `<br><span class="muted" style="font-size:.75rem">${p.sku}</span>` : ''}</td>
             <td class="mono">kr ${fmtNum(p.purchase_price_nok)}</td>
             <td class="mono">kr ${fmtNum(p.selling_price_nok || 0)}</td>
             <td class="mono">kr ${fmtNum(p.margin_nok || 0)}</td>
-            <td class="mono">${p.effective_rate_pct != null ? p.effective_rate_pct.toFixed(2) + '%' : '—'}</td>
-            <td>${p.bucket_rate_pct != null ? p.bucket_rate_pct + '%' : '—'} ${needsSync}</td>
-            <td>${collBadge}</td>
-            <td style="cursor:pointer" onclick="mvatToggleDetail(${p.id})">${proofBadge}</td>
-            <td>
-                <button class="btn btn-xs" onclick="mvatToggleDetail(${p.id})">Detail</button>
-                <button class="btn btn-xs btn-danger" onclick="mvatDelete(${p.id})">Del</button>
-            </td>
+            <td class="mono">${p.effective_rate_pct != null ? p.effective_rate_pct.toFixed(1) + '%' : '—'}</td>
+            <td>${p.bucket_rate_pct != null ? p.bucket_rate_pct + '%' : '—'}${sync}</td>
+            <td>${coll} ${proofN ? `<span class="badge badge-info badge-sm">${proofN} proof</span>` : ''}</td>
+            <td><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();mvatDelete(${p.id})">x</button></td>
         </tr>
         <tr id="mvat-detail-${p.id}" style="display:none">
-            <td colspan="10" style="background:var(--bg-secondary);padding:1rem">
+            <td colspan="9" style="background:var(--bg-secondary);padding:0">
                 <div id="mvat-detail-content-${p.id}"></div>
             </td>
-        </tr>
-    `;
+        </tr>`;
 }
 
-function fmtNum(n) {
-    if (n == null) return '0';
-    return Number(n).toLocaleString('nb-NO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
+// ── Detail Panel ────────────────────────────────────────────────────────
 
 async function mvatToggleDetail(id) {
     const row = document.getElementById(`mvat-detail-${id}`);
     if (!row) return;
-    if (row.style.display !== 'none') {
-        row.style.display = 'none';
-        return;
-    }
+    if (row.style.display !== 'none') { row.style.display = 'none'; return; }
     row.style.display = '';
     const el = document.getElementById(`mvat-detail-content-${id}`);
-    el.innerHTML = 'Loading...';
+    el.innerHTML = '<div style="padding:1rem">Loading...</div>';
 
     try {
         const p = await api(`/margin-vat/${id}`);
-        el.innerHTML = `
-            <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
-                <div style="flex:1;min-width:250px">
-                    <h4 style="margin:0 0 .5rem">Details</h4>
-                    <table style="font-size:.8125rem">
-                        <tr><td class="muted" style="padding-right:.75rem">Purchase Price</td><td class="mono">kr ${fmtNum(p.purchase_price_nok)}</td></tr>
-                        <tr><td class="muted">Selling Price</td><td class="mono">kr ${fmtNum(p.selling_price_nok || 0)}</td></tr>
-                        <tr><td class="muted">Margin</td><td class="mono">kr ${fmtNum(p.margin_nok || 0)}</td></tr>
-                        <tr><td class="muted">VAT Amount</td><td class="mono">kr ${(p.vat_amount_nok || 0).toFixed(2)}</td></tr>
-                        <tr><td class="muted">Effective Rate</td><td class="mono">${p.effective_rate_pct != null ? p.effective_rate_pct.toFixed(4) + '%' : '—'}</td></tr>
-                        <tr><td class="muted">Bucket</td><td>${p.bucket_rate_pct != null ? p.bucket_rate_pct + '% MVA' : '—'}</td></tr>
-                        <tr><td class="muted">Seller</td><td>${p.seller_description || '—'}</td></tr>
-                        <tr><td class="muted">Purchase Date</td><td>${p.purchase_date ? new Date(p.purchase_date).toLocaleDateString('nb-NO') : '—'}</td></tr>
-                        <tr><td class="muted">Notes</td><td>${p.notes || '—'}</td></tr>
-                        <tr><td class="muted">Status</td><td>
-                            <select class="input-sm" style="font-size:.8125rem" onchange="mvatUpdateStatus(${p.id}, this.value)">
-                                <option value="active" ${p.status === 'active' ? 'selected' : ''}>Active</option>
-                                <option value="sold" ${p.status === 'sold' ? 'selected' : ''}>Sold</option>
-                                <option value="archived" ${p.status === 'archived' ? 'selected' : ''}>Archived</option>
-                            </select>
-                        </td></tr>
-                    </table>
-                </div>
-                <div style="flex:1;min-width:250px">
-                    <h4 style="margin:0 0 .5rem">Proof Images</h4>
-                    <div class="mvat-proof-grid">
-                        ${(p.proof_images || []).map(img => `
-                            <div class="mvat-proof-item">
-                                ${img.content_type === 'application/pdf'
-                                    ? `<a href="/uploads/${img.file_path}" target="_blank" class="mvat-proof-thumb mvat-proof-pdf">PDF</a>`
-                                    : `<a href="/uploads/${img.file_path}" target="_blank"><img src="/uploads/${img.file_path}" class="mvat-proof-thumb" alt="${img.filename}"></a>`
-                                }
-                                <div style="display:flex;align-items:center;gap:.25rem;margin-top:.25rem">
-                                    <span class="muted" style="font-size:.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px" title="${img.filename}">${img.filename}</span>
-                                    <button class="btn btn-xs btn-danger" onclick="mvatDeleteProof(${img.id}, ${p.id})">x</button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div style="margin-top:.75rem">
-                        <input type="file" id="mvat-proof-file-${p.id}" accept="image/*,.pdf"
-                            style="font-size:.8125rem;max-width:200px" />
-                        <button class="btn btn-sm" onclick="mvatUploadProof(${p.id})" style="margin-left:.25rem">Upload</button>
-                    </div>
-                </div>
+        const proofHtml = (p.proof_images || []).map(img => `
+            <div class="mvat-proof-item">
+                ${img.content_type === 'application/pdf'
+                    ? `<a href="/uploads/${img.file_path}" target="_blank" class="mvat-proof-thumb mvat-proof-pdf">PDF</a>`
+                    : `<a href="/uploads/${img.file_path}" target="_blank"><img src="/uploads/${img.file_path}" class="mvat-proof-thumb"></a>`}
+                <button class="btn btn-xs btn-danger" style="margin-top:.25rem" onclick="event.stopPropagation();mvatDeleteProof(${img.id},${p.id})">x</button>
             </div>
-        `;
+        `).join('') || '<span class="muted" style="font-size:.8125rem">No proof uploaded</span>';
+
+        el.innerHTML = `
+            <div class="mvat-detail-grid">
+                <div class="mvat-detail-section">
+                    <h4>Purchase Details</h4>
+                    <div class="mvat-detail-fields">
+                        <div><span class="muted">Purchase Price</span><br><strong class="mono">kr ${fmtNum(p.purchase_price_nok)}</strong></div>
+                        <div><span class="muted">Selling Price</span><br><strong class="mono">kr ${fmtNum(p.selling_price_nok || 0)}</strong></div>
+                        <div><span class="muted">Margin</span><br><strong class="mono">kr ${fmtNum(p.margin_nok || 0)}</strong></div>
+                        <div><span class="muted">VAT Amount</span><br><strong class="mono">kr ${(p.vat_amount_nok || 0).toFixed(2)}</strong></div>
+                        <div><span class="muted">Effective Rate</span><br><strong class="mono">${p.effective_rate_pct != null ? p.effective_rate_pct.toFixed(2) + '%' : '—'}</strong></div>
+                        <div><span class="muted">Bucket</span><br><strong>${p.bucket_rate_pct != null ? p.bucket_rate_pct + '% MVA' : '—'}</strong></div>
+                    </div>
+                    <div style="margin-top:.75rem;display:flex;gap:.75rem;flex-wrap:wrap;font-size:.8125rem">
+                        <div><span class="muted">Seller:</span> ${p.seller_description || '—'}</div>
+                        <div><span class="muted">Date:</span> ${p.purchase_date ? new Date(p.purchase_date).toLocaleDateString('nb-NO') : '—'}</div>
+                    </div>
+                    <div style="margin-top:.75rem;display:flex;gap:.5rem;align-items:center">
+                        <select class="input-sm" style="font-size:.8125rem" onchange="event.stopPropagation();mvatUpdateStatus(${p.id}, this.value)">
+                            <option value="active" ${p.status === 'active' ? 'selected' : ''}>Active</option>
+                            <option value="sold" ${p.status === 'sold' ? 'selected' : ''}>Sold</option>
+                            <option value="archived" ${p.status === 'archived' ? 'selected' : ''}>Archived</option>
+                        </select>
+                        <button class="btn btn-xs btn-success" onclick="event.stopPropagation();mvatPublishProduct('${p.product_shopify_id}')">Publish on Shopify</button>
+                    </div>
+                </div>
+                <div class="mvat-detail-section">
+                    <h4>Proof of Purchase</h4>
+                    <div class="mvat-proof-grid">${proofHtml}</div>
+                    <div style="margin-top:.75rem;display:flex;gap:.5rem;align-items:center" onclick="event.stopPropagation()">
+                        <input type="file" id="mvat-proof-file-${p.id}" accept="image/*,.pdf" class="input-sm" style="font-size:.8125rem;max-width:180px" />
+                        <button class="btn btn-sm" onclick="mvatUploadProof(${p.id})">Upload</button>
+                    </div>
+                </div>
+            </div>`;
     } catch (e) {
-        el.innerHTML = `<p class="error">${e.message}</p>`;
+        el.innerHTML = `<div style="padding:1rem"><p class="error">${e.message}</p></div>`;
     }
 }
 
-// ── Product Search ──────────────────────────────────────────────────────
-let mvatSearchTimeout = null;
+// ── Search & Select (Link Existing) ─────────────────────────────────────
 
 function mvatSearchProducts(query) {
     clearTimeout(mvatSearchTimeout);
-    if (!query || query.length < 2) {
-        document.getElementById('mvat-search-results').style.display = 'none';
-        return;
-    }
+    const el = document.getElementById('mvat-search-results');
+    if (!query || query.length < 2) { el.style.display = 'none'; return; }
     mvatSearchTimeout = setTimeout(async () => {
         try {
             const products = await api(`/shopify/products?limit=20&search=${encodeURIComponent(query)}`);
-            const el = document.getElementById('mvat-search-results');
             if (!products?.length) {
-                el.innerHTML = '<p class="muted" style="padding:.5rem">No products found.</p>';
+                el.innerHTML = '<div class="mvat-search-item muted">No products found</div>';
                 el.style.display = 'block';
                 return;
             }
-            el.innerHTML = products.map(p => {
-                const variants = (p.variants || []);
-                return variants.map(v => `
-                    <div class="mvat-search-item" onclick='mvatSelectVariant(${JSON.stringify({
-                        product_shopify_id: p.shopify_id,
-                        variant_shopify_id: v.shopify_id,
-                        product_title: p.title,
-                        variant_title: v.title,
-                        sku: v.sku,
-                        price: v.price,
-                        image_url: p.image_url,
-                    }).replace(/'/g, "&#39;")})'>
+            el.innerHTML = products.flatMap(p => (p.variants || []).map(v => `
+                <div class="mvat-search-item" onclick='mvatSelectVariant(${JSON.stringify({
+                    product_shopify_id: p.shopify_id, variant_shopify_id: v.shopify_id,
+                    product_title: p.title, variant_title: v.title, sku: v.sku,
+                    price: v.price, image_url: p.image_url,
+                }).replace(/'/g, "&#39;")})'>
+                    ${p.image_url ? `<img src="${p.image_url}" style="width:28px;height:28px;object-fit:cover;border-radius:3px">` : ''}
+                    <div style="flex:1;min-width:0">
                         <strong style="font-size:.8125rem">${p.title}</strong>
-                        ${v.title ? `<span class="muted"> — ${v.title}</span>` : ''}
-                        <span class="mono" style="margin-left:auto">kr ${fmtNum(v.price)}</span>
-                        ${v.sku ? `<span class="muted" style="font-size:.75rem;margin-left:.5rem">${v.sku}</span>` : ''}
+                        ${v.title && v.title !== 'Default Title' ? `<span class="muted"> — ${v.title}</span>` : ''}
                     </div>
-                `).join('');
-            }).join('');
+                    <span class="mono" style="white-space:nowrap">kr ${fmtNum(v.price)}</span>
+                </div>
+            `)).join('');
             el.style.display = 'block';
-        } catch (e) {
-            console.error('Search error:', e);
-        }
+        } catch (e) { console.error('Search:', e); }
     }, 300);
 }
 
@@ -3317,151 +3291,202 @@ function mvatSelectVariant(data) {
     const el = document.getElementById('mvat-selected-product');
     el.style.display = 'block';
     el.innerHTML = `
-        <div style="display:flex;align-items:center;gap:.75rem">
-            ${data.image_url ? `<img src="${data.image_url}" style="width:40px;height:40px;object-fit:cover;border-radius:4px">` : ''}
-            <div>
-                <strong>${data.product_title}</strong>
-                ${data.variant_title ? `<span class="muted"> — ${data.variant_title}</span>` : ''}
-                <br><span class="mono">Current price: kr ${fmtNum(data.price)}</span>
-                ${data.sku ? `<span class="muted" style="margin-left:.5rem">SKU: ${data.sku}</span>` : ''}
+        <div style="display:flex;align-items:center;gap:.5rem">
+            ${data.image_url ? `<img src="${data.image_url}" style="width:36px;height:36px;object-fit:cover;border-radius:4px">` : ''}
+            <div style="flex:1">
+                <strong style="font-size:.8125rem">${data.product_title}</strong>
+                ${data.variant_title && data.variant_title !== 'Default Title' ? `<span class="muted"> — ${data.variant_title}</span>` : ''}
+                <br><span class="mono" style="font-size:.8125rem">Selling: kr ${fmtNum(data.price)}</span>
+                ${data.sku ? `<span class="muted" style="font-size:.75rem;margin-left:.5rem">${data.sku}</span>` : ''}
             </div>
-        </div>
-    `;
-
+            <button class="btn btn-xs" onclick="mvatClearSelection()" title="Clear">&times;</button>
+        </div>`;
     document.getElementById('mvat-register-btn').disabled = false;
     mvatCalculatePreview();
 }
 
+function mvatClearSelection() {
+    mvatSelectedVariant = null;
+    document.getElementById('mvat-product-search').value = '';
+    document.getElementById('mvat-selected-product').style.display = 'none';
+    document.getElementById('mvat-calc-preview').style.display = 'none';
+    document.getElementById('mvat-register-btn').disabled = true;
+}
+
 function mvatCalculatePreview() {
     const el = document.getElementById('mvat-calc-preview');
-    const purchasePrice = parseFloat(document.getElementById('mvat-purchase-price')?.value || '0');
-
-    if (!mvatSelectedVariant || !purchasePrice || purchasePrice <= 0) {
-        el.style.display = 'none';
-        return;
-    }
-
-    const sellingPrice = mvatSelectedVariant.price;
-    const margin = sellingPrice - purchasePrice;
-
-    if (margin <= 0) {
-        el.style.display = 'block';
-        el.innerHTML = `
-            <span class="muted">Margin: kr 0 (no profit) &rarr;</span>
-            <strong>0% MVA bucket</strong>
-        `;
-        return;
-    }
-
-    const vatAmount = (margin * 25 / 125).toFixed(2);
-    const denom = 5 * sellingPrice - margin;
-    const effectiveRate = denom > 0 ? (100 * margin / denom) : 25;
-    const bucket = Math.min(Math.ceil(effectiveRate), 25);
-
+    const pp = parseFloat(document.getElementById('mvat-purchase-price')?.value || '0');
+    if (!mvatSelectedVariant || !pp || pp <= 0) { el.style.display = 'none'; return; }
     el.style.display = 'block';
-    el.innerHTML = `
-        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:.8125rem">
-            <span>Margin: <strong>kr ${fmtNum(margin)}</strong></span>
-            <span>VAT: <strong>kr ${vatAmount}</strong></span>
-            <span>Effective rate: <strong>${effectiveRate.toFixed(2)}%</strong></span>
-            <span>Bucket: <strong>${bucket}% MVA</strong></span>
-        </div>
-    `;
+    el.innerHTML = renderMvatCalcBox(mvatSelectedVariant.price, pp);
 }
+
+// ── "Create New Product" preview ────────────────────────────────────────
+
+function mvatNewCalcPreview() {
+    const el = document.getElementById('mvat-new-calc-preview');
+    const sp = parseFloat(document.getElementById('mvat-new-price')?.value || '0');
+    const pp = parseFloat(document.getElementById('mvat-new-purchase')?.value || '0');
+    if (!sp || !pp || sp <= 0 || pp <= 0) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    el.innerHTML = renderMvatCalcBox(sp, pp);
+}
+
+// ── Register Existing Product ───────────────────────────────────────────
 
 async function mvatRegisterProduct() {
     if (!mvatSelectedVariant) { toast('Select a product first', 'warning'); return; }
-    const purchasePrice = parseFloat(document.getElementById('mvat-purchase-price')?.value || '0');
-    if (!purchasePrice || purchasePrice <= 0) { toast('Enter a purchase price', 'warning'); return; }
+    const pp = parseFloat(document.getElementById('mvat-purchase-price')?.value || '0');
+    if (!pp || pp <= 0) { toast('Enter a purchase price', 'warning'); return; }
 
     const btn = document.getElementById('mvat-register-btn');
-    btn.disabled = true;
-    btn.textContent = 'Registering...';
-
-    const purchaseDate = document.getElementById('mvat-purchase-date')?.value || null;
-    const sellerDesc = document.getElementById('mvat-seller-desc')?.value.trim() || null;
-    const notes = document.getElementById('mvat-notes')?.value.trim() || null;
+    btn.disabled = true; btn.textContent = 'Registering...';
 
     try {
-        await api('/margin-vat', {
+        const result = await api('/margin-vat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 product_shopify_id: mvatSelectedVariant.product_shopify_id,
                 variant_shopify_id: mvatSelectedVariant.variant_shopify_id,
-                purchase_price_nok: purchasePrice,
-                purchase_date: purchaseDate ? new Date(purchaseDate).toISOString() : null,
-                seller_description: sellerDesc,
-                notes: notes,
+                purchase_price_nok: pp,
+                purchase_date: document.getElementById('mvat-purchase-date')?.value
+                    ? new Date(document.getElementById('mvat-purchase-date').value).toISOString() : null,
+                seller_description: document.getElementById('mvat-seller-desc')?.value.trim() || null,
             }),
         });
-        toast('Product registered for margin VAT', 'success');
-        mvatClearForm();
+
+        // Upload proof if file selected
+        const fileInput = document.getElementById('mvat-proof-file');
+        if (fileInput?.files?.length) {
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            await fetch(`${API}/margin-vat/${result.id}/proof-images`, { method: 'POST', body: fd });
+        }
+
+        toast('Product registered', 'success');
+        mvatClearLinkForm();
         loadMarginVat();
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
     } finally {
-        btn.disabled = false;
-        btn.textContent = 'Register Product';
+        btn.disabled = false; btn.textContent = 'Register Purchase';
     }
 }
 
-function mvatClearForm() {
+function mvatClearLinkForm() {
     document.getElementById('mvat-product-search').value = '';
     document.getElementById('mvat-purchase-price').value = '';
     document.getElementById('mvat-purchase-date').value = '';
     document.getElementById('mvat-seller-desc').value = '';
-    document.getElementById('mvat-notes').value = '';
+    document.getElementById('mvat-proof-file').value = '';
     document.getElementById('mvat-selected-product').style.display = 'none';
     document.getElementById('mvat-calc-preview').style.display = 'none';
-    document.getElementById('mvat-search-results').style.display = 'none';
     document.getElementById('mvat-register-btn').disabled = true;
     mvatSelectedVariant = null;
 }
 
-async function mvatUploadProof(mvpId) {
-    const input = document.getElementById(`mvat-proof-file-${mvpId}`);
-    if (!input?.files?.length) { toast('Select a file first', 'warning'); return; }
+// ── Create New Product on Shopify ───────────────────────────────────────
 
-    const formData = new FormData();
-    formData.append('file', input.files[0]);
+async function mvatCreateNewProduct() {
+    const title = document.getElementById('mvat-new-title')?.value.trim();
+    const price = parseFloat(document.getElementById('mvat-new-price')?.value || '0');
+    const pp = parseFloat(document.getElementById('mvat-new-purchase')?.value || '0');
+    if (!title) { toast('Enter a product title', 'warning'); return; }
+    if (!price || price <= 0) { toast('Enter a selling price', 'warning'); return; }
+    if (!pp || pp <= 0) { toast('Enter a purchase price', 'warning'); return; }
+
+    const btn = document.getElementById('mvat-create-btn');
+    btn.disabled = true; btn.textContent = 'Creating...';
 
     try {
-        const res = await fetch(`${API}/margin-vat/${mvpId}/proof-images`, {
+        // 1. Create draft product on Shopify
+        const shopifyResult = await api('/margin-vat/create-product', {
             method: 'POST',
-            body: formData,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title,
+                price,
+                sku: document.getElementById('mvat-new-sku')?.value.trim() || null,
+            }),
         });
-        if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
-        toast('Proof image uploaded', 'success');
-        input.value = '';
-        mvatToggleDetail(mvpId); // close
-        mvatToggleDetail(mvpId); // reopen to refresh
+
+        const variantId = shopifyResult.variants?.[0]?.id;
+        if (!variantId) throw new Error('No variant returned from Shopify');
+
+        // 2. Register for margin VAT
+        const mvatResult = await api('/margin-vat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_shopify_id: shopifyResult.product_shopify_id,
+                variant_shopify_id: variantId,
+                purchase_price_nok: pp,
+                purchase_date: document.getElementById('mvat-new-date')?.value
+                    ? new Date(document.getElementById('mvat-new-date').value).toISOString() : null,
+                seller_description: document.getElementById('mvat-new-seller')?.value.trim() || null,
+            }),
+        });
+
+        // 3. Upload proof if provided
+        const fileInput = document.getElementById('mvat-new-proof');
+        if (fileInput?.files?.length) {
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            await fetch(`${API}/margin-vat/${mvatResult.id}/proof-images`, { method: 'POST', body: fd });
+        }
+
+        toast(`Draft "${title}" created on Shopify & registered`, 'success');
+        mvatClearNewForm();
+        loadMarginVat();
     } catch (e) {
-        toast(`Upload failed: ${e.message}`, 'error');
+        toast(`Failed: ${e.message}`, 'error');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Create Draft & Register';
     }
+}
+
+function mvatClearNewForm() {
+    ['mvat-new-title','mvat-new-price','mvat-new-purchase','mvat-new-sku','mvat-new-date','mvat-new-seller'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    const f = document.getElementById('mvat-new-proof'); if (f) f.value = '';
+    document.getElementById('mvat-new-calc-preview').style.display = 'none';
+}
+
+// ── Actions ─────────────────────────────────────────────────────────────
+
+async function mvatUploadProof(mvpId) {
+    const input = document.getElementById(`mvat-proof-file-${mvpId}`);
+    if (!input?.files?.length) { toast('Select a file', 'warning'); return; }
+    const fd = new FormData(); fd.append('file', input.files[0]);
+    try {
+        const res = await fetch(`${API}/margin-vat/${mvpId}/proof-images`, { method: 'POST', body: fd });
+        if (!res.ok) throw new Error(await res.text());
+        toast('Proof uploaded', 'success');
+        // Refresh detail
+        document.getElementById(`mvat-detail-${mvpId}`).style.display = 'none';
+        mvatToggleDetail(mvpId);
+    } catch (e) { toast(`Upload failed: ${e.message}`, 'error'); }
 }
 
 async function mvatDeleteProof(imageId, mvpId) {
     if (!confirm('Delete this proof image?')) return;
     try {
         await api(`/margin-vat/proof-images/${imageId}`, { method: 'DELETE' });
-        toast('Proof image deleted', 'success');
-        mvatToggleDetail(mvpId); // close
-        mvatToggleDetail(mvpId); // reopen to refresh
-    } catch (e) {
-        toast(`Failed: ${e.message}`, 'error');
-    }
+        toast('Deleted', 'success');
+        document.getElementById(`mvat-detail-${mvpId}`).style.display = 'none';
+        mvatToggleDetail(mvpId);
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
 }
 
 async function mvatDelete(id) {
-    if (!confirm('Delete this margin VAT product and all its proof images?')) return;
+    if (!confirm('Delete this margin VAT entry?')) return;
     try {
         await api(`/margin-vat/${id}`, { method: 'DELETE' });
         toast('Deleted', 'success');
         loadMarginVat();
-    } catch (e) {
-        toast(`Failed: ${e.message}`, 'error');
-    }
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
 }
 
 async function mvatUpdateStatus(id, status) {
@@ -3471,24 +3496,31 @@ async function mvatUpdateStatus(id, status) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status }),
         });
-        toast(`Status updated to ${status}`, 'success');
-    } catch (e) {
-        toast(`Failed: ${e.message}`, 'error');
-    }
+        toast(`Status: ${status}`, 'success');
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
+}
+
+async function mvatPublishProduct(productShopifyId) {
+    if (!confirm('Publish this product on Shopify? It will become visible to customers.')) return;
+    try {
+        await api('/margin-vat/update-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ product_shopify_id: productShopifyId, status: 'ACTIVE' }),
+        });
+        toast('Product published on Shopify', 'success');
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
 }
 
 async function mvatSyncCollections() {
-    if (!confirm('Sync all margin VAT products to their Shopify tax collections?')) return;
+    if (!confirm('Sync all products to their Shopify tax collections?')) return;
     try {
         const res = await api('/margin-vat/sync-collections', { method: 'POST' });
         let msg = `Added: ${res.products_added}, Removed: ${res.products_removed}, Already correct: ${res.products_already_correct}`;
         if (res.errors?.length) msg += ` | ${res.errors.length} error(s)`;
         toast(msg, res.errors?.length ? 'warning' : 'success');
-        if (res.errors?.length) console.warn('Sync errors:', res.errors);
         loadMarginVat();
-    } catch (e) {
-        toast(`Sync failed: ${e.message}`, 'error');
-    }
+    } catch (e) { toast(`Sync failed: ${e.message}`, 'error'); }
 }
 
 async function mvatRecalculateAll() {
@@ -3496,9 +3528,7 @@ async function mvatRecalculateAll() {
         const res = await api('/margin-vat/recalculate', { method: 'POST' });
         toast(`Recalculated ${res.updated} products (${res.bucket_changed} bucket changes)`, 'success');
         loadMarginVat();
-    } catch (e) {
-        toast(`Failed: ${e.message}`, 'error');
-    }
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
 }
 
 // ── MVA Collection Settings ─────────────────────────────────────────────

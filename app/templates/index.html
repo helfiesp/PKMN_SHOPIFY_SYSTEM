@@ -497,62 +497,104 @@
             <div id="tab-margin-vat" class="tab-panel">
                 <div class="section-header">
                     <h2>Margin VAT (Bruktmoms)</h2>
-                    <span class="muted" id="mvat-count"></span>
+                    <div style="display:flex;gap:.5rem;align-items:center">
+                        <span class="muted" id="mvat-count"></span>
+                        <button class="btn btn-sm" onclick="mvatRecalculateAll()">Recalculate</button>
+                        <button class="btn btn-primary btn-sm" onclick="mvatSyncCollections()">Sync Collections</button>
+                    </div>
                 </div>
 
                 <!-- Bucket summary -->
-                <div id="mvat-bucket-summary" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem"></div>
+                <div id="mvat-bucket-summary" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem"></div>
 
-                <!-- Action buttons -->
-                <div style="margin-bottom:1.25rem;display:flex;gap:.5rem">
-                    <button class="btn btn-primary btn-sm" onclick="mvatSyncCollections()">Sync Tax Collections</button>
-                    <button class="btn btn-sm" onclick="mvatRecalculateAll()">Recalculate All</button>
-                </div>
+                <!-- Two-column layout: Register + Create -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
 
-                <!-- Register product form -->
-                <div class="card" style="margin-bottom:1.5rem">
-                    <div class="card-header"><h3>Register Product (Bruktmoms)</h3></div>
-                    <div style="padding:1rem 1.25rem">
-                        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.75rem">
-                            <div style="flex:1;min-width:200px">
+                    <!-- LEFT: Register existing product -->
+                    <div class="card">
+                        <div class="card-header"><h3>Link Existing Product</h3></div>
+                        <div style="padding:1rem 1.25rem">
+                            <p class="muted" style="font-size:.8125rem;margin:0 0 .75rem">Link a Shopify product you already have listed.</p>
+                            <div style="margin-bottom:.75rem;position:relative">
                                 <label class="form-label">Search Product</label>
                                 <input type="text" id="mvat-product-search" class="input-sm" style="width:100%"
-                                    placeholder="Type product name or SKU..." oninput="mvatSearchProducts(this.value)" />
+                                    placeholder="Type product name..." oninput="mvatSearchProducts(this.value)" autocomplete="off" />
+                                <div id="mvat-search-results" class="mvat-dropdown"></div>
                             </div>
-                            <div>
-                                <label class="form-label">Purchase Price (NOK)</label>
-                                <input type="number" id="mvat-purchase-price" class="input-sm" style="width:120px"
-                                    min="0" step="1" oninput="mvatCalculatePreview()" />
+                            <div id="mvat-selected-product" style="display:none" class="mvat-selected-card"></div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem">
+                                <div>
+                                    <label class="form-label">Purchase Price (NOK)</label>
+                                    <input type="number" id="mvat-purchase-price" class="input-sm" style="width:100%"
+                                        min="0" step="1" oninput="mvatCalculatePreview()" />
+                                </div>
+                                <div>
+                                    <label class="form-label">Purchase Date</label>
+                                    <input type="date" id="mvat-purchase-date" class="input-sm" style="width:100%" />
+                                </div>
                             </div>
-                            <div>
-                                <label class="form-label">Purchase Date</label>
-                                <input type="date" id="mvat-purchase-date" class="input-sm" style="width:150px" />
-                            </div>
-                        </div>
-                        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.75rem">
-                            <div style="flex:1;min-width:200px">
-                                <label class="form-label">Seller Description</label>
+                            <div style="margin-bottom:.75rem">
+                                <label class="form-label">Seller</label>
                                 <input type="text" id="mvat-seller-desc" class="input-sm" style="width:100%"
-                                    placeholder="e.g. SNKRDUNK private seller" />
+                                    placeholder="e.g. SNKRDUNK" />
                             </div>
-                            <div style="flex:1;min-width:200px">
-                                <label class="form-label">Notes</label>
-                                <input type="text" id="mvat-notes" class="input-sm" style="width:100%" placeholder="Optional" />
+                            <div style="margin-bottom:.75rem">
+                                <label class="form-label">Proof of Purchase</label>
+                                <input type="file" id="mvat-proof-file" accept="image/*,.pdf" class="input-sm" style="width:100%" />
                             </div>
+                            <div id="mvat-calc-preview" class="mvat-calc-box" style="display:none"></div>
+                            <button class="btn btn-primary" id="mvat-register-btn" onclick="mvatRegisterProduct()" disabled style="width:100%">
+                                Register Purchase
+                            </button>
                         </div>
+                    </div>
 
-                        <!-- Search results dropdown -->
-                        <div id="mvat-search-results" style="display:none;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-bottom:.75rem"></div>
-
-                        <!-- Selected product display -->
-                        <div id="mvat-selected-product" style="display:none;padding:.75rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.75rem;background:var(--bg-secondary)"></div>
-
-                        <!-- VAT preview -->
-                        <div id="mvat-calc-preview" style="display:none;padding:.75rem;border:1px solid var(--accent);border-radius:6px;margin-bottom:.75rem;background:var(--bg-secondary)"></div>
-
-                        <button class="btn btn-primary" id="mvat-register-btn" onclick="mvatRegisterProduct()" disabled>
-                            Register Product
-                        </button>
+                    <!-- RIGHT: Create new product -->
+                    <div class="card">
+                        <div class="card-header"><h3>Create New Product</h3></div>
+                        <div style="padding:1rem 1.25rem">
+                            <p class="muted" style="font-size:.8125rem;margin:0 0 .75rem">Create a new Shopify listing as draft. Publish when ready.</p>
+                            <div style="margin-bottom:.75rem">
+                                <label class="form-label">Product Title</label>
+                                <input type="text" id="mvat-new-title" class="input-sm" style="width:100%"
+                                    placeholder="e.g. Pokemon 151 Booster Box" />
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem">
+                                <div>
+                                    <label class="form-label">Selling Price (NOK)</label>
+                                    <input type="number" id="mvat-new-price" class="input-sm" style="width:100%"
+                                        min="0" step="1" oninput="mvatNewCalcPreview()" />
+                                </div>
+                                <div>
+                                    <label class="form-label">Purchase Price (NOK)</label>
+                                    <input type="number" id="mvat-new-purchase" class="input-sm" style="width:100%"
+                                        min="0" step="1" oninput="mvatNewCalcPreview()" />
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem">
+                                <div>
+                                    <label class="form-label">SKU</label>
+                                    <input type="text" id="mvat-new-sku" class="input-sm" style="width:100%" placeholder="Optional" />
+                                </div>
+                                <div>
+                                    <label class="form-label">Purchase Date</label>
+                                    <input type="date" id="mvat-new-date" class="input-sm" style="width:100%" />
+                                </div>
+                            </div>
+                            <div style="margin-bottom:.75rem">
+                                <label class="form-label">Seller</label>
+                                <input type="text" id="mvat-new-seller" class="input-sm" style="width:100%"
+                                    placeholder="e.g. SNKRDUNK" />
+                            </div>
+                            <div style="margin-bottom:.75rem">
+                                <label class="form-label">Proof of Purchase</label>
+                                <input type="file" id="mvat-new-proof" accept="image/*,.pdf" class="input-sm" style="width:100%" />
+                            </div>
+                            <div id="mvat-new-calc-preview" class="mvat-calc-box" style="display:none"></div>
+                            <button class="btn btn-primary" id="mvat-create-btn" onclick="mvatCreateNewProduct()" style="width:100%">
+                                Create Draft &amp; Register
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -562,7 +604,7 @@
                         <h3>Registered Products</h3>
                         <div style="display:flex;gap:.5rem">
                             <select id="mvat-filter-status" class="input-sm" onchange="loadMarginVat()">
-                                <option value="">All statuses</option>
+                                <option value="">All</option>
                                 <option value="active" selected>Active</option>
                                 <option value="sold">Sold</option>
                                 <option value="archived">Archived</option>
@@ -652,6 +694,13 @@
                         Find the ID in the Shopify admin URL when viewing the collection (e.g. 444175384827).
                     </p>
                     <div id="mva-collection-grid" style="padding:.75rem 1.25rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.5rem">
+                        {% for i in range(25) %}
+                        <div style="display:flex;align-items:center;gap:.25rem">
+                            <span style="font-size:.8125rem;min-width:42px;font-weight:600">{{ i }}%</span>
+                            <input type="text" class="input-sm mva-coll-input" data-bucket="{{ i }}"
+                                value="" placeholder="Collection ID" style="width:100%;font-family:monospace;font-size:.75rem" />
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
 
