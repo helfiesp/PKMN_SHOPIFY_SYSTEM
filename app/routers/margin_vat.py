@@ -140,6 +140,15 @@ async def sync_collections(db: Session = Depends(get_db)):
 
 # ── Shopify Product Management ───────────────────────────────────────────
 
+@router.get("/product-detail/{shopify_id}")
+async def get_product_detail(shopify_id: str):
+    """Fetch full product details from Shopify for templating."""
+    try:
+        return margin_vat_service.fetch_product_detail(shopify_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/create-product")
 async def create_shopify_product(
     data: dict,

@@ -468,41 +468,114 @@ class MarginVatService:
         }
 
 
-    # ── Shopify Product Creation ────────────────────────────────────────────
+    # ── Shopify Product Operations ──────────────────────────────────────────
+
+    def fetch_product_detail(self, product_shopify_id: str) -> dict:
+        """Fetch full product details from Shopify for templating."""
+        # Accept either a raw numeric ID or a full GID
+        gid = product_shopify_id if product_shopify_id.startswith("gid://") else f"gid://shopify/Product/{product_shopify_id}"
+
+        query = """
+        query($id: ID!) {
+          product(id: $id) {
+            id title handle status
+            descriptionHtml
+            vendor
+            productType
+            tags
+            featuredImage { url }
+            images(first: 20) { edges { node { url altText } } }
+            variants(first: 100) {
+              edges { node {
+                id title price compareAtPrice sku
+                inventoryItem { id measurement { weight { unit value } } }
+              } }
+            }
+          }
+        }
+        """
+        data = self._graphql_request(query, {"id": gid})
+        p = data.get("product")
+        if not p:
+            raise Exception("Product not found on Shopify")
+
+        variants = []
+        for e in p.get("variants", {}).get("edges", []):
+            v = e["node"]
+            weight = None
+            inv = v.get("inventoryItem") or {}
+            meas = inv.get("measurement") or {}
+            w = meas.get("weight") or {}
+            if w.get("value"):
+                weight = float(w["value"])
+                if w.get("unit") == "KILOGRAMS":
+                    weight *= 1000
+            variants.append({
+                "id": v["id"], "title": v.get("title"), "price": v.get("price"),
+                "compare_at_price": v.get("compareAtPrice"), "sku": v.get("sku"),
+                "weight_grams": weight,
+            })
+
+        images = [e["node"]["url"] for e in p.get("images", {}).get("edges", [])]
+
+        return {
+            "shopify_id": p["id"],
+            "title": p["title"],
+            "handle": p.get("handle"),
+            "status": p.get("status"),
+            "description": p.get("descriptionHtml") or "",
+            "vendor": p.get("vendor") or "",
+            "product_type": p.get("productType") or "",
+            "tags": p.get("tags") or [],
+            "image_url": (p.get("featuredImage") or {}).get("url"),
+            "images": images,
+            "variants": variants,
+        }
 
     def create_shopify_product(self, db: Session, data: dict) -> dict:
         """Create a new product on Shopify as DRAFT.
 
-        data keys: title, price (selling price NOK), sku, product_type,
-                   vendor, tags, description
-        Returns the created product data from Shopify.
+        Supports full product fields: title, price, sku, description,
+        vendor, product_type, tags, variants, images.
         """
-        variant_input = {"price": str(data.get("price", "0"))}
-        if data.get("sku"):
-            variant_input["sku"] = data["sku"]
+        # Build variants
+        variants_input = []
+        if data.get("variants"):
+            for v in data["variants"]:
+                vi = {"price": str(v.get("price", "0"))}
+                if v.get("sku"):
+                    vi["sku"] = v["sku"]
+                if v.get("title") and v["title"] != "Default Title":
+                    vi["options"] = [v["title"]]
+                variants_input.append(vi)
+        else:
+            vi = {"price": str(data.get("price", "0"))}
+            if data.get("sku"):
+                vi["sku"] = data["sku"]
+            variants_input.append(vi)
 
         product_input = {
             "title": data["title"],
             "status": "DRAFT",
-            "variants": [variant_input],
+            "variants": variants_input,
         }
         if data.get("product_type"):
             product_input["productType"] = data["product_type"]
         if data.get("vendor"):
             product_input["vendor"] = data["vendor"]
         if data.get("tags"):
-            product_input["tags"] = data["tags"]
+            product_input["tags"] = data["tags"] if isinstance(data["tags"], list) else [t.strip() for t in data["tags"].split(",")]
         if data.get("description"):
             product_input["descriptionHtml"] = data["description"]
+        if data.get("images"):
+            product_input["images"] = [{"src": url} for url in data["images"] if url]
 
         mutation = """
         mutation($input: ProductInput!) {
           productCreate(input: $input) {
             product {
-              id
-              title
-              handle
-              status
+              id title handle status
+              featuredImage { url }
               variants(first: 10) {
                 edges { node { id title price sku } }
               }
@@ -518,17 +591,15 @@ class MarginVatService:
             raise Exception(f"Shopify errors: {[e['message'] for e in errors]}")
 
         product = pc.get("product", {})
+        shopify_id = product["id"]
 
         # Store in local database
-        from app.models import Product as ProductModel, Variant as VariantModel
-        # Extract numeric ID from GID
-        shopify_id = product["id"]  # gid://shopify/Product/xxx
-
-        db_product = ProductModel(
+        db_product = Product(
             shopify_id=shopify_id,
             title=product["title"],
             handle=product["handle"],
             status=product["status"].lower(),
+            image_url=(product.get("featuredImage") or {}).get("url"),
         )
         db.add(db_product)
         db.flush()
@@ -536,7 +607,7 @@ class MarginVatService:
         variants_data = []
         for edge in product.get("variants", {}).get("edges", []):
             v = edge["node"]
-            db_variant = VariantModel(
+            db_variant = Variant(
                 shopify_id=v["id"],
                 product_id=db_product.id,
                 title=v.get("title", "Default Title"),
@@ -558,17 +629,20 @@ class MarginVatService:
         }
 
     def update_shopify_product(self, db: Session, product_shopify_id: str, data: dict) -> dict:
-        """Update an existing product on Shopify.
-
-        data keys: title, status (ACTIVE/DRAFT/ARCHIVED), price, description
-        """
+        """Update an existing product on Shopify."""
         product_input = {"id": product_shopify_id}
         if data.get("title"):
             product_input["title"] = data["title"]
         if data.get("status"):
             product_input["status"] = data["status"].upper()
-        if data.get("description"):
+        if data.get("description") is not None:
             product_input["descriptionHtml"] = data["description"]
+        if data.get("vendor") is not None:
+            product_input["vendor"] = data["vendor"]
+        if data.get("product_type") is not None:
+            product_input["productType"] = data["product_type"]
+        if data.get("tags") is not None:
+            product_input["tags"] = data["tags"] if isinstance(data["tags"], list) else [t.strip() for t in data["tags"].split(",")]
 
         mutation = """
         mutation($input: ProductInput!) {
@@ -600,18 +674,12 @@ class MarginVatService:
                 "productId": product_shopify_id,
                 "variants": [{"id": data["variant_shopify_id"], "price": str(data["price"])}],
             })
-
-            # Update local DB variant price
-            variant = db.query(Variant).filter(
-                Variant.shopify_id == data["variant_shopify_id"]
-            ).first()
+            variant = db.query(Variant).filter(Variant.shopify_id == data["variant_shopify_id"]).first()
             if variant:
                 variant.price = float(data["price"])
 
-        # Update local DB product
-        db_product = db.query(Product).filter(
-            Product.shopify_id == product_shopify_id
-        ).first()
+        # Update local DB
+        db_product = db.query(Product).filter(Product.shopify_id == product_shopify_id).first()
         if db_product:
             if data.get("title"):
                 db_product.title = data["title"]
@@ -619,7 +687,6 @@ class MarginVatService:
                 db_product.status = data["status"].lower()
 
         db.commit()
-
         return {
             "product_shopify_id": product.get("id"),
             "title": product.get("title"),

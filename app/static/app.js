@@ -3321,7 +3321,93 @@ function mvatCalculatePreview() {
     el.innerHTML = renderMvatCalcBox(mvatSelectedVariant.price, pp);
 }
 
-// ── "Create New Product" preview ────────────────────────────────────────
+// ── Template Search & Form Population ───────────────────────────────────
+
+let mvatTemplateTimeout = null;
+let mvatTemplateImages = []; // URLs of images to include from template
+
+function mvatTemplateSearch(query) {
+    clearTimeout(mvatTemplateTimeout);
+    const el = document.getElementById('mvat-template-results');
+    if (!query || query.length < 2) { el.style.display = 'none'; return; }
+    mvatTemplateTimeout = setTimeout(async () => {
+        try {
+            const products = await api(`/shopify/products?limit=15&search=${encodeURIComponent(query)}`);
+            if (!products?.length) {
+                el.innerHTML = '<div class="mvat-search-item muted">No products found</div>';
+                el.style.display = 'block';
+                return;
+            }
+            el.innerHTML = products.map(p => `
+                <div class="mvat-search-item" onclick="mvatLoadTemplate('${p.shopify_id}')">
+                    ${p.image_url ? `<img src="${p.image_url}" style="width:28px;height:28px;object-fit:cover;border-radius:3px">` : ''}
+                    <div style="flex:1"><strong style="font-size:.8125rem">${p.title}</strong></div>
+                    <span class="mono" style="font-size:.75rem">kr ${fmtNum(p.variants?.[0]?.price || 0)}</span>
+                </div>
+            `).join('');
+            el.style.display = 'block';
+        } catch (e) { console.error('Template search:', e); }
+    }, 300);
+}
+
+async function mvatLoadTemplate(shopifyId) {
+    document.getElementById('mvat-template-results').style.display = 'none';
+    document.getElementById('mvat-template-loading').style.display = 'block';
+    document.getElementById('mvat-template-search').value = 'Loading...';
+
+    try {
+        // Fetch full product details from Shopify
+        const p = await api(`/margin-vat/product-detail/${encodeURIComponent(shopifyId)}`);
+
+        // Populate form fields
+        document.getElementById('mvat-new-title').value = p.title || '';
+        document.getElementById('mvat-new-desc').value = p.description || '';
+        document.getElementById('mvat-new-vendor').value = p.vendor || '';
+        document.getElementById('mvat-new-type').value = p.product_type || '';
+        document.getElementById('mvat-new-tags').value = (p.tags || []).join(', ');
+
+        // First variant data
+        const v = p.variants?.[0];
+        if (v) {
+            document.getElementById('mvat-new-price').value = v.price || '';
+            document.getElementById('mvat-new-sku').value = v.sku || '';
+        }
+
+        // Images
+        mvatTemplateImages = [...(p.images || [])];
+        mvatRenderTemplateImages();
+
+        document.getElementById('mvat-template-search').value = `Copied from: ${p.title}`;
+        mvatNewCalcPreview();
+    } catch (e) {
+        toast(`Failed to load template: ${e.message}`, 'error');
+        document.getElementById('mvat-template-search').value = '';
+    } finally {
+        document.getElementById('mvat-template-loading').style.display = 'none';
+    }
+}
+
+function mvatRenderTemplateImages() {
+    const section = document.getElementById('mvat-new-images-section');
+    const el = document.getElementById('mvat-new-images');
+    if (!mvatTemplateImages.length) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = 'block';
+    el.innerHTML = mvatTemplateImages.map((url, i) => `
+        <div class="mvat-proof-item" style="position:relative">
+            <img src="${url}" class="mvat-proof-thumb" style="width:64px;height:64px">
+            <button class="btn btn-xs btn-danger" style="position:absolute;top:2px;right:2px;padding:0 4px;font-size:.7rem"
+                onclick="mvatRemoveTemplateImage(${i})">&times;</button>
+        </div>
+    `).join('');
+}
+
+function mvatRemoveTemplateImage(index) {
+    mvatTemplateImages.splice(index, 1);
+    mvatRenderTemplateImages();
+}
 
 function mvatNewCalcPreview() {
     const el = document.getElementById('mvat-new-calc-preview');
@@ -3400,15 +3486,24 @@ async function mvatCreateNewProduct() {
     btn.disabled = true; btn.textContent = 'Creating...';
 
     try {
-        // 1. Create draft product on Shopify
+        // 1. Create draft product on Shopify with all fields
+        const productData = {
+            title,
+            price,
+            sku: document.getElementById('mvat-new-sku')?.value.trim() || null,
+            description: document.getElementById('mvat-new-desc')?.value.trim() || null,
+            vendor: document.getElementById('mvat-new-vendor')?.value.trim() || null,
+            product_type: document.getElementById('mvat-new-type')?.value.trim() || null,
+            tags: document.getElementById('mvat-new-tags')?.value.trim() || null,
+        };
+        if (mvatTemplateImages.length) {
+            productData.images = mvatTemplateImages;
+        }
+
         const shopifyResult = await api('/margin-vat/create-product', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title,
-                price,
-                sku: document.getElementById('mvat-new-sku')?.value.trim() || null,
-            }),
+            body: JSON.stringify(productData),
         });
 
         const variantId = shopifyResult.variants?.[0]?.id;
@@ -3447,11 +3542,15 @@ async function mvatCreateNewProduct() {
 }
 
 function mvatClearNewForm() {
-    ['mvat-new-title','mvat-new-price','mvat-new-purchase','mvat-new-sku','mvat-new-date','mvat-new-seller'].forEach(id => {
+    ['mvat-new-title','mvat-new-price','mvat-new-purchase','mvat-new-sku','mvat-new-date',
+     'mvat-new-seller','mvat-new-desc','mvat-new-vendor','mvat-new-type','mvat-new-tags',
+     'mvat-template-search'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
     });
     const f = document.getElementById('mvat-new-proof'); if (f) f.value = '';
     document.getElementById('mvat-new-calc-preview').style.display = 'none';
+    mvatTemplateImages = [];
+    document.getElementById('mvat-new-images-section').style.display = 'none';
 }
 
 // ── Actions ─────────────────────────────────────────────────────────────
