@@ -3262,6 +3262,41 @@ document.addEventListener('DOMContentLoaded', () => {
 let mvatSelectedVariant = null;
 let mvatSearchTimeout = null;
 
+function mvatSwitchTab(tab) {
+    document.querySelectorAll('.mvat-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase().includes(tab === 'record' ? 'record' : tab === 'link' ? 'link' : 'create')));
+    document.querySelectorAll('.mvat-tab-panel').forEach(p => p.classList.remove('active'));
+    const panel = document.getElementById(`mvat-panel-${tab}`);
+    if (panel) panel.classList.add('active');
+}
+
+function mvatRecAddLine() {
+    const tbody = document.getElementById('mvat-rec-items');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-sm mvat-rec-desc" style="width:100%" placeholder="Description" /></td>
+        <td><input type="number" class="input-sm mvat-rec-qty" style="width:100%" value="1" min="1" step="1" oninput="mvatRecUpdateTotals()" /></td>
+        <td><input type="number" class="input-sm mvat-rec-unit" style="width:100%" min="0" step="1" placeholder="0" oninput="mvatRecUpdateTotals()" /></td>
+        <td class="mono mvat-rec-line-total" style="text-align:right;font-size:.8125rem">kr 0</td>
+        <td><button class="btn btn-xs btn-danger" onclick="this.closest('tr').remove();mvatRecUpdateTotals()">x</button></td>
+    `;
+    tbody.appendChild(tr);
+    tr.querySelector('.mvat-rec-desc').focus();
+}
+
+function mvatRecUpdateTotals() {
+    let total = 0;
+    document.querySelectorAll('#mvat-rec-items tr').forEach(row => {
+        const qty = parseInt(row.querySelector('.mvat-rec-qty')?.value || '1') || 1;
+        const unit = parseFloat(row.querySelector('.mvat-rec-unit')?.value || '0') || 0;
+        const lineTotal = qty * unit;
+        total += lineTotal;
+        const cell = row.querySelector('.mvat-rec-line-total');
+        if (cell) cell.textContent = `kr ${fmtNum(lineTotal)}`;
+    });
+    const el = document.getElementById('mvat-rec-total');
+    if (el) el.textContent = `Total: kr ${fmtNum(total)}`;
+}
+
 async function loadMarginVat() {
     showTabLoading('mvat-product-list');
     const status = document.getElementById('mvat-filter-status')?.value || '';
@@ -3764,45 +3799,72 @@ function mvatClearNewForm() {
 // ── Record Purchase (no Shopify link) ───────────────────────────────
 
 async function mvatRecordPurchase() {
-    const title = document.getElementById('mvat-rec-title')?.value.trim();
-    const pp = parseFloat(document.getElementById('mvat-rec-price')?.value || '0');
-    if (!title) { toast('Enter what you bought', 'warning'); return; }
-    if (!pp || pp <= 0) { toast('Enter a purchase price', 'warning'); return; }
+    // Collect line items
+    const rows = document.querySelectorAll('#mvat-rec-items tr');
+    const items = [];
+    for (const row of rows) {
+        const desc = row.querySelector('.mvat-rec-desc')?.value.trim();
+        const qty = parseInt(row.querySelector('.mvat-rec-qty')?.value || '1') || 1;
+        const unit = parseFloat(row.querySelector('.mvat-rec-unit')?.value || '0') || 0;
+        if (!desc || unit <= 0) continue;
+        items.push({ desc, qty, unit });
+    }
+    if (!items.length) { toast('Add at least one item with description and price', 'warning'); return; }
+
+    const seller = document.getElementById('mvat-rec-seller')?.value.trim() || null;
+    const dateVal = document.getElementById('mvat-rec-date')?.value;
+    const purchaseDate = dateVal ? new Date(dateVal).toISOString() : null;
 
     const btn = document.getElementById('mvat-rec-btn');
     btn.disabled = true; btn.textContent = 'Saving...';
 
     try {
-        const result = await api('/margin-vat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                product_title: title,
-                purchase_price_nok: pp,
-                purchase_date: document.getElementById('mvat-rec-date')?.value
-                    ? new Date(document.getElementById('mvat-rec-date').value).toISOString() : null,
-                seller_description: document.getElementById('mvat-rec-seller')?.value.trim() || null,
-            }),
-        });
-
-        // Upload proof if selected
-        const fileInput = document.getElementById('mvat-rec-proof');
-        if (fileInput?.files?.length) {
-            const fd = new FormData();
-            fd.append('file', fileInput.files[0]);
-            await fetch(`${API}/margin-vat/${result.id}/proof-images`, { method: 'POST', body: fd });
+        const createdIds = [];
+        // Create one record per item × quantity
+        for (const item of items) {
+            for (let i = 0; i < item.qty; i++) {
+                const result = await api('/margin-vat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        product_title: item.desc + (item.qty > 1 ? ` (${i + 1}/${item.qty})` : ''),
+                        purchase_price_nok: item.unit,
+                        purchase_date: purchaseDate,
+                        seller_description: seller,
+                    }),
+                });
+                createdIds.push(result.id);
+            }
         }
 
-        toast('Purchase recorded', 'success');
-        ['mvat-rec-title','mvat-rec-price','mvat-rec-date','mvat-rec-seller'].forEach(id => {
-            const el = document.getElementById(id); if (el) el.value = '';
-        });
+        // Upload proof to first record
+        const fileInput = document.getElementById('mvat-rec-proof');
+        if (fileInput?.files?.length && createdIds.length) {
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            await fetch(`${API}/margin-vat/${createdIds[0]}/proof-images`, { method: 'POST', body: fd });
+        }
+
+        const totalItems = items.reduce((s, i) => s + i.qty, 0);
+        toast(`Saved ${totalItems} purchase record${totalItems > 1 ? 's' : ''}`, 'success');
+
+        // Reset form
+        document.getElementById('mvat-rec-items').innerHTML = `
+            <tr>
+                <td><input type="text" class="input-sm mvat-rec-desc" style="width:100%" placeholder="e.g. Pokemon 151 Booster Box" /></td>
+                <td><input type="number" class="input-sm mvat-rec-qty" style="width:100%" value="1" min="1" step="1" oninput="mvatRecUpdateTotals()" /></td>
+                <td><input type="number" class="input-sm mvat-rec-unit" style="width:100%" min="0" step="1" placeholder="0" oninput="mvatRecUpdateTotals()" /></td>
+                <td class="mono mvat-rec-line-total" style="text-align:right;font-size:.8125rem">kr 0</td>
+                <td></td>
+            </tr>`;
+        ['mvat-rec-seller','mvat-rec-date'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
         const f = document.getElementById('mvat-rec-proof'); if (f) f.value = '';
+        document.getElementById('mvat-rec-total').textContent = 'Total: kr 0';
         loadMarginVat();
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
     } finally {
-        btn.disabled = false; btn.textContent = 'Save Purchase Record';
+        btn.disabled = false; btn.textContent = 'Save All Records';
     }
 }
 

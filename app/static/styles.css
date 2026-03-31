@@ -2488,6 +2488,35 @@ input[type="checkbox"] {
 .snk-spike-up { background: rgba(239,68,68,.12); color: var(--danger, #ef4444); }
 .snk-spike-down { background: rgba(59,130,246,.12); color: var(--info, #3b82f6); }
 
+/* ── Margin VAT Tabs ─────────────────────────────────────────────────── */
+
+.mvat-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 1rem;
+}
+.mvat-tab {
+    padding: .5rem 1.25rem;
+    border: none;
+    background: none;
+    font-size: .875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color .15s, border-color .15s;
+}
+.mvat-tab:hover { color: var(--text-primary); }
+.mvat-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+}
+.mvat-tab-panel { display: none; }
+.mvat-tab-panel.active { display: block; }
+
 /* ── Margin VAT ──────────────────────────────────────────────────────── */
 
 .mvat-bucket-card {
