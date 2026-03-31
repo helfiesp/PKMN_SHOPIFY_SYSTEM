@@ -70,37 +70,45 @@ class MarginVatService:
     # ── CRUD ─────────────────────────────────────────────────────────────
 
     def create(self, db: Session, data: dict) -> MarginVatProduct:
-        """Register a product under the margin VAT scheme."""
-        # Look up variant in local DB to populate cached fields
-        variant = db.query(Variant).filter(
-            Variant.shopify_id == data["variant_shopify_id"]
-        ).first()
+        """Register a product under the margin VAT scheme.
 
-        product = None
-        if variant:
-            product = db.query(Product).filter(Product.id == variant.product_id).first()
-
-        selling_price = variant.price if variant else 0
+        Can be created without a Shopify link (unlinked purchase record).
+        Link to a Shopify product later via update().
+        """
         purchase_price = data["purchase_price_nok"]
+        variant = None
+        product = None
+        selling_price = 0
 
-        calc = self.calculate_effective_rate(selling_price, purchase_price)
+        # If linked to a Shopify product, look up details
+        if data.get("variant_shopify_id"):
+            variant = db.query(Variant).filter(
+                Variant.shopify_id == data["variant_shopify_id"]
+            ).first()
+            if variant:
+                product = db.query(Product).filter(Product.id == variant.product_id).first()
+                selling_price = variant.price
+
+        calc = self.calculate_effective_rate(selling_price, purchase_price) if selling_price > 0 else {
+            "margin_nok": 0, "vat_amount_nok": 0, "effective_rate_pct": 0, "bucket_rate_pct": 0
+        }
 
         mvp = MarginVatProduct(
-            product_shopify_id=data["product_shopify_id"],
-            variant_shopify_id=data["variant_shopify_id"],
-            product_title=product.title if product else None,
+            product_shopify_id=data.get("product_shopify_id"),
+            variant_shopify_id=data.get("variant_shopify_id"),
+            product_title=data.get("product_title") or (product.title if product else None),
             variant_title=variant.title if variant else None,
             sku=variant.sku if variant else None,
             image_url=product.image_url if product else None,
             purchase_price_nok=purchase_price,
             purchase_date=data.get("purchase_date"),
             seller_description=data.get("seller_description"),
-            selling_price_nok=selling_price,
+            selling_price_nok=selling_price if selling_price > 0 else None,
             margin_nok=calc["margin_nok"],
             vat_amount_nok=calc["vat_amount_nok"],
             effective_rate_pct=calc["effective_rate_pct"],
             bucket_rate_pct=calc["bucket_rate_pct"],
-            needs_reassignment=True,
+            needs_reassignment=True if data.get("variant_shopify_id") else False,
             status="active",
             notes=data.get("notes"),
         )
@@ -110,17 +118,44 @@ class MarginVatService:
         return mvp
 
     def update(self, db: Session, mvp_id: int, data: dict) -> Optional[MarginVatProduct]:
-        """Update a margin VAT product. Recalculates VAT if prices changed."""
+        """Update a margin VAT product. Recalculates VAT if prices changed.
+
+        If linking to a Shopify product for the first time (setting variant_shopify_id),
+        populates cached fields from the variant/product.
+        """
         mvp = db.query(MarginVatProduct).filter(MarginVatProduct.id == mvp_id).first()
         if not mvp:
             return None
 
         recalc_needed = False
+        newly_linked = False
+
+        # Check if we're linking to a Shopify product for the first time
+        if data.get("variant_shopify_id") and not mvp.variant_shopify_id:
+            newly_linked = True
+
         for key, value in data.items():
             if value is not None and hasattr(mvp, key):
                 setattr(mvp, key, value)
                 if key in ("purchase_price_nok", "selling_price_nok"):
                     recalc_needed = True
+
+        # If newly linked, populate cached fields from Shopify data
+        if newly_linked and mvp.variant_shopify_id:
+            variant = db.query(Variant).filter(Variant.shopify_id == mvp.variant_shopify_id).first()
+            if variant:
+                product = db.query(Product).filter(Product.id == variant.product_id).first()
+                mvp.variant_title = variant.title
+                mvp.sku = variant.sku
+                mvp.selling_price_nok = variant.price
+                if product:
+                    if not mvp.product_shopify_id:
+                        mvp.product_shopify_id = product.shopify_id
+                    if not mvp.product_title or mvp.product_title == data.get("product_title"):
+                        mvp.product_title = product.title
+                    mvp.image_url = product.image_url
+                recalc_needed = True
+                mvp.needs_reassignment = True
 
         if recalc_needed and mvp.selling_price_nok and mvp.purchase_price_nok:
             old_bucket = mvp.bucket_rate_pct
@@ -535,29 +570,13 @@ class MarginVatService:
     def create_shopify_product(self, db: Session, data: dict) -> dict:
         """Create a new product on Shopify as DRAFT.
 
-        Supports full product fields: title, price, sku, description,
-        vendor, product_type, tags, variants, images.
+        In API 2026-01+, variants and images are NOT part of ProductInput.
+        We create the product first, then update the variant price/SKU,
+        then attach images via productCreateMedia.
         """
-        # Build variants
-        variants_input = []
-        if data.get("variants"):
-            for v in data["variants"]:
-                vi = {"price": str(v.get("price", "0"))}
-                if v.get("sku"):
-                    vi["sku"] = v["sku"]
-                if v.get("title") and v["title"] != "Default Title":
-                    vi["options"] = [v["title"]]
-                variants_input.append(vi)
-        else:
-            vi = {"price": str(data.get("price", "0"))}
-            if data.get("sku"):
-                vi["sku"] = data["sku"]
-            variants_input.append(vi)
-
         product_input = {
             "title": data["title"],
             "status": "DRAFT",
-            "variants": variants_input,
         }
         if data.get("product_type"):
             product_input["productType"] = data["product_type"]
@@ -567,10 +586,9 @@ class MarginVatService:
             product_input["tags"] = data["tags"] if isinstance(data["tags"], list) else [t.strip() for t in data["tags"].split(",")]
         if data.get("description"):
             product_input["descriptionHtml"] = data["description"]
-        if data.get("images"):
-            product_input["images"] = [{"src": url} for url in data["images"] if url]
 
-        mutation = """
+        # Step 1: Create the product (comes with a default variant)
+        create_mutation = """
         mutation($input: ProductInput!) {
           productCreate(input: $input) {
             product {
@@ -584,7 +602,7 @@ class MarginVatService:
           }
         }
         """
-        result = self._graphql_request(mutation, {"input": product_input})
+        result = self._graphql_request(create_mutation, {"input": product_input})
         pc = result.get("productCreate", {})
         errors = pc.get("userErrors", [])
         if errors:
@@ -592,6 +610,57 @@ class MarginVatService:
 
         product = pc.get("product", {})
         shopify_id = product["id"]
+
+        # Step 2: Update the default variant with price and SKU
+        variant_edges = product.get("variants", {}).get("edges", [])
+        if variant_edges and (data.get("price") or data.get("sku")):
+            variant_id = variant_edges[0]["node"]["id"]
+            variant_input = {"id": variant_id}
+            if data.get("price"):
+                variant_input["price"] = str(data["price"])
+            if data.get("sku"):
+                variant_input["sku"] = data["sku"]
+
+            update_mutation = """
+            mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                productVariants { id price sku }
+                userErrors { field message }
+              }
+            }
+            """
+            self._graphql_request(update_mutation, {
+                "productId": shopify_id,
+                "variants": [variant_input],
+            })
+            # Update the local variant data for return value
+            if data.get("price"):
+                variant_edges[0]["node"]["price"] = str(data["price"])
+            if data.get("sku"):
+                variant_edges[0]["node"]["sku"] = data["sku"]
+
+        # Step 3: Attach images via productCreateMedia
+        if data.get("images"):
+            media_input = [
+                {"originalSource": url, "mediaContentType": "IMAGE"}
+                for url in data["images"] if url
+            ]
+            if media_input:
+                media_mutation = """
+                mutation($productId: ID!, $media: [CreateMediaInput!]!) {
+                  productCreateMedia(productId: $productId, media: $media) {
+                    media { id }
+                    mediaUserErrors { field message }
+                  }
+                }
+                """
+                try:
+                    self._graphql_request(media_mutation, {
+                        "productId": shopify_id,
+                        "media": media_input,
+                    })
+                except Exception:
+                    pass  # Image attach is non-critical
 
         # Store in local database
         db_product = Product(
@@ -605,7 +674,7 @@ class MarginVatService:
         db.flush()
 
         variants_data = []
-        for edge in product.get("variants", {}).get("edges", []):
+        for edge in variant_edges:
             v = edge["node"]
             db_variant = Variant(
                 shopify_id=v["id"],

@@ -3338,27 +3338,34 @@ function renderMvatTable(products) {
 }
 
 function renderMvatRow(p) {
+    const isLinked = !!p.variant_shopify_id;
     const img = p.image_url
         ? `<img src="${p.image_url}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:4px">`
-        : '<div style="width:32px;height:32px;background:var(--bg-secondary);border-radius:4px"></div>';
+        : '<div style="width:32px;height:32px;background:var(--bg-secondary);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--text-secondary)">' + (isLinked ? '' : '?') + '</div>';
     const sync = p.needs_reassignment ? ' <span class="badge badge-warning badge-sm">!</span>' : '';
-    const coll = p.tax_collection_name
-        ? `<span class="badge badge-success badge-sm">${p.tax_collection_name}</span>`
-        : '<span class="badge badge-neutral badge-sm">Unsynced</span>';
     const proofN = p.proof_images?.length || 0;
-    const shopifyStatus = p.status === 'active' ? '' : ` <span class="badge badge-neutral badge-sm">${p.status}</span>`;
+
+    let statusCol;
+    if (!isLinked) {
+        statusCol = `<span class="badge badge-neutral badge-sm">Unlinked</span>
+            <button class="btn btn-xs btn-primary" onclick="event.stopPropagation();mvatOpenLink(${p.id})" style="margin-left:.25rem">Link</button>`;
+    } else if (p.tax_collection_name) {
+        statusCol = `<span class="badge badge-success badge-sm">${p.tax_collection_name}</span>`;
+    } else {
+        statusCol = '<span class="badge badge-neutral badge-sm">Unsynced</span>';
+    }
 
     return `
         <tr class="${p.needs_reassignment ? 'mvat-needs-attention' : ''}" style="cursor:pointer" onclick="mvatToggleDetail(${p.id})">
             <td>${img}</td>
-            <td><strong style="font-size:.8125rem">${p.product_title || '—'}</strong>${shopifyStatus}
+            <td><strong style="font-size:.8125rem">${p.product_title || '—'}</strong>
                 ${p.sku ? `<br><span class="muted" style="font-size:.75rem">${p.sku}</span>` : ''}</td>
             <td class="mono">kr ${fmtNum(p.purchase_price_nok)}</td>
-            <td class="mono">kr ${fmtNum(p.selling_price_nok || 0)}</td>
-            <td class="mono">kr ${fmtNum(p.margin_nok || 0)}</td>
-            <td class="mono">${p.effective_rate_pct != null ? p.effective_rate_pct.toFixed(1) + '%' : '—'}</td>
-            <td>${p.bucket_rate_pct != null ? p.bucket_rate_pct + '%' : '—'}${sync}</td>
-            <td>${coll} ${proofN ? `<span class="badge badge-info badge-sm">${proofN} proof</span>` : ''}</td>
+            <td class="mono">${p.selling_price_nok ? 'kr ' + fmtNum(p.selling_price_nok) : '<span class="muted">—</span>'}</td>
+            <td class="mono">${p.margin_nok ? 'kr ' + fmtNum(p.margin_nok) : '<span class="muted">—</span>'}</td>
+            <td class="mono">${p.effective_rate_pct != null && p.effective_rate_pct > 0 ? p.effective_rate_pct.toFixed(1) + '%' : '<span class="muted">—</span>'}</td>
+            <td>${p.bucket_rate_pct != null && isLinked ? p.bucket_rate_pct + '%' : '<span class="muted">—</span>'}${sync}</td>
+            <td>${statusCol} ${proofN ? `<span class="badge badge-info badge-sm">${proofN} proof</span>` : ''}</td>
             <td><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();mvatDelete(${p.id})">x</button></td>
         </tr>
         <tr id="mvat-detail-${p.id}" style="display:none">
@@ -3709,8 +3716,31 @@ async function mvatCreateNewProduct() {
             await fetch(`${API}/margin-vat/${mvatResult.id}/proof-images`, { method: 'POST', body: fd });
         }
 
-        toast(`Draft "${title}" created on Shopify & registered`, 'success');
-        mvatClearNewForm();
+        // Extract numeric ID from GID for admin link
+        const numericId = shopifyResult.product_shopify_id.replace('gid://shopify/Product/', '');
+        const shop = await api('/settings/dict?mask_sensitive=false').then(d => d.shopify_shop).catch(() => null);
+        const adminUrl = shop ? `https://${shop}/admin/products/${numericId}` : null;
+
+        toast(`Draft "${title}" created & registered`, 'success');
+
+        // Show link to new product
+        const linkHtml = adminUrl
+            ? `<a href="${adminUrl}" target="_blank" style="color:var(--primary);font-weight:600">${adminUrl}</a>`
+            : `Product ID: ${numericId}`;
+        document.getElementById('mvat-new-calc-preview').style.display = 'block';
+        document.getElementById('mvat-new-calc-preview').innerHTML = `
+            <div style="font-size:.8125rem">
+                <strong>Draft created!</strong> Open in Shopify Admin to review and publish:<br>
+                ${linkHtml}
+            </div>
+        `;
+        // Clear form fields but keep the result visible
+        ['mvat-new-title','mvat-new-price','mvat-new-purchase','mvat-new-sku','mvat-new-date',
+         'mvat-new-seller','mvat-new-desc','mvat-new-vendor','mvat-new-type','mvat-new-tags',
+         'mvat-template-search'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        const f = document.getElementById('mvat-new-proof'); if (f) f.value = '';
+        mvatTemplateImages = [];
+        document.getElementById('mvat-new-images-section').style.display = 'none';
         loadMarginVat();
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
@@ -3729,6 +3759,128 @@ function mvatClearNewForm() {
     document.getElementById('mvat-new-calc-preview').style.display = 'none';
     mvatTemplateImages = [];
     document.getElementById('mvat-new-images-section').style.display = 'none';
+}
+
+// ── Record Purchase (no Shopify link) ───────────────────────────────
+
+async function mvatRecordPurchase() {
+    const title = document.getElementById('mvat-rec-title')?.value.trim();
+    const pp = parseFloat(document.getElementById('mvat-rec-price')?.value || '0');
+    if (!title) { toast('Enter what you bought', 'warning'); return; }
+    if (!pp || pp <= 0) { toast('Enter a purchase price', 'warning'); return; }
+
+    const btn = document.getElementById('mvat-rec-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    try {
+        const result = await api('/margin-vat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_title: title,
+                purchase_price_nok: pp,
+                purchase_date: document.getElementById('mvat-rec-date')?.value
+                    ? new Date(document.getElementById('mvat-rec-date').value).toISOString() : null,
+                seller_description: document.getElementById('mvat-rec-seller')?.value.trim() || null,
+            }),
+        });
+
+        // Upload proof if selected
+        const fileInput = document.getElementById('mvat-rec-proof');
+        if (fileInput?.files?.length) {
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            await fetch(`${API}/margin-vat/${result.id}/proof-images`, { method: 'POST', body: fd });
+        }
+
+        toast('Purchase recorded', 'success');
+        ['mvat-rec-title','mvat-rec-price','mvat-rec-date','mvat-rec-seller'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.value = '';
+        });
+        const f = document.getElementById('mvat-rec-proof'); if (f) f.value = '';
+        loadMarginVat();
+    } catch (e) {
+        toast(`Failed: ${e.message}`, 'error');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Save Purchase Record';
+    }
+}
+
+// ── Link unlinked purchase to Shopify product ───────────────────────
+
+let mvatLinkTimeout = null;
+
+function mvatOpenLink(mvpId) {
+    // Close any existing link row
+    document.querySelectorAll('.mvat-link-row').forEach(el => el.remove());
+
+    const detailRow = document.getElementById(`mvat-detail-${mvpId}`);
+    const targetRow = detailRow?.previousElementSibling || null;
+
+    const linkRow = document.createElement('tr');
+    linkRow.className = 'mvat-link-row';
+    linkRow.innerHTML = `
+        <td colspan="9" style="background:var(--bg-secondary);padding:.75rem 1rem">
+            <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+                <strong style="font-size:.8125rem">Link to Shopify product:</strong>
+                <div style="position:relative;flex:1;min-width:200px">
+                    <input type="text" class="input-sm" id="mvat-link-search-${mvpId}" style="width:100%"
+                        placeholder="Search product..." oninput="mvatLinkSearch(${mvpId}, this.value)" autocomplete="off" />
+                    <div id="mvat-link-results-${mvpId}" class="mvat-dropdown"></div>
+                </div>
+                <button class="btn btn-xs" onclick="this.closest('tr').remove()">Cancel</button>
+            </div>
+        </td>
+    `;
+
+    if (targetRow && targetRow.nextSibling) {
+        targetRow.parentNode.insertBefore(linkRow, targetRow.nextSibling);
+    }
+
+    document.getElementById(`mvat-link-search-${mvpId}`)?.focus();
+}
+
+function mvatLinkSearch(mvpId, query) {
+    clearTimeout(mvatLinkTimeout);
+    const el = document.getElementById(`mvat-link-results-${mvpId}`);
+    if (!query || query.length < 2) { el.style.display = 'none'; return; }
+    mvatLinkTimeout = setTimeout(async () => {
+        try {
+            const products = await api(`/shopify/products?limit=15&search=${encodeURIComponent(query)}`);
+            if (!products?.length) {
+                el.innerHTML = '<div class="mvat-search-item muted">No products found</div>';
+                el.style.display = 'block';
+                return;
+            }
+            el.innerHTML = products.flatMap(p => (p.variants || []).map(v => `
+                <div class="mvat-search-item" onclick="mvatLinkProduct(${mvpId}, '${p.shopify_id}', '${v.shopify_id}', '${p.title.replace(/'/g, "\\'")}')">
+                    ${p.image_url ? `<img src="${p.image_url}" style="width:28px;height:28px;object-fit:cover;border-radius:3px">` : ''}
+                    <div style="flex:1"><strong style="font-size:.8125rem">${p.title}</strong>
+                    ${v.title && v.title !== 'Default Title' ? `<span class="muted"> — ${v.title}</span>` : ''}</div>
+                    <span class="mono" style="font-size:.75rem">kr ${fmtNum(v.price)}</span>
+                </div>
+            `)).join('');
+            el.style.display = 'block';
+        } catch (e) { console.error('Link search:', e); }
+    }, 200);
+}
+
+async function mvatLinkProduct(mvpId, productShopifyId, variantShopifyId, title) {
+    try {
+        await api(`/margin-vat/${mvpId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_shopify_id: productShopifyId,
+                variant_shopify_id: variantShopifyId,
+            }),
+        });
+        toast(`Linked to "${title}"`, 'success');
+        document.querySelectorAll('.mvat-link-row').forEach(el => el.remove());
+        loadMarginVat();
+    } catch (e) {
+        toast(`Failed: ${e.message}`, 'error');
+    }
 }
 
 // ── Actions ─────────────────────────────────────────────────────────────

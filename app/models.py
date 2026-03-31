@@ -932,9 +932,9 @@ class MarginVatProduct(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    # Link to Shopify product/variant
-    product_shopify_id = Column(String(255), nullable=False, index=True)
-    variant_shopify_id = Column(String(255), nullable=False, unique=True, index=True)
+    # Link to Shopify product/variant (nullable — can record purchase before linking)
+    product_shopify_id = Column(String(255), nullable=True, index=True)
+    variant_shopify_id = Column(String(255), nullable=True, unique=True, index=True)
 
     # Cached product info (for display without joins)
     product_title = Column(String(500))

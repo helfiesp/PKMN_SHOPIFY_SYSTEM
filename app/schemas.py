@@ -515,18 +515,22 @@ class MarginVatProofImageResponse(BaseModel):
 
 
 class MarginVatProductCreate(BaseModel):
-    product_shopify_id: str
-    variant_shopify_id: str
+    product_shopify_id: Optional[str] = None
+    variant_shopify_id: Optional[str] = None
     purchase_price_nok: float = Field(gt=0)
     purchase_date: Optional[datetime] = None
     seller_description: Optional[str] = None
+    product_title: Optional[str] = None  # For unlinked purchases — what you bought
     notes: Optional[str] = None
 
 
 class MarginVatProductUpdate(BaseModel):
+    product_shopify_id: Optional[str] = None
+    variant_shopify_id: Optional[str] = None
     purchase_price_nok: Optional[float] = Field(None, gt=0)
     selling_price_nok: Optional[float] = Field(None, gt=0)
     seller_description: Optional[str] = None
+    product_title: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
 

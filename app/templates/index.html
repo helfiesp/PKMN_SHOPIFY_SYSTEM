@@ -521,8 +521,42 @@
                 <!-- Bucket summary -->
                 <div id="mvat-bucket-summary" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem"></div>
 
-                <!-- Two-column layout: Register + Create -->
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+                <!-- Three-column layout: Record + Link + Create -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+
+                    <!-- LEFT: Quick purchase record (no Shopify link) -->
+                    <div class="card">
+                        <div class="card-header"><h3>Record Purchase</h3></div>
+                        <div style="padding:1rem 1.25rem">
+                            <p class="muted" style="font-size:.8125rem;margin:0 0 .75rem">Record what you bought. Link to Shopify later.</p>
+                            <div style="margin-bottom:.5rem">
+                                <label class="form-label">What did you buy?</label>
+                                <input type="text" id="mvat-rec-title" class="input-sm" style="width:100%"
+                                    placeholder="e.g. Pokemon 151 Booster Box" />
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+                                <div>
+                                    <label class="form-label">Purchase Price (NOK)</label>
+                                    <input type="number" id="mvat-rec-price" class="input-sm" style="width:100%" min="0" step="1" />
+                                </div>
+                                <div>
+                                    <label class="form-label">Purchase Date</label>
+                                    <input type="date" id="mvat-rec-date" class="input-sm" style="width:100%" />
+                                </div>
+                            </div>
+                            <div style="margin-bottom:.5rem">
+                                <label class="form-label">Seller</label>
+                                <input type="text" id="mvat-rec-seller" class="input-sm" style="width:100%" placeholder="e.g. SNKRDUNK" />
+                            </div>
+                            <div style="margin-bottom:.75rem">
+                                <label class="form-label">Proof of Purchase</label>
+                                <input type="file" id="mvat-rec-proof" accept="image/*,.pdf" class="input-sm" style="width:100%" />
+                            </div>
+                            <button class="btn btn-primary" id="mvat-rec-btn" onclick="mvatRecordPurchase()" style="width:100%">
+                                Save Purchase Record
+                            </button>
+                        </div>
+                    </div>
 
                     <!-- LEFT: Register existing product -->
                     <div class="card">
