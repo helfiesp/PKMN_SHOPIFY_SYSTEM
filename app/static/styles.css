@@ -2489,57 +2489,105 @@ input[type="checkbox"] {
 .snk-spike-down { background: rgba(59,130,246,.12); color: var(--info, #3b82f6); }
 
 
-/* ── Margin VAT ──────────────────────────────────────────────────────── */
 
-.mvat-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:1.25rem; }
-.mvat-tab { padding:.625rem 1.5rem; border:none; background:none; font-size:.8125rem; font-weight:500; color:var(--text-secondary); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .15s,border-color .15s; }
-.mvat-tab:hover { color:var(--text-primary); }
-.mvat-tab.active { color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
-.mvat-tab-panel { display:none; max-width:860px; }
-.mvat-tab-panel.active { display:block; }
-.mvat-tab-panel .card { border-radius:10px; }
-.mvat-tab-panel .form-label { font-size:.6875rem; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.04em; margin-bottom:.1875rem; }
+/* ── Margin VAT — Complete Redesign ──────────────────────────────────── */
+
+/* Layout: form left, list right */
+.mvat-layout { display:grid; grid-template-columns:380px 1fr; gap:1.25rem; align-items:start; }
+@media (max-width:1100px) { .mvat-layout { grid-template-columns:1fr; } }
+
+/* Form column */
+.mvat-form-col { display:flex; flex-direction:column; gap:.75rem; }
+.mvat-form-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:1rem 1.25rem;
+}
+.mvat-form-title { font-size:.875rem; font-weight:700; margin:0 0 .75rem; color:var(--text-primary); }
+.mvat-field { margin-bottom:.5rem; }
+.mvat-field label { display:block; font-size:.6875rem; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.04em; margin-bottom:.2rem; }
+.mvat-field input, .mvat-field textarea, .mvat-field select {
+    width:100%; padding:.4rem .5rem; font-size:.8125rem; border:1px solid var(--border); border-radius:6px;
+    background:var(--surface); color:var(--text-primary); transition:border-color .15s;
+}
+.mvat-field input:focus, .mvat-field textarea:focus { border-color:var(--primary); outline:none; box-shadow:0 0 0 2px rgba(99,102,241,.12); }
+.mvat-field-row { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; }
+
+/* Items table in form */
+.mvat-items-table { margin-bottom:.5rem; }
+.mvat-items-header {
+    display:grid; grid-template-columns:1fr 50px 80px 70px 24px; gap:.25rem;
+    padding:.25rem 0; font-size:.625rem; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.04em;
+}
+.mvat-item-row {
+    display:grid; grid-template-columns:1fr 50px 80px 70px 24px; gap:.25rem; align-items:center; margin-bottom:.25rem;
+}
+.mvat-item-row input {
+    padding:.35rem .4rem; font-size:.8125rem; border:1px solid var(--border); border-radius:5px; background:var(--surface); width:100%;
+}
+.mvat-item-row input:focus { border-color:var(--primary); outline:none; }
+.mvat-rec-line-total { font-size:.75rem; font-family:monospace; text-align:right; color:var(--text-secondary); }
+.mvat-form-actions { display:flex; justify-content:space-between; align-items:center; margin-bottom:.25rem; }
+.mvat-form-actions strong { font-size:.875rem; font-family:monospace; }
+.mvat-add-btn { border:none; background:none; color:var(--primary); font-size:.8125rem; font-weight:600; cursor:pointer; padding:.25rem 0; }
+.mvat-add-btn:hover { text-decoration:underline; }
+.mvat-submit-btn {
+    width:100%; padding:.5rem; margin-top:.5rem; border:none; border-radius:8px;
+    background:var(--primary); color:#fff; font-size:.8125rem; font-weight:600; cursor:pointer; transition:background .15s;
+}
+.mvat-submit-btn:hover { background:var(--primary-hover); }
+.mvat-submit-btn:disabled { opacity:.5; cursor:default; }
+
+/* List column */
+.mvat-list-col { min-height:200px; }
+.mvat-list-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem; }
+.mvat-list-header h3 { margin:0; font-size:1rem; }
 
 /* Purchase cards */
-.mvat-purchase-card { border:1px solid var(--border); border-radius:10px; margin-bottom:.5rem; overflow:hidden; background:var(--surface); transition:box-shadow .15s; }
-.mvat-purchase-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.05); }
-.mvat-purchase-header { display:flex; align-items:center; padding:.625rem .875rem; cursor:pointer; font-size:.8125rem; gap:.5rem; }
+.mvat-purchase-card {
+    border:1px solid var(--border); border-radius:10px; margin-bottom:.5rem; overflow:hidden;
+    background:var(--surface); transition:box-shadow .15s;
+}
+.mvat-purchase-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.05); }
+.mvat-purchase-header {
+    display:flex; align-items:center; padding:.5rem .75rem; cursor:pointer; font-size:.8125rem; gap:.5rem;
+}
 .mvat-purchase-header:hover { background:var(--bg-secondary); }
-.mvat-purchase-num { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:7px; background:var(--primary-light,#eef2ff); color:var(--primary); font-weight:700; font-size:.75rem; flex-shrink:0; }
-.mvat-purchase-meta { display:flex; gap:.375rem; align-items:center; color:var(--text-secondary); font-size:.75rem; }
-.mvat-purchase-meta .dot { width:3px; height:3px; border-radius:50%; background:var(--text-secondary); opacity:.4; }
+.mvat-purchase-num {
+    width:24px; height:24px; border-radius:6px; background:var(--primary-light,#eef2ff); color:var(--primary);
+    font-weight:700; font-size:.7rem; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.mvat-purchase-meta { display:flex; gap:.25rem; align-items:center; color:var(--text-secondary); font-size:.75rem; }
+.mvat-purchase-meta .dot { width:2px; height:2px; border-radius:50%; background:currentColor; opacity:.4; }
 .mvat-purchase-body { display:none; border-top:1px solid var(--border-light,#f1f5f9); }
 .mvat-purchase-body.open { display:block; }
-.mvat-purchase-card .data-table { font-size:.8125rem; margin:0; }
-.mvat-purchase-card .data-table th { font-size:.625rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); font-weight:600; padding:.375rem .5rem; }
-.mvat-purchase-card .data-table td { padding:.375rem .5rem; vertical-align:middle; }
-.mvat-purchase-footer { padding:.5rem .75rem; display:flex; gap:.5rem; align-items:center; font-size:.8125rem; border-top:1px solid var(--border-light,#f1f5f9); background:var(--bg-secondary,#f8fafc); }
+.mvat-purchase-card table { font-size:.8125rem; margin:0; }
+.mvat-purchase-card th { font-size:.6rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); font-weight:600; padding:.3rem .4rem; }
+.mvat-purchase-card td { padding:.35rem .4rem; vertical-align:middle; }
+.mvat-purchase-footer {
+    padding:.4rem .75rem; display:flex; gap:.4rem; align-items:center; font-size:.75rem;
+    border-top:1px solid var(--border-light,#f1f5f9); background:var(--bg-secondary,#f8fafc);
+}
 
-/* Dropdowns */
-.mvat-dropdown { display:none; position:absolute; left:0; right:0; top:100%; z-index:50; max-height:220px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:0 0 8px 8px; box-shadow:0 12px 32px rgba(0,0,0,.1); }
-.mvat-search-item { display:flex; align-items:center; padding:.5rem .75rem; cursor:pointer; border-bottom:1px solid var(--border-light,#f1f5f9); font-size:.8125rem; gap:.5rem; transition:background .1s; }
+/* Selling price input in purchase table */
+.mvat-sell-input {
+    width:70px; font-size:.75rem; text-align:right; padding:.2rem .35rem;
+    border:1px solid var(--border); border-radius:5px; background:var(--surface);
+}
+.mvat-sell-input:focus { border-color:var(--primary); outline:none; box-shadow:0 0 0 2px rgba(99,102,241,.12); }
+
+/* Shared */
+.mvat-dropdown { display:none; position:absolute; left:0; right:0; top:100%; z-index:50; max-height:200px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:0 0 8px 8px; box-shadow:0 8px 24px rgba(0,0,0,.1); }
+.mvat-search-item { display:flex; align-items:center; padding:.4rem .6rem; cursor:pointer; border-bottom:1px solid var(--border-light,#f1f5f9); font-size:.8125rem; gap:.4rem; }
 .mvat-search-item:hover { background:var(--primary-light,#eef2ff); }
 .mvat-search-item:last-child { border-bottom:none; }
-
-/* Selection + Calc */
-.mvat-selected-card { padding:.5rem .75rem; border:1px solid var(--primary); border-radius:8px; margin-bottom:.75rem; background:var(--primary-subtle,rgba(99,102,241,.04)); }
-.mvat-calc-box { padding:.625rem .75rem; border-radius:8px; margin-bottom:.75rem; background:var(--bg-secondary,#f8fafc); border:1px solid var(--border-light,#f1f5f9); }
-
-/* Bucket summary */
-.mvat-bucket-card { padding:.25rem .5rem; border:1px solid var(--border); border-radius:6px; background:var(--surface); text-align:center; min-width:40px; }
+.mvat-selected-card { padding:.5rem .6rem; border:1px solid var(--primary); border-radius:8px; margin-bottom:.5rem; background:rgba(99,102,241,.04); }
+.mvat-calc-box { padding:.5rem .6rem; border-radius:8px; margin-bottom:.5rem; background:var(--bg-secondary,#f8fafc); border:1px solid var(--border-light,#f1f5f9); }
+.mvat-bucket-card { padding:.25rem .4rem; border:1px solid var(--border); border-radius:5px; background:var(--surface); text-align:center; min-width:36px; }
 .mvat-bucket-card.mvat-bucket-warn { border-color:var(--warning,#f59e0b); }
-.mvat-bucket-rate { font-size:.75rem; font-weight:700; }
-.mvat-bucket-count { font-size:.5625rem; color:var(--text-secondary); }
-
-/* Proof */
-.mvat-proof-grid { display:flex; gap:.375rem; flex-wrap:wrap; align-items:center; }
-.mvat-proof-item { display:flex; flex-direction:column; align-items:center; }
-.mvat-proof-thumb { width:48px; height:48px; object-fit:cover; border-radius:5px; border:1px solid var(--border); cursor:pointer; }
+.mvat-bucket-rate { font-size:.7rem; font-weight:700; }
+.mvat-bucket-count { font-size:.5rem; color:var(--text-secondary); }
+.mvat-proof-grid { display:flex; gap:.3rem; flex-wrap:wrap; align-items:center; }
+.mvat-proof-thumb { width:36px; height:36px; object-fit:cover; border-radius:4px; border:1px solid var(--border); cursor:pointer; }
 .mvat-proof-thumb:hover { border-color:var(--primary); }
-
-/* Selling price input in table */
-.mvat-sell-input { width:80px; font-size:.75rem; text-align:right; padding:.25rem .375rem; border:1px solid var(--border); border-radius:5px; background:var(--surface); transition:border-color .15s; }
-.mvat-sell-input:focus { border-color:var(--primary); outline:none; box-shadow:0 0 0 2px var(--primary-subtle,rgba(99,102,241,.15)); }
-
 .mvat-needs-attention { background:rgba(245,158,11,.04) !important; }
 [data-theme="dark"] .mvat-needs-attention { background:rgba(245,158,11,.08) !important; }

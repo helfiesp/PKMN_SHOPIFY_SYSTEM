@@ -3271,15 +3271,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // MARGIN VAT (Bruktmoms) — Purchase Order Model
 // ─────────────────────────────────────────────────────────────────────────────
 
-function mvatSwitchTab(tab) {
-    document.querySelectorAll('.mvat-tab').forEach((t, i) => {
-        t.classList.toggle('active', ['record','link','create'][i] === tab);
-    });
-    document.querySelectorAll('.mvat-tab-panel').forEach(p => p.classList.remove('active'));
-    const panel = document.getElementById(`mvat-panel-${tab}`);
-    if (panel) panel.classList.add('active');
-}
-
 function mvatCalc(sellingPrice, purchasePrice) {
     const margin = sellingPrice - purchasePrice;
     if (margin <= 0) return { margin: 0, vat: 0, rate: 0, bucket: 0 };
@@ -3418,21 +3409,22 @@ function renderMvatPurchases(purchases) {
 // ── Record Purchase (multi-item) ────────────────────────────────────────
 
 function mvatRecAddLine() {
-    const tbody = document.getElementById('mvat-rec-items');
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-        <td><input type="text" class="input-sm mvat-rec-desc" style="width:100%" placeholder="Description" /></td>
-        <td><input type="number" class="input-sm mvat-rec-qty" style="width:100%" value="1" min="1" step="1" oninput="mvatRecUpdateTotals()" /></td>
-        <td><input type="number" class="input-sm mvat-rec-unit" style="width:100%" min="0" step="1" placeholder="0" oninput="mvatRecUpdateTotals()" /></td>
-        <td class="mono mvat-rec-line-total" style="text-align:right;font-size:.8125rem">kr 0</td>
-        <td><button class="btn btn-xs btn-danger" onclick="this.closest('tr').remove();mvatRecUpdateTotals()">x</button></td>`;
-    tbody.appendChild(tr);
-    tr.querySelector('.mvat-rec-desc').focus();
+    const container = document.getElementById('mvat-rec-items');
+    const row = document.createElement('div');
+    row.className = 'mvat-item-row';
+    row.innerHTML = `
+        <input type="text" class="mvat-rec-desc" placeholder="Product name" />
+        <input type="number" class="mvat-rec-qty" value="1" min="1" oninput="mvatRecUpdateTotals()" />
+        <input type="number" class="mvat-rec-unit" min="0" placeholder="0" oninput="mvatRecUpdateTotals()" />
+        <span class="mvat-rec-line-total">kr 0</span>
+        <button style="border:none;background:none;color:var(--danger,#ef4444);cursor:pointer;font-size:.8rem" onclick="this.parentElement.remove();mvatRecUpdateTotals()">x</button>`;
+    container.appendChild(row);
+    row.querySelector('.mvat-rec-desc').focus();
 }
 
 function mvatRecUpdateTotals() {
     let total = 0;
-    document.querySelectorAll('#mvat-rec-items tr').forEach(row => {
+    document.querySelectorAll('#mvat-rec-items .mvat-item-row').forEach(row => {
         const qty = parseInt(row.querySelector('.mvat-rec-qty')?.value || '1') || 1;
         const unit = parseFloat(row.querySelector('.mvat-rec-unit')?.value || '0') || 0;
         const line = qty * unit;
@@ -3440,11 +3432,11 @@ function mvatRecUpdateTotals() {
         const cell = row.querySelector('.mvat-rec-line-total');
         if (cell) cell.textContent = `kr ${fmtNum(line)}`;
     });
-    document.getElementById('mvat-rec-total').textContent = `Total: kr ${fmtNum(total)}`;
+    document.getElementById('mvat-rec-total').textContent = `kr ${fmtNum(total)}`;
 }
 
 async function mvatRecordPurchase() {
-    const rows = document.querySelectorAll('#mvat-rec-items tr');
+    const rows = document.querySelectorAll('#mvat-rec-items .mvat-item-row');
     const items = [];
     for (const row of rows) {
         const desc = row.querySelector('.mvat-rec-desc')?.value.trim();
@@ -3479,12 +3471,13 @@ async function mvatRecordPurchase() {
 
         toast(`Purchase #${result.id} saved — ${items.length} item(s)`, 'success');
         // Reset form
-        document.getElementById('mvat-rec-items').innerHTML = `<tr>
-            <td><input type="text" class="input-sm mvat-rec-desc" style="width:100%" placeholder="e.g. Pokemon 151 Booster Box" /></td>
-            <td><input type="number" class="input-sm mvat-rec-qty" style="width:100%" value="1" min="1" step="1" oninput="mvatRecUpdateTotals()" /></td>
-            <td><input type="number" class="input-sm mvat-rec-unit" style="width:100%" min="0" step="1" placeholder="0" oninput="mvatRecUpdateTotals()" /></td>
-            <td class="mono mvat-rec-line-total" style="text-align:right;font-size:.8125rem">kr 0</td>
-            <td></td></tr>`;
+        document.getElementById('mvat-rec-items').innerHTML = `<div class="mvat-item-row">
+            <input type="text" class="mvat-rec-desc" placeholder="Product name" />
+            <input type="number" class="mvat-rec-qty" value="1" min="1" oninput="mvatRecUpdateTotals()" />
+            <input type="number" class="mvat-rec-unit" min="0" placeholder="0" oninput="mvatRecUpdateTotals()" />
+            <span class="mvat-rec-line-total">kr 0</span>
+            <span></span>
+        </div>`;
         ['mvat-rec-seller'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
         const f = document.getElementById('mvat-rec-proof'); if (f) f.value = '';
         document.getElementById('mvat-rec-total').textContent = 'Total: kr 0';

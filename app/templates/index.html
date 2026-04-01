@@ -506,11 +506,10 @@
                 </div>
             </div>
 
-            <!-- ─── SETTINGS ───────────────────────────────────────────────── -->
-            <!-- ── MARGIN VAT TAB ─────────────────────────────── -->
+            <!-- ── MARGIN VAT ─────────────────────────────────────────────── -->
             <div id="tab-margin-vat" class="tab-panel">
                 <div class="section-header">
-                    <h2>Margin VAT (Bruktmoms)</h2>
+                    <h2>Bruktmoms</h2>
                     <div style="display:flex;gap:.5rem;align-items:center">
                         <span class="muted" id="mvat-count"></span>
                         <button class="btn btn-sm" onclick="mvatRecalculateAll()">Recalculate</button>
@@ -518,144 +517,121 @@
                     </div>
                 </div>
 
-                <!-- Bucket summary -->
-                <div id="mvat-bucket-summary" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem"></div>
+                <div id="mvat-bucket-summary" style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:1rem"></div>
 
-                <!-- Inner tabs -->
-                <div class="mvat-tabs">
-                    <button class="mvat-tab active" onclick="mvatSwitchTab('record')">Record Purchase</button>
-                    <button class="mvat-tab" onclick="mvatSwitchTab('link')">Link to Shopify</button>
-                    <button class="mvat-tab" onclick="mvatSwitchTab('create')">Create Product</button>
-                </div>
-
-                <!-- TAB: Record Purchase (multi-item) -->
-                <div class="mvat-tab-panel active" id="mvat-panel-record">
-                    <div class="card">
-                        <div style="padding:1rem 1.25rem">
-                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:1rem">
-                                <div><label class="form-label">Seller</label>
-                                    <input type="text" id="mvat-rec-seller" class="input-sm" style="width:100%" placeholder="e.g. SNKRDUNK" /></div>
-                                <div><label class="form-label">Purchase Date</label>
-                                    <input type="date" id="mvat-rec-date" class="input-sm" style="width:100%" /></div>
-                                <div><label class="form-label">Proof of Purchase</label>
-                                    <input type="file" id="mvat-rec-proof" accept="image/*,.pdf" class="input-sm" style="width:100%" /></div>
+                <!-- Full-width: New Purchase + Purchases list side by side -->
+                <div class="mvat-layout">
+                    <!-- LEFT: New purchase form -->
+                    <div class="mvat-form-col">
+                        <div class="mvat-form-card">
+                            <h3 class="mvat-form-title">New Purchase</h3>
+                            <div class="mvat-field-row">
+                                <div class="mvat-field"><label>Seller</label><input type="text" id="mvat-rec-seller" placeholder="e.g. SNKRDUNK" /></div>
+                                <div class="mvat-field"><label>Date</label><input type="date" id="mvat-rec-date" /></div>
                             </div>
-                            <table class="data-table compact-table" style="margin-bottom:.75rem">
-                                <thead><tr>
-                                    <th>Description</th><th style="width:70px">Qty</th>
-                                    <th style="width:130px">Price/unit (NOK)</th>
-                                    <th style="width:100px;text-align:right">Line total</th><th style="width:36px"></th>
-                                </tr></thead>
-                                <tbody id="mvat-rec-items">
-                                    <tr>
-                                        <td><input type="text" class="input-sm mvat-rec-desc" style="width:100%" placeholder="e.g. Pokemon 151 Booster Box" /></td>
-                                        <td><input type="number" class="input-sm mvat-rec-qty" style="width:100%" value="1" min="1" step="1" oninput="mvatRecUpdateTotals()" /></td>
-                                        <td><input type="number" class="input-sm mvat-rec-unit" style="width:100%" min="0" step="1" placeholder="0" oninput="mvatRecUpdateTotals()" /></td>
-                                        <td class="mono mvat-rec-line-total" style="text-align:right;font-size:.8125rem">kr 0</td>
-                                        <td></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
-                                <button class="btn btn-sm" onclick="mvatRecAddLine()">+ Add item</button>
-                                <strong style="font-size:.9375rem" id="mvat-rec-total">Total: kr 0</strong>
+                            <div class="mvat-items-table">
+                                <div class="mvat-items-header">
+                                    <span class="mvat-col-desc">Item</span>
+                                    <span class="mvat-col-qty">Qty</span>
+                                    <span class="mvat-col-price">Price/ea</span>
+                                    <span class="mvat-col-total">Total</span>
+                                    <span class="mvat-col-del"></span>
+                                </div>
+                                <div id="mvat-rec-items">
+                                    <div class="mvat-item-row">
+                                        <input type="text" class="mvat-rec-desc" placeholder="Product name" />
+                                        <input type="number" class="mvat-rec-qty" value="1" min="1" oninput="mvatRecUpdateTotals()" />
+                                        <input type="number" class="mvat-rec-unit" min="0" placeholder="0" oninput="mvatRecUpdateTotals()" />
+                                        <span class="mvat-rec-line-total">kr 0</span>
+                                        <span></span>
+                                    </div>
+                                </div>
                             </div>
-                            <button class="btn btn-primary" id="mvat-rec-btn" onclick="mvatRecordPurchase()" style="width:100%">Save All Records</button>
+                            <div class="mvat-form-actions">
+                                <button class="mvat-add-btn" onclick="mvatRecAddLine()">+ Add item</button>
+                                <strong id="mvat-rec-total">kr 0</strong>
+                            </div>
+                            <div class="mvat-field" style="margin-top:.5rem">
+                                <label>Proof of purchase</label>
+                                <input type="file" id="mvat-rec-proof" accept="image/*,.pdf" />
+                            </div>
+                            <button class="mvat-submit-btn" id="mvat-rec-btn" onclick="mvatRecordPurchase()">Save Purchase</button>
                         </div>
-                    </div>
-                </div>
 
-                <!-- TAB: Link Existing Product -->
-                <div class="mvat-tab-panel" id="mvat-panel-link">
-                    <div class="card"><div style="padding:1rem 1.25rem">
-                        <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:1.5rem">
-                            <div>
-                                <div style="margin-bottom:.75rem;position:relative">
-                                    <label class="form-label">Search Shopify Product</label>
-                                    <input type="text" id="mvat-product-search" class="input-sm" style="width:100%" placeholder="Type product name..." oninput="mvatSearchProducts(this.value)" autocomplete="off" />
+                        <!-- Quick link form (collapsed by default) -->
+                        <details class="mvat-form-card">
+                            <summary class="mvat-form-title" style="cursor:pointer">Quick Link to Shopify</summary>
+                            <div style="margin-top:.75rem">
+                                <div class="mvat-field" style="position:relative">
+                                    <label>Search Shopify product</label>
+                                    <input type="text" id="mvat-product-search" placeholder="Type to search..." oninput="mvatSearchProducts(this.value)" autocomplete="off" />
                                     <div id="mvat-search-results" class="mvat-dropdown"></div>
                                 </div>
                                 <div id="mvat-selected-product" style="display:none" class="mvat-selected-card"></div>
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
-                                    <div><label class="form-label">Purchase Price (NOK)</label>
-                                        <input type="number" id="mvat-purchase-price" class="input-sm" style="width:100%" min="0" step="1" oninput="mvatCalculatePreview()" /></div>
-                                    <div><label class="form-label">Purchase Date</label>
-                                        <input type="date" id="mvat-purchase-date" class="input-sm" style="width:100%" /></div>
+                                <div class="mvat-field-row">
+                                    <div class="mvat-field"><label>Purchase price</label><input type="number" id="mvat-purchase-price" min="0" oninput="mvatCalculatePreview()" /></div>
+                                    <div class="mvat-field"><label>Date</label><input type="date" id="mvat-purchase-date" /></div>
                                 </div>
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem">
-                                    <div><label class="form-label">Seller</label>
-                                        <input type="text" id="mvat-seller-desc" class="input-sm" style="width:100%" placeholder="e.g. SNKRDUNK" /></div>
-                                    <div><label class="form-label">Proof</label>
-                                        <input type="file" id="mvat-proof-file" accept="image/*,.pdf" class="input-sm" style="width:100%" /></div>
+                                <div class="mvat-field-row">
+                                    <div class="mvat-field"><label>Seller</label><input type="text" id="mvat-seller-desc" placeholder="e.g. SNKRDUNK" /></div>
+                                    <div class="mvat-field"><label>Proof</label><input type="file" id="mvat-proof-file" accept="image/*,.pdf" /></div>
                                 </div>
+                                <div id="mvat-calc-preview" class="mvat-calc-box" style="display:none"></div>
+                                <button class="mvat-submit-btn" id="mvat-register-btn" onclick="mvatRegisterProduct()" disabled>Link &amp; Register</button>
                             </div>
-                            <div>
-                                <div id="mvat-calc-preview" class="mvat-calc-box" style="display:none;margin-bottom:.75rem"></div>
-                                <p class="muted" style="font-size:.8125rem" id="mvat-link-hint">Select a product and enter purchase price to see VAT calculation.</p>
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" id="mvat-register-btn" onclick="mvatRegisterProduct()" disabled style="width:100%">Register Purchase</button>
-                    </div></div>
-                </div>
+                        </details>
 
-                <!-- TAB: Create New Product -->
-                <div class="mvat-tab-panel" id="mvat-panel-create">
-                    <div class="card"><div style="padding:1rem 1.25rem">
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
-                            <div>
-                                <div style="margin-bottom:.5rem;position:relative">
-                                    <label class="form-label">Copy from existing</label>
-                                    <input type="text" id="mvat-template-search" class="input-sm" style="width:100%" placeholder="Search product to use as template..." oninput="mvatTemplateSearch(this.value)" autocomplete="off" />
+                        <!-- Create product (collapsed) -->
+                        <details class="mvat-form-card">
+                            <summary class="mvat-form-title" style="cursor:pointer">Create New Shopify Product</summary>
+                            <div style="margin-top:.75rem">
+                                <div class="mvat-field" style="position:relative">
+                                    <label>Copy from existing</label>
+                                    <input type="text" id="mvat-template-search" placeholder="Search template..." oninput="mvatTemplateSearch(this.value)" autocomplete="off" />
                                     <div id="mvat-template-results" class="mvat-dropdown"></div>
                                 </div>
-                                <div id="mvat-template-loading" style="display:none;font-size:.8125rem" class="muted">Loading...</div>
-                                <div style="margin-bottom:.5rem"><label class="form-label">Title</label>
-                                    <input type="text" id="mvat-new-title" class="input-sm" style="width:100%" placeholder="Product title" /></div>
-                                <div style="margin-bottom:.5rem"><label class="form-label">Description</label>
-                                    <textarea id="mvat-new-desc" class="input-sm" style="width:100%;min-height:50px;resize:vertical" placeholder="HTML description"></textarea></div>
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
-                                    <div><label class="form-label">Selling Price</label><input type="number" id="mvat-new-price" class="input-sm" style="width:100%" min="0" step="1" oninput="mvatNewCalcPreview()" /></div>
-                                    <div><label class="form-label">SKU</label><input type="text" id="mvat-new-sku" class="input-sm" style="width:100%" /></div>
+                                <div id="mvat-template-loading" style="display:none" class="muted">Loading...</div>
+                                <div class="mvat-field"><label>Title</label><input type="text" id="mvat-new-title" placeholder="Product title" /></div>
+                                <div class="mvat-field"><label>Description</label><textarea id="mvat-new-desc" placeholder="HTML description" rows="2"></textarea></div>
+                                <div class="mvat-field-row">
+                                    <div class="mvat-field"><label>Selling price</label><input type="number" id="mvat-new-price" min="0" oninput="mvatNewCalcPreview()" /></div>
+                                    <div class="mvat-field"><label>Purchase price</label><input type="number" id="mvat-new-purchase" min="0" oninput="mvatNewCalcPreview()" /></div>
                                 </div>
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
-                                    <div><label class="form-label">Vendor</label><input type="text" id="mvat-new-vendor" class="input-sm" style="width:100%" /></div>
-                                    <div><label class="form-label">Product Type</label><input type="text" id="mvat-new-type" class="input-sm" style="width:100%" /></div>
+                                <div class="mvat-field-row">
+                                    <div class="mvat-field"><label>SKU</label><input type="text" id="mvat-new-sku" /></div>
+                                    <div class="mvat-field"><label>Vendor</label><input type="text" id="mvat-new-vendor" /></div>
                                 </div>
-                                <div style="margin-bottom:.5rem"><label class="form-label">Tags</label>
-                                    <input type="text" id="mvat-new-tags" class="input-sm" style="width:100%" placeholder="comma, separated" /></div>
-                                <div id="mvat-new-images-section" style="display:none;margin-bottom:.5rem">
-                                    <label class="form-label">Images (click x to remove)</label>
-                                    <div id="mvat-new-images" class="mvat-proof-grid"></div>
+                                <div class="mvat-field-row">
+                                    <div class="mvat-field"><label>Product type</label><input type="text" id="mvat-new-type" /></div>
+                                    <div class="mvat-field"><label>Tags</label><input type="text" id="mvat-new-tags" placeholder="comma, separated" /></div>
                                 </div>
-                            </div>
-                            <div>
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
-                                    <div><label class="form-label">Purchase Price</label><input type="number" id="mvat-new-purchase" class="input-sm" style="width:100%" min="0" step="1" oninput="mvatNewCalcPreview()" /></div>
-                                    <div><label class="form-label">Purchase Date</label><input type="date" id="mvat-new-date" class="input-sm" style="width:100%" /></div>
+                                <div id="mvat-new-images-section" style="display:none"><label style="font-size:.7rem;font-weight:600;color:var(--text-secondary)">Images</label><div id="mvat-new-images" class="mvat-proof-grid"></div></div>
+                                <div class="mvat-field-row">
+                                    <div class="mvat-field"><label>Date</label><input type="date" id="mvat-new-date" /></div>
+                                    <div class="mvat-field"><label>Seller</label><input type="text" id="mvat-new-seller" placeholder="e.g. SNKRDUNK" /></div>
                                 </div>
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem">
-                                    <div><label class="form-label">Seller</label><input type="text" id="mvat-new-seller" class="input-sm" style="width:100%" placeholder="e.g. SNKRDUNK" /></div>
-                                    <div><label class="form-label">Proof</label><input type="file" id="mvat-new-proof" accept="image/*,.pdf" class="input-sm" style="width:100%" /></div>
-                                </div>
+                                <div class="mvat-field"><label>Proof</label><input type="file" id="mvat-new-proof" accept="image/*,.pdf" /></div>
                                 <div id="mvat-new-calc-preview" class="mvat-calc-box" style="display:none"></div>
+                                <button class="mvat-submit-btn" id="mvat-create-btn" onclick="mvatCreateNewProduct()">Create Draft &amp; Register</button>
                             </div>
-                        </div>
-                        <button class="btn btn-primary" id="mvat-create-btn" onclick="mvatCreateNewProduct()" style="width:100%">Create Draft &amp; Register</button>
-                    </div></div>
-                </div>
-
-                <!-- Purchase records table -->
-                <div class="card" style="margin-top:1.25rem">
-                    <div class="card-header">
-                        <h3>Purchase Records</h3>
-                        <select id="mvat-filter-status" class="input-sm" onchange="loadMarginVat()">
-                            <option value="">All</option><option value="active" selected>Active</option>
-                            <option value="sold">Sold</option><option value="archived">Archived</option>
-                        </select>
+                        </details>
                     </div>
-                    <div id="mvat-product-list"><div class="loading-spinner">Loading&hellip;</div></div>
+
+                    <!-- RIGHT: Purchase records -->
+                    <div class="mvat-list-col">
+                        <div class="mvat-list-header">
+                            <h3>Purchases</h3>
+                            <select id="mvat-filter-status" class="input-sm" onchange="loadMarginVat()">
+                                <option value="">All</option><option value="active" selected>Active</option>
+                                <option value="sold">Sold</option><option value="archived">Archived</option>
+                            </select>
+                        </div>
+                        <div id="mvat-product-list"><div class="loading-spinner">Loading&hellip;</div></div>
+                    </div>
                 </div>
             </div>
+
+            <!-- ─── SETTINGS ───────────────────────────────────────────────── -->
 
             <div id="tab-settings" class="tab-panel">
                 <div class="section-header">
