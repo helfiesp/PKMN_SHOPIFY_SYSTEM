@@ -3337,7 +3337,7 @@ function renderMvatPurchases(purchases) {
         return;
     }
     el.innerHTML = purchases.map(p => {
-        const date = p.purchase_date ? new Date(p.purchase_date).toLocaleDateString('nb-NO') : '—';
+        const date = p.purchase_date ? new Date(p.purchase_date).toLocaleDateString('nb-NO') : '';
         const total = p.total_nok || p.items.reduce((s, i) => s + i.quantity * i.unit_price_nok, 0);
         const proofCount = p.proof_images?.length || 0;
         const itemCount = p.items.reduce((s, i) => s + i.quantity, 0);
@@ -3345,66 +3345,70 @@ function renderMvatPurchases(purchases) {
 
         const itemRows = p.items.map(it => {
             const linked = !!it.variant_shopify_id;
-            const img = it.image_url ? `<img src="${it.image_url}" style="width:28px;height:28px;object-fit:cover;border-radius:3px">` : '';
+            const img = it.image_url
+                ? `<img src="${it.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:6px">`
+                : `<div style="width:32px;height:32px;border-radius:6px;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--text-secondary)">${linked ? '✓' : '?'}</div>`;
             const lineTotal = it.quantity * it.unit_price_nok;
 
             const linkHtml = linked
-                ? `<span class="badge badge-success badge-sm" title="${it.product_title || ''}">${(it.product_title || 'Linked').substring(0, 20)}</span>`
+                ? `<span class="badge badge-success badge-sm" title="${it.product_title || ''}" style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${it.product_title || 'Linked'}</span>`
                 : `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation();mvatOpenItemLink(${it.id})">Link</button>`;
 
-            const sellingHtml = `<input type="number" class="input-sm" style="width:90px;font-size:.75rem;text-align:right"
-                value="${it.selling_price_nok || ''}" placeholder="—"
-                onchange="mvatSetSellingPrice(${it.id}, this.value)" onclick="event.stopPropagation()" />`;
+            const vatInfo = it.effective_rate_pct != null && it.effective_rate_pct > 0
+                ? `<span style="font-size:.75rem">${it.effective_rate_pct.toFixed(1)}%</span> <span class="badge badge-sm badge-info">${it.bucket_rate_pct}%</span>`
+                : '<span class="muted" style="font-size:.75rem">—</span>';
+            const needsSync = it.needs_reassignment ? ' <span class="badge badge-warning badge-sm">!</span>' : '';
 
-            const vatHtml = it.effective_rate_pct != null && it.effective_rate_pct > 0
-                ? `${it.effective_rate_pct.toFixed(1)}% <span class="badge badge-sm badge-info">${it.bucket_rate_pct}%</span>`
-                : '<span class="muted">—</span>';
-            const needsSync = it.needs_reassignment ? '<span class="badge badge-warning badge-sm" title="Needs sync">!</span>' : '';
-
-            return `<tr>
+            return `<tr class="${it.needs_reassignment ? 'mvat-needs-attention' : ''}">
                 <td>${img}</td>
-                <td style="font-size:.8125rem">${it.description}</td>
+                <td><strong style="font-size:.8125rem">${it.description}</strong></td>
                 <td class="mono" style="text-align:center">${it.quantity}</td>
                 <td class="mono" style="text-align:right">kr ${fmtNum(it.unit_price_nok)}</td>
-                <td class="mono" style="text-align:right">kr ${fmtNum(lineTotal)}</td>
-                <td style="text-align:right" onclick="event.stopPropagation()">${sellingHtml}</td>
-                <td class="mono" style="text-align:center;font-size:.75rem">${vatHtml} ${needsSync}</td>
+                <td class="mono" style="text-align:right;font-weight:500">kr ${fmtNum(lineTotal)}</td>
+                <td style="text-align:right" onclick="event.stopPropagation()">
+                    <input type="number" class="mvat-sell-input" value="${it.selling_price_nok || ''}" placeholder="—"
+                        onchange="mvatSetSellingPrice(${it.id}, this.value)" />
+                </td>
+                <td style="text-align:center">${vatInfo}${needsSync}</td>
                 <td>${linkHtml}</td>
             </tr>`;
         }).join('');
 
-        const proofHtml = (p.proof_images || []).map(img =>
+        const proofThumbs = (p.proof_images || []).map(img =>
             img.content_type === 'application/pdf'
-                ? `<a href="/uploads/${img.file_path}" target="_blank" class="badge badge-sm badge-neutral" style="text-decoration:none">PDF</a>`
-                : `<a href="/uploads/${img.file_path}" target="_blank"><img src="/uploads/${img.file_path}" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid var(--border)"></a>`
-        ).join(' ');
+                ? `<a href="/uploads/${img.file_path}" target="_blank" class="badge badge-sm badge-neutral" style="text-decoration:none;padding:.25rem .5rem">PDF</a>`
+                : `<a href="/uploads/${img.file_path}" target="_blank"><img src="/uploads/${img.file_path}" class="mvat-proof-thumb"></a>`
+        ).join('');
 
         return `
             <div class="mvat-purchase-card">
                 <div class="mvat-purchase-header" onclick="this.parentElement.querySelector('.mvat-purchase-body').classList.toggle('open')">
-                    <strong style="min-width:90px">Purchase #${p.id}</strong>
-                    <span class="muted">${p.seller || ''}</span>
-                    <span class="muted">${date}</span>
-                    ${proofCount ? `<span class="badge badge-info badge-sm">${proofCount} proof</span>` : ''}
-                    <span style="margin-left:auto"></span>
-                    <span class="muted">${itemCount} unit${itemCount !== 1 ? 's' : ''}</span>
-                    <span class="muted">${linkedCount}/${p.items.length} linked</span>
-                    <strong class="mono">kr ${fmtNum(total)}</strong>
-                    <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();mvatDeletePurchase(${p.id})">x</button>
+                    <span class="mvat-purchase-num">${p.id}</span>
+                    <div class="mvat-purchase-meta">
+                        ${p.seller ? `<span>${p.seller}</span><span class="dot"></span>` : ''}
+                        ${date ? `<span>${date}</span><span class="dot"></span>` : ''}
+                        <span>${itemCount} unit${itemCount !== 1 ? 's' : ''}</span>
+                        <span class="dot"></span>
+                        <span>${linkedCount}/${p.items.length} linked</span>
+                        ${proofCount ? `<span class="dot"></span><span>${proofCount} proof</span>` : ''}
+                    </div>
+                    <span style="flex:1"></span>
+                    <strong class="mono" style="font-size:.875rem">kr ${fmtNum(total)}</strong>
+                    <button class="btn btn-xs" onclick="event.stopPropagation();mvatDeletePurchase(${p.id})" style="opacity:.4;font-size:.7rem" title="Delete">x</button>
                 </div>
                 <div class="mvat-purchase-body">
-                    <table class="data-table compact-table" style="margin:0">
+                    <table class="data-table compact-table">
                         <thead><tr>
-                            <th style="width:32px"></th><th>Item</th><th style="width:50px;text-align:center">Qty</th>
-                            <th style="width:90px;text-align:right">Unit</th><th style="width:90px;text-align:right">Total</th>
-                            <th style="width:100px;text-align:right">Selling</th><th style="width:100px;text-align:center">MVA</th><th style="width:120px">Shopify</th>
+                            <th style="width:36px"></th><th>Item</th><th style="width:45px;text-align:center">Qty</th>
+                            <th style="width:80px;text-align:right">Unit</th><th style="width:85px;text-align:right">Total</th>
+                            <th style="width:90px;text-align:right">Selling</th><th style="width:90px;text-align:center">MVA</th><th style="width:120px">Shopify</th>
                         </tr></thead>
                         <tbody>${itemRows}</tbody>
                     </table>
-                    <div style="padding:.5rem .75rem;display:flex;gap:.5rem;align-items:center;font-size:.8125rem;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
-                        <input type="file" id="mvat-proof-upload-${p.id}" accept="image/*,.pdf" class="input-sm" style="font-size:.75rem;max-width:160px" />
-                        <button class="btn btn-xs" onclick="mvatUploadPurchaseProof(${p.id})">Upload Proof</button>
-                        ${proofHtml}
+                    <div class="mvat-purchase-footer" onclick="event.stopPropagation()">
+                        <input type="file" id="mvat-proof-upload-${p.id}" accept="image/*,.pdf" class="input-sm" style="font-size:.75rem;max-width:150px" />
+                        <button class="btn btn-xs" onclick="mvatUploadPurchaseProof(${p.id})">Upload</button>
+                        <div class="mvat-proof-grid" style="margin-left:.25rem">${proofThumbs}</div>
                     </div>
                 </div>
             </div>`;
