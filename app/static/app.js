@@ -3327,104 +3327,97 @@ function renderMvatPurchases(purchases) {
         el.innerHTML = '<p class="muted" style="padding:1rem 1.25rem">No purchases recorded yet.</p>';
         return;
     }
-    el.innerHTML = purchases.map(p => {
-        const date = p.purchase_date ? new Date(p.purchase_date).toLocaleDateString('nb-NO') : '';
+    // Render as a flat table — one row per purchase, expandable items
+    let html = `<table class="data-table">
+        <thead><tr>
+            <th style="width:30px">#</th><th>Seller</th><th>Date</th><th>Items</th>
+            <th style="text-align:right">Total</th><th>Proof</th><th style="width:30px"></th>
+        </tr></thead><tbody>`;
+
+    for (const p of purchases) {
+        const date = p.purchase_date ? new Date(p.purchase_date).toLocaleDateString('nb-NO') : '—';
         const total = p.total_nok || p.items.reduce((s, i) => s + i.quantity * i.unit_price_nok, 0);
         const proofCount = p.proof_images?.length || 0;
-        const itemCount = p.items.reduce((s, i) => s + i.quantity, 0);
         const linkedCount = p.items.filter(i => !!i.variant_shopify_id).length;
-
-        const itemRows = p.items.map(it => {
-            const linked = !!it.variant_shopify_id;
-            const img = it.image_url
-                ? `<img src="${it.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:6px">`
-                : `<div style="width:32px;height:32px;border-radius:6px;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--text-secondary)">${linked ? '✓' : '?'}</div>`;
-            const lineTotal = it.quantity * it.unit_price_nok;
-
-            const linkHtml = linked
-                ? `<span class="badge badge-success badge-sm" title="${it.product_title || ''}" style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${it.product_title || 'Linked'}</span>`
-                : `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation();mvatOpenItemLink(${it.id})">Link</button>`;
-
-            const vatInfo = it.effective_rate_pct != null && it.effective_rate_pct > 0
-                ? `<span style="font-size:.75rem">${it.effective_rate_pct.toFixed(1)}%</span> <span class="badge badge-sm badge-info">${it.bucket_rate_pct}%</span>`
-                : '<span class="muted" style="font-size:.75rem">—</span>';
-            const needsSync = it.needs_reassignment ? ' <span class="badge badge-warning badge-sm">!</span>' : '';
-
-            return `<tr class="${it.needs_reassignment ? 'mvat-needs-attention' : ''}">
-                <td>${img}</td>
-                <td><strong style="font-size:.8125rem">${it.description}</strong></td>
-                <td class="mono" style="text-align:center">${it.quantity}</td>
-                <td class="mono" style="text-align:right">kr ${fmtNum(it.unit_price_nok)}</td>
-                <td class="mono" style="text-align:right;font-weight:500">kr ${fmtNum(lineTotal)}</td>
-                <td style="text-align:right" onclick="event.stopPropagation()">
-                    <input type="number" class="mvat-sell-input" value="${it.selling_price_nok || ''}" placeholder="—"
-                        onchange="mvatSetSellingPrice(${it.id}, this.value)" />
-                </td>
-                <td style="text-align:center">${vatInfo}${needsSync}</td>
-                <td>${linkHtml}</td>
-            </tr>`;
-        }).join('');
+        const itemSummary = p.items.map(i => `${i.quantity}x ${i.description}`).join(', ');
 
         const proofThumbs = (p.proof_images || []).map(img =>
             img.content_type === 'application/pdf'
-                ? `<a href="/uploads/${img.file_path}" target="_blank" class="badge badge-sm badge-neutral" style="text-decoration:none;padding:.25rem .5rem">PDF</a>`
+                ? `<a href="/uploads/${img.file_path}" target="_blank" class="badge badge-sm badge-neutral" style="text-decoration:none">PDF</a>`
                 : `<a href="/uploads/${img.file_path}" target="_blank"><img src="/uploads/${img.file_path}" class="mvat-proof-thumb"></a>`
-        ).join('');
+        ).join(' ');
 
-        return `
-            <div class="mvat-purchase-card">
-                <div class="mvat-purchase-header" onclick="this.parentElement.querySelector('.mvat-purchase-body').classList.toggle('open')">
-                    <span class="mvat-purchase-num">${p.id}</span>
-                    <div class="mvat-purchase-meta">
-                        ${p.seller ? `<span>${p.seller}</span><span class="dot"></span>` : ''}
-                        ${date ? `<span>${date}</span><span class="dot"></span>` : ''}
-                        <span>${itemCount} unit${itemCount !== 1 ? 's' : ''}</span>
-                        <span class="dot"></span>
-                        <span>${linkedCount}/${p.items.length} linked</span>
-                        ${proofCount ? `<span class="dot"></span><span>${proofCount} proof</span>` : ''}
-                    </div>
-                    <span style="flex:1"></span>
-                    <strong class="mono" style="font-size:.875rem">kr ${fmtNum(total)}</strong>
-                    <button class="btn btn-xs" onclick="event.stopPropagation();mvatDeletePurchase(${p.id})" style="opacity:.4;font-size:.7rem" title="Delete">x</button>
+        html += `<tr style="cursor:pointer" onclick="mvatTogglePurchase(${p.id})">
+            <td><strong>${p.id}</strong></td>
+            <td>${p.seller || '<span class="muted">—</span>'}</td>
+            <td>${date}</td>
+            <td style="font-size:.8125rem">${itemSummary} <span class="muted">(${linkedCount}/${p.items.length} linked)</span></td>
+            <td class="mono" style="text-align:right;font-weight:600">kr ${fmtNum(total)}</td>
+            <td>${proofCount ? `<span class="badge badge-info badge-sm">${proofCount}</span> ` : ''}${proofThumbs}</td>
+            <td><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();mvatDeletePurchase(${p.id})">x</button></td>
+        </tr>`;
+
+        // Expandable detail row
+        html += `<tr id="mvat-purchase-detail-${p.id}" style="display:none"><td colspan="7" style="padding:0;background:var(--bg-secondary)">
+            <div style="padding:.75rem 1rem">
+                <table class="data-table compact-table" style="margin-bottom:.5rem">
+                    <thead><tr>
+                        <th style="width:32px"></th><th>Item</th><th style="width:50px;text-align:center">Qty</th>
+                        <th style="width:90px;text-align:right">Unit Price</th><th style="width:90px;text-align:right">Total</th>
+                        <th style="width:100px;text-align:right">Selling Price</th><th style="width:90px;text-align:center">MVA</th><th style="width:110px">Shopify</th>
+                    </tr></thead>
+                    <tbody>${p.items.map(it => {
+                        const linked = !!it.variant_shopify_id;
+                        const img = it.image_url ? `<img src="${it.image_url}" style="width:28px;height:28px;object-fit:cover;border-radius:4px">` : '';
+                        const lineTotal = it.quantity * it.unit_price_nok;
+                        const linkHtml = linked
+                            ? `<span class="badge badge-success badge-sm">${(it.product_title || 'Linked').substring(0, 18)}</span>`
+                            : `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation();mvatOpenItemLink(${it.id})">Link</button>`;
+                        const vatHtml = it.effective_rate_pct > 0
+                            ? `${it.effective_rate_pct.toFixed(1)}% <span class="badge badge-sm badge-info">${it.bucket_rate_pct}%</span>`
+                            : '<span class="muted">—</span>';
+                        return `<tr>
+                            <td>${img}</td>
+                            <td>${it.description}</td>
+                            <td class="mono" style="text-align:center">${it.quantity}</td>
+                            <td class="mono" style="text-align:right">kr ${fmtNum(it.unit_price_nok)}</td>
+                            <td class="mono" style="text-align:right">kr ${fmtNum(lineTotal)}</td>
+                            <td style="text-align:right"><input type="number" class="input-sm" style="width:80px;text-align:right;font-size:.8125rem" value="${it.selling_price_nok || ''}" placeholder="—" onchange="mvatSetSellingPrice(${it.id}, this.value)" onclick="event.stopPropagation()" /></td>
+                            <td style="text-align:center;font-size:.75rem">${vatHtml}${it.needs_reassignment ? ' <span class="badge badge-warning badge-sm">!</span>' : ''}</td>
+                            <td>${linkHtml}</td>
+                        </tr>`;
+                    }).join('')}</tbody>
+                </table>
+                <div style="display:flex;gap:.5rem;align-items:center" onclick="event.stopPropagation()">
+                    <input type="file" id="mvat-proof-upload-${p.id}" accept="image/*,.pdf" class="input-sm" style="font-size:.75rem;max-width:180px" />
+                    <button class="btn btn-xs" onclick="mvatUploadPurchaseProof(${p.id})">Upload Proof</button>
                 </div>
-                <div class="mvat-purchase-body">
-                    <table class="data-table compact-table">
-                        <thead><tr>
-                            <th style="width:36px"></th><th>Item</th><th style="width:45px;text-align:center">Qty</th>
-                            <th style="width:80px;text-align:right">Unit</th><th style="width:85px;text-align:right">Total</th>
-                            <th style="width:90px;text-align:right">Selling</th><th style="width:90px;text-align:center">MVA</th><th style="width:120px">Shopify</th>
-                        </tr></thead>
-                        <tbody>${itemRows}</tbody>
-                    </table>
-                    <div class="mvat-purchase-footer" onclick="event.stopPropagation()">
-                        <input type="file" id="mvat-proof-upload-${p.id}" accept="image/*,.pdf" class="input-sm" style="font-size:.75rem;max-width:150px" />
-                        <button class="btn btn-xs" onclick="mvatUploadPurchaseProof(${p.id})">Upload</button>
-                        <div class="mvat-proof-grid" style="margin-left:.25rem">${proofThumbs}</div>
-                    </div>
-                </div>
-            </div>`;
-    }).join('');
+            </div>
+        </td></tr>`;
+    }
+
+    html += '</tbody></table>';
+    el.innerHTML = html;
 }
 
 // ── Record Purchase (multi-item) ────────────────────────────────────────
 
 function mvatRecAddLine() {
-    const container = document.getElementById('mvat-rec-items');
-    const row = document.createElement('div');
-    row.className = 'mvat-item-row';
-    row.innerHTML = `
-        <input type="text" class="mvat-rec-desc" placeholder="Product name" />
-        <input type="number" class="mvat-rec-qty" value="1" min="1" oninput="mvatRecUpdateTotals()" />
-        <input type="number" class="mvat-rec-unit" min="0" placeholder="0" oninput="mvatRecUpdateTotals()" />
-        <span class="mvat-rec-line-total">kr 0</span>
-        <button style="border:none;background:none;color:var(--danger,#ef4444);cursor:pointer;font-size:.8rem" onclick="this.parentElement.remove();mvatRecUpdateTotals()">x</button>`;
-    container.appendChild(row);
-    row.querySelector('.mvat-rec-desc').focus();
+    const tbody = document.getElementById('mvat-rec-items');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="input-sm mvat-rec-desc" style="width:100%" placeholder="Product name" /></td>
+        <td><input type="number" class="input-sm mvat-rec-qty" style="width:100%" value="1" min="1" oninput="mvatRecUpdateTotals()" /></td>
+        <td><input type="number" class="input-sm mvat-rec-unit" style="width:100%" min="0" placeholder="0" oninput="mvatRecUpdateTotals()" /></td>
+        <td class="mono mvat-rec-line-total" style="text-align:right">kr 0</td>
+        <td><button class="btn btn-xs btn-danger" onclick="this.closest('tr').remove();mvatRecUpdateTotals()">x</button></td>`;
+    tbody.appendChild(tr);
+    tr.querySelector('.mvat-rec-desc').focus();
 }
 
 function mvatRecUpdateTotals() {
     let total = 0;
-    document.querySelectorAll('#mvat-rec-items .mvat-item-row').forEach(row => {
+    document.querySelectorAll('#mvat-rec-items tr').forEach(row => {
         const qty = parseInt(row.querySelector('.mvat-rec-qty')?.value || '1') || 1;
         const unit = parseFloat(row.querySelector('.mvat-rec-unit')?.value || '0') || 0;
         const line = qty * unit;
@@ -3432,11 +3425,11 @@ function mvatRecUpdateTotals() {
         const cell = row.querySelector('.mvat-rec-line-total');
         if (cell) cell.textContent = `kr ${fmtNum(line)}`;
     });
-    document.getElementById('mvat-rec-total').textContent = `kr ${fmtNum(total)}`;
+    document.getElementById('mvat-rec-total').textContent = `Total: kr ${fmtNum(total)}`;
 }
 
 async function mvatRecordPurchase() {
-    const rows = document.querySelectorAll('#mvat-rec-items .mvat-item-row');
+    const rows = document.querySelectorAll('#mvat-rec-items tr');
     const items = [];
     for (const row of rows) {
         const desc = row.querySelector('.mvat-rec-desc')?.value.trim();
@@ -3471,13 +3464,13 @@ async function mvatRecordPurchase() {
 
         toast(`Purchase #${result.id} saved — ${items.length} item(s)`, 'success');
         // Reset form
-        document.getElementById('mvat-rec-items').innerHTML = `<div class="mvat-item-row">
-            <input type="text" class="mvat-rec-desc" placeholder="Product name" />
-            <input type="number" class="mvat-rec-qty" value="1" min="1" oninput="mvatRecUpdateTotals()" />
-            <input type="number" class="mvat-rec-unit" min="0" placeholder="0" oninput="mvatRecUpdateTotals()" />
-            <span class="mvat-rec-line-total">kr 0</span>
-            <span></span>
-        </div>`;
+        document.getElementById('mvat-rec-items').innerHTML = `<tr>
+            <td><input type="text" class="input-sm mvat-rec-desc" style="width:100%" placeholder="e.g. Pokemon 151 Booster Box" /></td>
+            <td><input type="number" class="input-sm mvat-rec-qty" style="width:100%" value="1" min="1" oninput="mvatRecUpdateTotals()" /></td>
+            <td><input type="number" class="input-sm mvat-rec-unit" style="width:100%" min="0" placeholder="0" oninput="mvatRecUpdateTotals()" /></td>
+            <td class="mono mvat-rec-line-total" style="text-align:right">kr 0</td>
+            <td></td>
+        </tr>`;
         ['mvat-rec-seller'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
         const f = document.getElementById('mvat-rec-proof'); if (f) f.value = '';
         document.getElementById('mvat-rec-total').textContent = 'Total: kr 0';
@@ -3490,6 +3483,11 @@ async function mvatRecordPurchase() {
 }
 
 // ── Item Actions ────────────────────────────────────────────────────────
+
+function mvatTogglePurchase(id) {
+    const row = document.getElementById(`mvat-purchase-detail-${id}`);
+    if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
+}
 
 async function mvatSetSellingPrice(itemId, value) {
     const price = parseFloat(value);
