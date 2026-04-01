@@ -12,7 +12,8 @@
       "Bash(python -c \"from app.routers.snkrdunk import router; print\\(''Router OK''\\)\")",
       "Bash(python -c \"from app.routers.snkrdunk import router; print\\(''Import OK''\\)\")",
       "Bash(python -c \"from app.routers.snkrdunk import router; print\\(''OK''\\)\")",
-      "Bash(node --check app/static/app.js)"
+      "Bash(node --check app/static/app.js)",
+      "Bash(python -c \"from app.routers.shopify import router; print\\(''OK''\\)\")"
     ]
   }
 }

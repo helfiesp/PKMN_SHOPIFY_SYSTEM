@@ -542,7 +542,26 @@ async def set_variant_inventory(
     graphql_url = f"https://{shop}/admin/api/{settings.shopify_api_version}/graphql.json"
     headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
 
+    # Look up actual location from Shopify if configured one might be stale
     location_gid = f"gid://shopify/Location/{settings.location_id}"
+    try:
+        loc_resp = requests.post(
+            graphql_url,
+            json={"query": "{ locations(first:1) { nodes { id name } } }"},
+            headers=headers,
+            timeout=15,
+        )
+        loc_data = loc_resp.json().get("data", {}).get("locations", {}).get("nodes", [])
+        if loc_data:
+            location_gid = loc_data[0]["id"]
+            print(f"[INVENTORY] Using location: {location_gid} ({loc_data[0].get('name')})")
+    except Exception as e:
+        print(f"[INVENTORY] Location lookup failed, using config: {e}")
+
+    # Ensure inventory_item_id is in GID format
+    inv_item_id = variant.inventory_item_id
+    if inv_item_id and not inv_item_id.startswith("gid://"):
+        inv_item_id = f"gid://shopify/InventoryItem/{inv_item_id}"
 
     mutation = """
     mutation($input: InventorySetQuantitiesInput!) {
@@ -563,8 +582,9 @@ async def set_variant_inventory(
                 "input": {
                     "name": "available",
                     "reason": "correction",
+                    "ignoreCompareQuantity": True,
                     "quantities": [{
-                        "inventoryItemId": variant.inventory_item_id,
+                        "inventoryItemId": inv_item_id,
                         "locationId": location_gid,
                         "quantity": body.quantity
                     }]
