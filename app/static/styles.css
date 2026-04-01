@@ -2591,3 +2591,13 @@ input[type="checkbox"] {
 .snk-stock-input.snk-stock-out { color:var(--danger,#ef4444); font-weight:600; background:#fee2e2; border-color:#fca5a5; }
 .snk-stock-input.snk-stock-low { color:#92400e; font-weight:600; background:#fef3c7; border-color:#fcd34d; }
 .snk-stock-input:disabled { opacity:.5; cursor:wait; }
+
+/* Sortable headers */
+.snk-th-sort { cursor:pointer; user-select:none; white-space:nowrap; }
+.snk-th-sort:hover { color:var(--primary,#6366f1); }
+.snk-sort-icon { font-size:.65rem; margin-left:.2rem; opacity:.35; }
+.snk-sort-icon.active { opacity:1; color:var(--primary,#6366f1); }
+
+/* Shopify link icon */
+.snk-shopify-link { display:inline-flex; align-items:center; margin-left:.3rem; color:var(--text-secondary); vertical-align:middle; opacity:.5; transition:opacity .15s; }
+.snk-shopify-link:hover { opacity:1; color:var(--primary,#6366f1); }

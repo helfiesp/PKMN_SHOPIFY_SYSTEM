@@ -598,6 +598,7 @@ async function applyBoosterPlan(planId) {
 // ─────────────────────────────────────────────────────────────────────────────
 let snkSettings = {};
 let _shopifyFetchedAt = 0; // timestamp of last Shopify product fetch
+let _snkShopDomain = '';   // e.g. "myshop.myshopify.com"
 
 async function loadSnkSettings() {
     try {
@@ -613,6 +614,13 @@ async function loadSnkSettings() {
         if (el('snk-rate')) el('snk-rate').value = lastRate;
         if (el('snk-rate-display')) el('snk-rate-display').textContent = lastRate;
     } catch (_) {}
+    // Load shop domain for Shopify links
+    if (!_snkShopDomain) {
+        try {
+            const dict = await api('/settings/dict?mask_sensitive=false');
+            _snkShopDomain = dict.shopify_shop || '';
+        } catch (_) {}
+    }
 }
 
 async function snkFetchLiveRate() {
@@ -733,6 +741,40 @@ async function fetchSnkrdunk() {
     }
 }
 
+// ── Sort state ──────────────────────────────────────────────────────────
+let snkSortCol = null;   // 'name','jpy','boxRec','boxPrice','boxDiff','boxStock', etc.
+let snkSortAsc = true;
+
+function snkSetSort(col) {
+    if (snkSortCol === col) { snkSortAsc = !snkSortAsc; }
+    else { snkSortCol = col; snkSortAsc = true; }
+    renderSnkrdunkTable();
+}
+
+function _snkSortRows(rows) {
+    if (!snkSortCol) return rows;
+    const key = snkSortCol;
+    const dir = snkSortAsc ? 1 : -1;
+    return [...rows].sort((a, b) => {
+        let va, vb;
+        switch (key) {
+            case 'name':     va = (a.item.nameEn || a.item.name || '').toLowerCase(); vb = (b.item.nameEn || b.item.name || '').toLowerCase(); return va < vb ? -dir : va > vb ? dir : 0;
+            case 'jpy':      va = a.jpy || 0; vb = b.jpy || 0; break;
+            case 'boxRec':   va = a.boxRec || 0; vb = b.boxRec || 0; break;
+            case 'boxPrice': va = a.boxPrice ?? -Infinity; vb = b.boxPrice ?? -Infinity; break;
+            case 'boxDiff':  va = a.boxDiff ?? -Infinity; vb = b.boxDiff ?? -Infinity; break;
+            case 'boxStock': va = a.boxStock ?? -1; vb = b.boxStock ?? -1; break;
+            default: return 0;
+        }
+        return (va - vb) * dir;
+    });
+}
+
+function _snkSortIcon(col) {
+    if (snkSortCol !== col) return '<span class="snk-sort-icon">⇅</span>';
+    return snkSortAsc ? '<span class="snk-sort-icon active">↑</span>' : '<span class="snk-sort-icon active">↓</span>';
+}
+
 // ── Pack-count helpers (mirrors backend) ────────────────────────────────
 const SNK_SPECIAL_PACKS = [
     ['terastal festival', 10], ['mega dream', 10], ['vstar universe', 10],
@@ -822,6 +864,9 @@ function renderSnkrdunkTable() {
     if (mismatchOnly)    filtered = filtered.filter(r => (r.boxDiff != null && Math.abs(r.boxDiff) > 25) || (r.packDiff != null && Math.abs(r.packDiff) > 10));
     if (underpricedOnly) filtered = filtered.filter(r => (r.boxDiff != null && r.boxDiff < -25) || (r.packDiff != null && r.packDiff < -10));
 
+    // Sort
+    filtered = _snkSortRows(filtered);
+
     // Summary
     const mapped = rows.filter(r => r.boxPrice != null);
     const under  = mapped.filter(r => r.boxDiff < -25);
@@ -841,14 +886,14 @@ function renderSnkrdunkTable() {
     document.getElementById('snkrdunk-table-wrap').innerHTML = `
         <table class="snk-table">
             <thead><tr>
-                <th class="snk-th-product">Product</th>
-                <th class="snk-th-r">SNKRDUNK</th>
+                <th class="snk-th-product snk-th-sort" onclick="snkSetSort('name')">Product ${_snkSortIcon('name')}</th>
+                <th class="snk-th-r snk-th-sort" onclick="snkSetSort('jpy')">SNKRDUNK ${_snkSortIcon('jpy')}</th>
                 <th class="snk-th-c">Type</th>
-                <th class="snk-th-r">Recommended</th>
-                <th class="snk-th-r">Current</th>
-                <th class="snk-th-r">Diff</th>
-                <th class="snk-th-c">Stock</th>
-                <th class="snk-th-c snk-th-action">Action</th>
+                <th class="snk-th-r snk-th-sort" onclick="snkSetSort('boxRec')">Recommended ${_snkSortIcon('boxRec')}</th>
+                <th class="snk-th-r snk-th-sort" onclick="snkSetSort('boxPrice')">Current ${_snkSortIcon('boxPrice')}</th>
+                <th class="snk-th-r snk-th-sort" onclick="snkSetSort('boxDiff')">Diff ${_snkSortIcon('boxDiff')}</th>
+                <th class="snk-th-c snk-th-sort" onclick="snkSetSort('boxStock')">Stock ${_snkSortIcon('boxStock')}</th>
+                <th class="snk-th-c snk-th-action"></th>
             </tr></thead>
             <tbody>
                 ${filtered.length === 0
@@ -858,6 +903,13 @@ function renderSnkrdunkTable() {
         </table>`;
 }
 
+function _snkShopifyUrl(shopProd) {
+    if (!shopProd || !shopProd.shopify_id) return null;
+    const gid = String(shopProd.shopify_id);
+    const numId = gid.includes('/') ? gid.split('/').pop() : gid;
+    return `https://${_snkShopDomain}/admin/products/${numId}`;
+}
+
 function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
                          boxPrice, boxVariantDbId, boxStock, packPrice, packVariantDbId, packStock,
                          boxDiff, packDiff, packs, hasPack }) {
@@ -865,6 +917,11 @@ function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
     const name   = item.nameEn || item.name || item.id;
     const spikeHtml = spike
         ? `<span class="snk-spike ${Number(spikePct) > 0 ? 'snk-spike-up' : 'snk-spike-down'}">${Number(spikePct) > 0 ? '▲' : '▼'}${Math.abs(spikePct)}%</span>`
+        : '';
+
+    const shopUrl = _snkShopifyUrl(shopProd);
+    const linkHtml = shopUrl
+        ? `<a href="${shopUrl}" target="_blank" rel="noopener" class="snk-shopify-link" title="Open in Shopify admin"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`
         : '';
 
     // ── Not mapped ──
@@ -922,7 +979,7 @@ function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
             <div class="snk-prod-cell">
                 ${imgUrl ? `<img src="${imgUrl}" class="snk-prod-img">` : '<div class="snk-prod-img snk-prod-img-empty"></div>'}
                 <div>
-                    <div class="snk-prod-name">${name} ${spikeHtml}</div>
+                    <div class="snk-prod-name">${name} ${spikeHtml} ${linkHtml}</div>
                     <div class="snk-prod-sub">${shopTitle}</div>
                     <div class="snk-prod-meta">¥${fmt(jpy)} &middot; ${packsSelect} packs</div>
                 </div>
