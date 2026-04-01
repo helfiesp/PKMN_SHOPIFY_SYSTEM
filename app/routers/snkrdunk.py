@@ -21,16 +21,15 @@ router = APIRouter()
 
 # ── SNKRDUNK Settings keys ──────────────────────────────────────────────
 SNK_SETTING_KEYS = {
-    "snk_jpy_nok_rate":       ("0.063", "JPY to NOK exchange rate"),
     "snk_shipping_jpy":       ("500",   "Shipping cost in JPY"),
     "snk_margin_pct":         ("20",    "Minimum margin percentage"),
     "snk_pack_markup_pct":    ("10",    "Pack price markup over box per-unit price (%)"),
     "snk_auto_update":        ("false", "Auto-update prices on Shopify after fetch"),
+    "snk_last_jpy_nok_rate":  ("0.063", "Last fetched JPY→NOK rate (auto-updated, read-only)"),
 }
 
 
 class SnkSettingsPayload(BaseModel):
-    snk_jpy_nok_rate: Optional[str] = None
     snk_shipping_jpy: Optional[str] = None
     snk_margin_pct: Optional[str] = None
     snk_pack_markup_pct: Optional[str] = None
@@ -93,6 +92,21 @@ async def update_mapping_packs(
     mapping.packs_per_box = body.packs_per_box
     db.commit()
     return {"snkrdunk_key": snkrdunk_key, "packs_per_box": mapping.packs_per_box}
+
+
+# ── Exchange rate ────────────────────────────────────────────────────────
+
+@router.get("/exchange-rate")
+async def get_exchange_rate(db: Session = Depends(get_db)):
+    """Fetch live JPY→NOK rate and persist it."""
+    rate = _fetch_jpy_nok_rate()
+    row = db.query(Setting).filter(Setting.key == "snk_last_jpy_nok_rate").first()
+    if row:
+        row.value = str(rate)
+    else:
+        db.add(Setting(key="snk_last_jpy_nok_rate", value=str(rate), description="Last fetched JPY→NOK rate"))
+    db.commit()
+    return {"rate": rate}
 
 
 # ── Auto-update: calculate & push prices ─────────────────────────────────
@@ -173,9 +187,14 @@ async def run_auto_update(db: Session = Depends(get_db)):
     pack_markup_pct = float(_get_snk_setting(db, "snk_pack_markup_pct")) / 100
     VAT = 0.25
 
-    # Use saved rate setting, fall back to live API
-    saved_rate = _get_snk_setting(db, "snk_jpy_nok_rate")
-    rate = float(saved_rate) if saved_rate and float(saved_rate) > 0 else _fetch_jpy_nok_rate()
+    # Always fetch live exchange rate
+    rate = _fetch_jpy_nok_rate()
+    # Persist for UI display
+    row = db.query(Setting).filter(Setting.key == "snk_last_jpy_nok_rate").first()
+    if row:
+        row.value = str(rate)
+    else:
+        db.add(Setting(key="snk_last_jpy_nok_rate", value=str(rate), description="Last fetched JPY→NOK rate"))
     print(f"[SNKRDUNK AUTO-UPDATE] rate={rate}, shipping={shipping}, margin={margin}, pack_markup={pack_markup_pct}")
 
     # Get cached SNKRDUNK products

@@ -603,13 +603,31 @@ async function loadSnkSettings() {
     try {
         snkSettings = await api('/snkrdunk/settings');
         const el = (id) => document.getElementById(id);
-        if (el('snk-rate'))        el('snk-rate').value        = snkSettings.snk_jpy_nok_rate || '0.063';
         if (el('snk-shipping'))    el('snk-shipping').value    = snkSettings.snk_shipping_jpy || '500';
         if (el('snk-margin'))      el('snk-margin').value      = snkSettings.snk_margin_pct  || '20';
         if (el('snk-pack-markup')) el('snk-pack-markup').value  = snkSettings.snk_pack_markup_pct || '10';
         if (el('snk-set-auto-update')) el('snk-set-auto-update').checked = snkSettings.snk_auto_update === 'true';
         if (el('snk-auto-status')) el('snk-auto-status').textContent = snkSettings.snk_auto_update === 'true' ? 'On' : 'Off';
+        // Set rate from last fetched value (display only)
+        const lastRate = snkSettings.snk_last_jpy_nok_rate || '0.063';
+        if (el('snk-rate')) el('snk-rate').value = lastRate;
+        if (el('snk-rate-display')) el('snk-rate-display').textContent = lastRate;
     } catch (_) {}
+}
+
+async function snkFetchLiveRate() {
+    try {
+        const res = await api('/snkrdunk/exchange-rate');
+        const rate = res.rate;
+        const el = (id) => document.getElementById(id);
+        if (el('snk-rate')) el('snk-rate').value = rate;
+        if (el('snk-rate-display')) el('snk-rate-display').textContent = rate;
+        snkSettings.snk_last_jpy_nok_rate = String(rate);
+        return rate;
+    } catch (e) {
+        console.warn('Failed to fetch live rate:', e);
+        return null;
+    }
 }
 
 async function saveSnkSettings() {
@@ -619,7 +637,6 @@ async function saveSnkSettings() {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                snk_jpy_nok_rate:    el('snk-rate')?.value || '0.063',
                 snk_shipping_jpy:    el('snk-shipping')?.value || '500',
                 snk_margin_pct:      el('snk-margin')?.value || '20',
                 snk_pack_markup_pct: el('snk-pack-markup')?.value || '10',
@@ -627,8 +644,6 @@ async function saveSnkSettings() {
             }),
         });
         if (el('snk-auto-status')) el('snk-auto-status').textContent = el('snk-set-auto-update')?.checked ? 'On' : 'Off';
-        // Update local cache
-        snkSettings.snk_jpy_nok_rate    = el('snk-rate')?.value || '0.063';
         snkSettings.snk_shipping_jpy    = el('snk-shipping')?.value || '500';
         snkSettings.snk_margin_pct      = el('snk-margin')?.value || '20';
         snkSettings.snk_pack_markup_pct = el('snk-pack-markup')?.value || '10';
@@ -683,6 +698,8 @@ async function loadSnkrdunk() {
 
         await _ensureShopifyProducts(false);
         await loadSnkSettings();
+        // Fetch live rate on first load (non-blocking for re-renders)
+        snkFetchLiveRate().then(() => renderSnkrdunkTable());
         renderSnkrdunkTable();
         renderSnkrdunkLogs(logs);
     } catch (e) {
@@ -702,9 +719,11 @@ async function fetchSnkrdunk() {
             body: JSON.stringify({ pages: [1, 2, 3], force_refresh: true }),
         });
         toast(`Fetched ${res.total_items || 0} items from SNKRDUNK`, 'success');
+        // Fetch live exchange rate before anything else
+        const liveRate = await snkFetchLiveRate();
         await loadSnkrdunk();
         if (snkSettings.snk_auto_update === 'true') {
-            toast('Auto-update enabled — pushing prices…', 'info');
+            toast(`Auto-update enabled (rate: ${liveRate || '?'}) — pushing prices…`, 'info');
             await runSnkAutoUpdate();
         }
     } catch (e) {
