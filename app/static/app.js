@@ -596,6 +596,72 @@ async function applyBoosterPlan(planId) {
 // ─────────────────────────────────────────────────────────────────────────────
 // SNKRDUNK
 // ─────────────────────────────────────────────────────────────────────────────
+let snkSettings = {};
+
+async function loadSnkSettings() {
+    try {
+        snkSettings = await api('/snkrdunk/settings');
+        const ship = document.getElementById('snk-set-shipping');
+        const marg = document.getElementById('snk-set-margin');
+        const pack = document.getElementById('snk-set-pack-markup');
+        const auto = document.getElementById('snk-set-auto-update');
+        const stat = document.getElementById('snk-auto-update-status');
+        if (ship) ship.value = snkSettings.snk_shipping_jpy || '500';
+        if (marg) marg.value = snkSettings.snk_margin_pct || '20';
+        if (pack) pack.value = snkSettings.snk_pack_markup_pct || '10';
+        if (auto) auto.checked = snkSettings.snk_auto_update === 'true';
+        if (stat) stat.textContent = snkSettings.snk_auto_update === 'true' ? 'Enabled' : 'Disabled';
+        // Sync quick-controls with saved settings
+        const qShip = document.getElementById('snk-shipping');
+        const qMarg = document.getElementById('snk-margin');
+        if (qShip) qShip.value = snkSettings.snk_shipping_jpy || '500';
+        if (qMarg) qMarg.value = snkSettings.snk_margin_pct || '20';
+    } catch (_) {}
+}
+
+async function saveSnkSettings() {
+    try {
+        await api('/snkrdunk/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                snk_shipping_jpy: document.getElementById('snk-set-shipping')?.value || '500',
+                snk_margin_pct: document.getElementById('snk-set-margin')?.value || '20',
+                snk_pack_markup_pct: document.getElementById('snk-set-pack-markup')?.value || '10',
+                snk_auto_update: document.getElementById('snk-set-auto-update')?.checked ? 'true' : 'false',
+            }),
+        });
+        const stat = document.getElementById('snk-auto-update-status');
+        if (stat) stat.textContent = document.getElementById('snk-set-auto-update')?.checked ? 'Enabled' : 'Disabled';
+        // Sync quick-controls
+        const qShip = document.getElementById('snk-shipping');
+        const qMarg = document.getElementById('snk-margin');
+        if (qShip) qShip.value = document.getElementById('snk-set-shipping')?.value || '500';
+        if (qMarg) qMarg.value = document.getElementById('snk-set-margin')?.value || '20';
+        toast('SNKRDUNK settings saved', 'success');
+        renderSnkrdunkTable();
+    } catch (e) {
+        toast(`Failed to save settings: ${e.message}`, 'error');
+    }
+}
+
+async function runSnkAutoUpdate() {
+    const btn = document.getElementById('btn-snk-auto-update');
+    if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+    try {
+        const res = await api('/snkrdunk/auto-update', { method: 'POST' });
+        const pushed = res.pushed || 0;
+        const errs = (res.errors || []).length;
+        toast(`Auto-update done: ${pushed} products updated${errs ? `, ${errs} errors` : ''}`, pushed ? 'success' : 'info');
+        // Reload products to reflect new prices
+        await loadSnkrdunk();
+    } catch (e) {
+        toast(`Auto-update failed: ${e.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Run Auto-Update Now'; }
+    }
+}
+
 async function loadSnkrdunk() {
     showTabLoading('snkrdunk-table-wrap');
     try {
@@ -619,6 +685,7 @@ async function loadSnkrdunk() {
             shopifyProducts = freshProds.products || freshProds || shopifyProducts;
         } catch (_) {}
 
+        await loadSnkSettings();
         renderSnkrdunkTable();
         renderSnkrdunkLogs(logs);
     } catch (e) {
@@ -639,6 +706,12 @@ async function fetchSnkrdunk() {
         });
         toast(`Fetched ${res.total_items || 0} items from SNKRDUNK`, 'success');
         await loadSnkrdunk();
+
+        // Auto-update prices if enabled
+        if (snkSettings.snk_auto_update === 'true') {
+            toast('Auto-update enabled — pushing prices to Shopify…', 'info');
+            await runSnkAutoUpdate();
+        }
     } catch (e) {
         toast(`Fetch failed: ${e.message}`, 'error');
     } finally {
@@ -646,46 +719,88 @@ async function fetchSnkrdunk() {
     }
 }
 
+// ── Pack-count helpers (mirrors backend SPECIAL_PACK_COUNTS) ────────────
+const SNK_SPECIAL_PACKS = [
+    ['terastal festival', 10], ['mega dream', 10], ['vstar universe', 10],
+    ['shiny treasure ex', 10], ['shiny treasure', 10], ['pokemon 151', 20],
+    ['black bolt', 20], ['white flare', 20],
+];
+function snkDetectPacks(title) {
+    const t = (title || '').toLowerCase();
+    for (const [kw, n] of SNK_SPECIAL_PACKS) { if (t.includes(kw)) return n; }
+    return 30;
+}
+function snkRoundPackPsych(n) {
+    let x = Number.isInteger(n) ? n : Math.ceil(n);
+    if (x >= 100 && (x % 100) <= 9) return Math.floor(x / 100) * 100 - 1;
+    if (x % 10 === 5 || x % 10 === 9) return x;
+    for (let d = 1; d < 30; d++) { const y = x + d; if (y % 10 === 5 || y % 10 === 9) return y; }
+    return x;
+}
+
 function renderSnkrdunkTable() {
     const rate     = parseFloat(document.getElementById('snk-rate')?.value || '0.063');
     const shipping = parseFloat(document.getElementById('snk-shipping')?.value || '500');
     const margin   = parseFloat(document.getElementById('snk-margin')?.value || '20') / 100;
+    const packMarkup = parseFloat(snkSettings.snk_pack_markup_pct || '10') / 100;
     const VAT      = 0.25;
 
     const prevMap = {};
     for (const p of snkrdunkPrevItems) prevMap[p.id] = p.minPrice || p.minPriceJpy;
 
+    // Build mapping lookup: snkrdunk_key → mapping object
     const snkToShopify = {};
+    const snkToMapping = {};
     for (const m of snkrdunkMappings) {
         if (m.disabled) continue;
         const prod = shopifyProducts.find(p => p.shopify_id === m.product_shopify_id);
-        if (prod) snkToShopify[String(m.snkrdunk_key)] = prod;
+        if (prod) {
+            snkToShopify[String(m.snkrdunk_key)] = prod;
+            snkToMapping[String(m.snkrdunk_key)] = m;
+        }
     }
 
     const SPIKE = 0.10;
     const rows = snkrdunkItems.map(item => {
         const jpy      = item.minPrice || item.minPriceJpy;
         const nokCost  = (jpy + shipping) * rate;
-        const nokRec   = Math.ceil((nokCost / (1 - margin)) * (1 + VAT) / 25) * 25;
+        const boxRec   = Math.ceil((nokCost / (1 - margin)) * (1 + VAT) / 25) * 25;
         const prev     = prevMap[item.id];
         const spike    = prev && Math.abs((jpy - prev) / prev) >= SPIKE;
         const spikePct = prev ? (((jpy - prev) / prev) * 100).toFixed(1) : null;
 
         const shopProd = snkToShopify[String(item.id)];
-        let myPrice = null, variantDbId = null;
+        const mapping  = snkToMapping[String(item.id)];
+
+        let boxPrice = null, boxVariantDbId = null;
+        let packPrice = null, packVariantDbId = null;
+        let packs = null;
+
         if (shopProd) {
             const variants = shopProd.variants || [];
-            const boxV = variants.filter(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
-            const v = boxV.length ? boxV[0] : variants[0];
-            if (v) {
-                myPrice = v.price;
-                variantDbId = v.id;
-            }
-        }
-        const diff    = myPrice != null ? myPrice - nokRec : null;
-        const diffPct = myPrice != null && nokRec ? ((diff / nokRec) * 100).toFixed(1) : null;
+            const boxV  = variants.find(v => (v.option_value || v.title || '').toLowerCase().includes('box'));
+            const packV = variants.find(v => (v.option_value || v.title || '').toLowerCase().includes('pack'));
 
-        return { item, jpy, nokRec, spike, spikePct, myPrice, diff, diffPct, shopProd, variantDbId };
+            if (boxV)  { boxPrice = boxV.price; boxVariantDbId = boxV.id; }
+            else if (variants.length === 1) { boxPrice = variants[0].price; boxVariantDbId = variants[0].id; }
+
+            if (packV) { packPrice = packV.price; packVariantDbId = packV.id; }
+
+            // Determine packs per box
+            packs = (mapping && mapping.packs_per_box) || snkDetectPacks(shopProd.title);
+        }
+
+        // Pack recommended price
+        const packRec = packs ? snkRoundPackPsych((boxRec / packs) * (1 + packMarkup)) : null;
+
+        const boxDiff  = boxPrice != null ? boxPrice - boxRec : null;
+        const packDiff = packPrice != null && packRec != null ? packPrice - packRec : null;
+
+        return {
+            item, jpy, boxRec, packRec, spike, spikePct, shopProd, mapping,
+            boxPrice, boxVariantDbId, packPrice, packVariantDbId,
+            boxDiff, packDiff, packs,
+        };
     });
 
     // Filters
@@ -694,14 +809,14 @@ function renderSnkrdunkTable() {
     const underpricedOnly = document.getElementById('snk-underpriced-only')?.checked;
     let filtered = rows;
     if (spikeOnly)       filtered = filtered.filter(r => r.spike);
-    if (mismatchOnly)    filtered = filtered.filter(r => r.diff != null && Math.abs(r.diff) > 25);
-    if (underpricedOnly) filtered = filtered.filter(r => r.diff != null && r.diff < -25);
+    if (mismatchOnly)    filtered = filtered.filter(r => (r.boxDiff != null && Math.abs(r.boxDiff) > 25) || (r.packDiff != null && Math.abs(r.packDiff) > 10));
+    if (underpricedOnly) filtered = filtered.filter(r => (r.boxDiff != null && r.boxDiff < -25) || (r.packDiff != null && r.packDiff < -10));
 
     // Summary stats
-    const mapped = rows.filter(r => r.myPrice != null);
-    const underpriced = mapped.filter(r => r.diff < -25);
-    const overpriced = mapped.filter(r => r.diff > 25);
-    const ok = mapped.filter(r => Math.abs(r.diff || 0) <= 25);
+    const mapped = rows.filter(r => r.boxPrice != null);
+    const underpriced = mapped.filter(r => r.boxDiff < -25);
+    const overpriced = mapped.filter(r => r.boxDiff > 25);
+    const ok = mapped.filter(r => Math.abs(r.boxDiff || 0) <= 25);
     const summaryEl = document.getElementById('snk-summary');
     if (summaryEl) {
         summaryEl.innerHTML = `
@@ -720,38 +835,44 @@ function renderSnkrdunkTable() {
                 <th></th>
                 <th>Product</th>
                 <th style="text-align:right">SNKRDUNK</th>
-                <th style="text-align:right">Recommended</th>
-                <th style="text-align:right">Your Price</th>
-                <th style="text-align:right">Difference</th>
+                <th style="text-align:right">Box Rec.</th>
+                <th style="text-align:right">Box Price</th>
+                <th style="text-align:right">Pack Rec.</th>
+                <th style="text-align:right">Pack Price</th>
+                <th style="text-align:center">Packs/Box</th>
                 <th style="text-align:center">Status</th>
-                <th style="text-align:center;width:140px">Action</th>
+                <th style="text-align:center;width:160px">Action</th>
             </tr></thead>
             <tbody>
                 ${filtered.length === 0
-                    ? '<tr><td colspan="8" class="text-center muted" style="padding:2rem">No products match filters.</td></tr>'
+                    ? '<tr><td colspan="10" class="text-center muted" style="padding:2rem">No products match filters.</td></tr>'
                     : filtered.map(r => renderSnkRow(r)).join('')}
             </tbody>
         </table>`;
 }
 
-function renderSnkRow({ item, jpy, nokRec, spike, spikePct, myPrice, diff, diffPct, shopProd, variantDbId }) {
-    const overpriced  = diff != null && diff > 25;
-    const underpriced = diff != null && diff < -25;
+function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd, mapping,
+                         boxPrice, boxVariantDbId, packPrice, packVariantDbId,
+                         boxDiff, packDiff, packs }) {
+    const boxOver  = boxDiff != null && boxDiff > 25;
+    const boxUnder = boxDiff != null && boxDiff < -25;
     const imgUrl = shopProd?.image_url;
     const img = imgUrl
         ? `<img src="${imgUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:4px">`
         : '<div style="width:36px;height:36px;background:var(--bg-secondary);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--text-secondary)">JPY</div>';
 
-    const rowClass = overpriced ? 'snk-row-over' : underpriced ? 'snk-row-under' : '';
+    const rowClass = boxOver ? 'snk-row-over' : boxUnder ? 'snk-row-under' : '';
 
-    // Status badge
+    // Status badge (based on box price)
     let statusHtml;
-    if (myPrice == null) {
+    if (boxPrice == null) {
         statusHtml = '<span class="badge badge-neutral badge-sm">Not mapped</span>';
-    } else if (overpriced) {
-        statusHtml = `<span class="badge badge-danger badge-sm">+${diffPct}%</span>`;
-    } else if (underpriced) {
-        statusHtml = `<span class="badge badge-warning badge-sm">${diffPct}%</span>`;
+    } else if (boxOver) {
+        const pct = boxRec ? ((boxDiff / boxRec) * 100).toFixed(1) : '?';
+        statusHtml = `<span class="badge badge-danger badge-sm">+${pct}%</span>`;
+    } else if (boxUnder) {
+        const pct = boxRec ? ((boxDiff / boxRec) * 100).toFixed(1) : '?';
+        statusHtml = `<span class="badge badge-warning badge-sm">${pct}%</span>`;
     } else {
         statusHtml = '<span class="badge badge-success badge-sm">OK</span>';
     }
@@ -761,19 +882,42 @@ function renderSnkRow({ item, jpy, nokRec, spike, spikePct, myPrice, diff, diffP
         ? `<span class="snk-spike ${Number(spikePct) > 0 ? 'snk-spike-up' : 'snk-spike-down'}">${Number(spikePct) > 0 ? '▲' : '▼'}${Math.abs(spikePct)}%</span>`
         : '';
 
-    // Action button
+    // Action buttons — update both box and pack
     let actionHtml = '';
-    if (myPrice == null) {
+    if (boxPrice == null && !shopProd) {
         actionHtml = `<button class="btn btn-xs btn-sm" onclick="event.stopPropagation();snkOpenMapping('${item.id}', '${(item.nameEn || item.name || '').replace(/'/g, "\\'")}')">Map</button>`;
-    } else if (Math.abs(diff) > 25 && variantDbId) {
-        actionHtml = `<button class="btn btn-sm ${underpriced ? 'btn-primary' : 'btn-warning'}"
-            onclick="event.stopPropagation();snkUpdatePrice(${variantDbId}, ${nokRec}, this)"
-            style="font-size:.75rem;padding:.25rem .5rem">
-            Update to kr ${fmtNum(nokRec)}
-        </button>`;
     } else {
-        actionHtml = '<span class="muted" style="font-size:.75rem">—</span>';
+        const btns = [];
+        if (boxVariantDbId && boxDiff != null && Math.abs(boxDiff) > 25) {
+            btns.push(`<button class="btn btn-xs ${boxUnder ? 'btn-primary' : 'btn-warning'}"
+                onclick="event.stopPropagation();snkUpdatePrice(${boxVariantDbId}, ${boxRec}, this)"
+                style="font-size:.7rem;padding:.2rem .4rem">Box → ${fmtNum(boxRec)}</button>`);
+        }
+        if (packVariantDbId && packDiff != null && Math.abs(packDiff) > 10 && packRec) {
+            btns.push(`<button class="btn btn-xs ${packDiff < -10 ? 'btn-primary' : 'btn-warning'}"
+                onclick="event.stopPropagation();snkUpdatePrice(${packVariantDbId}, ${packRec}, this)"
+                style="font-size:.7rem;padding:.2rem .4rem">Pack → ${fmtNum(packRec)}</button>`);
+        }
+        actionHtml = btns.length ? btns.join(' ') : '<span class="muted" style="font-size:.75rem">—</span>';
     }
+
+    // Packs/Box cell — editable for mapped products
+    let packsHtml = '<span class="muted">—</span>';
+    if (shopProd && mapping) {
+        const snkKey = item.id;
+        packsHtml = `<select class="input-sm snk-packs-select" style="width:55px;font-size:.75rem;padding:.15rem .25rem"
+            onchange="snkUpdatePacks('${snkKey}', this.value)"
+            data-snk-packs="${snkKey}">
+            ${[5, 10, 15, 20, 25, 30].map(n =>
+                `<option value="${n}" ${n === packs ? 'selected' : ''}>${n}</option>`
+            ).join('')}
+        </select>`;
+    }
+
+    // Pack price cells
+    const packRecHtml = packRec != null ? fmtNok(packRec) : '<span class="muted">—</span>';
+    const packPriceHtml = packPrice != null ? fmtNok(packPrice) : '<span class="muted">—</span>';
+    const packDiffStyle = packDiff != null && packDiff < -10 ? 'color:var(--warning,#f59e0b)' : packDiff != null && packDiff > 10 ? 'color:var(--danger,#ef4444)' : '';
 
     return `<tr class="${rowClass}" data-snk-id="${item.id}">
         <td>${img}</td>
@@ -783,12 +927,32 @@ function renderSnkRow({ item, jpy, nokRec, spike, spikePct, myPrice, diff, diffP
             ${shopProd ? `<br><span class="muted" style="font-size:.7rem">${shopProd.title}</span>` : ''}
         </td>
         <td class="mono" style="text-align:right">¥${fmt(jpy)}</td>
-        <td class="mono" style="text-align:right;font-weight:600">${fmtNok(nokRec)}</td>
-        <td class="mono" style="text-align:right">${myPrice != null ? fmtNok(myPrice) : '<span class="muted">—</span>'}</td>
-        <td class="mono" style="text-align:right;font-weight:600;${overpriced ? 'color:var(--danger,#ef4444)' : underpriced ? 'color:var(--warning,#f59e0b)' : ''}">${diff != null ? (diff > 0 ? '+' : '') + 'kr ' + fmtNum(diff) : '<span class="muted">—</span>'}</td>
+        <td class="mono" style="text-align:right;font-weight:600">${fmtNok(boxRec)}</td>
+        <td class="mono" style="text-align:right;${boxOver ? 'color:var(--danger,#ef4444)' : boxUnder ? 'color:var(--warning,#f59e0b)' : ''}">${boxPrice != null ? fmtNok(boxPrice) : '<span class="muted">—</span>'}</td>
+        <td class="mono" style="text-align:right;font-weight:600;${packDiffStyle}">${packRecHtml}</td>
+        <td class="mono" style="text-align:right;${packDiffStyle}">${packPriceHtml}</td>
+        <td style="text-align:center">${packsHtml}</td>
         <td style="text-align:center">${statusHtml}</td>
         <td style="text-align:center">${actionHtml}</td>
     </tr>`;
+}
+
+async function snkUpdatePacks(snkrdunkKey, value) {
+    const packs = parseInt(value) || null;
+    try {
+        await api(`/snkrdunk/mappings/${encodeURIComponent(snkrdunkKey)}/packs`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ packs_per_box: packs }),
+        });
+        // Update local mapping
+        const m = snkrdunkMappings.find(m => String(m.snkrdunk_key) === String(snkrdunkKey));
+        if (m) m.packs_per_box = packs;
+        renderSnkrdunkTable();
+        toast(`Packs/box updated to ${packs}`, 'success');
+    } catch (e) {
+        toast(`Failed: ${e.message}`, 'error');
+    }
 }
 
 async function snkUpdatePrice(variantDbId, newPrice, btnEl) {

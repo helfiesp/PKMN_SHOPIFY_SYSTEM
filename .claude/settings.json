@@ -5,7 +5,11 @@
       "Bash(grep -l \"collection\\\\|product\\\\|image\" /c/Users/cmhag/Documents/Projects/Shopify/app/routers/*.py)",
       "Bash(python -c \"from app.main import app; print\\(''OK''\\)\")",
       "Bash(python -c \":*)",
-      "Bash(python migrate_margin_vat.py)"
+      "Bash(python migrate_margin_vat.py)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/routers/snkrdunk.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/models.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/schemas.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"from app.routers.snkrdunk import router; print\\(''Router OK''\\)\")"
     ]
   }
 }

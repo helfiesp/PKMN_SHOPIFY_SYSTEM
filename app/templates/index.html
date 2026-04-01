@@ -246,6 +246,46 @@
                 <!-- Summary stats -->
                 <div id="snk-summary" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem"></div>
 
+                <!-- Settings panel (collapsible) -->
+                <div class="card snk-settings-card" style="margin-bottom:1rem">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="document.getElementById('snk-settings-body').classList.toggle('collapsed')">
+                        <h3 style="margin:0;font-size:.875rem">SNKRDUNK Settings</h3>
+                        <span class="muted" style="font-size:.75rem">Click to expand</span>
+                    </div>
+                    <div id="snk-settings-body" class="collapsed">
+                        <div style="padding:1rem 1.25rem;display:flex;gap:1.25rem;flex-wrap:wrap;align-items:flex-end">
+                            <div>
+                                <label class="form-label">Shipping cost (JPY)</label>
+                                <input type="number" id="snk-set-shipping" class="input-sm" value="500" step="100" min="0" style="width:100px" />
+                            </div>
+                            <div>
+                                <label class="form-label">Min margin %</label>
+                                <input type="number" id="snk-set-margin" class="input-sm" value="20" step="1" min="0" max="80" style="width:80px" />
+                            </div>
+                            <div>
+                                <label class="form-label">Pack markup %</label>
+                                <input type="number" id="snk-set-pack-markup" class="input-sm" value="10" step="1" min="0" max="100" style="width:80px" />
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:.25rem">
+                                <label class="form-label">Auto-update prices</label>
+                                <label class="snk-toggle-label">
+                                    <input type="checkbox" id="snk-set-auto-update" />
+                                    <span class="snk-toggle-slider"></span>
+                                    <span id="snk-auto-update-status" style="font-size:.75rem;margin-left:.35rem">Disabled</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="saveSnkSettings()" style="margin-left:auto">Save Settings</button>
+                        </div>
+                        <div style="padding:0 1.25rem 1rem;border-top:1px solid var(--border-color);margin-top:.5rem;padding-top:.75rem">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+                                <span style="font-size:.8125rem;font-weight:600">Manual Auto-Update</span>
+                                <button class="btn btn-sm" id="btn-snk-auto-update" onclick="runSnkAutoUpdate()">Run Auto-Update Now</button>
+                            </div>
+                            <p class="muted" style="font-size:.75rem;margin:0">Fetches latest exchange rate, calculates box + pack prices for all mapped products, and pushes to Shopify.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Controls -->
                 <div class="card" style="margin-bottom:1rem">
                     <div style="padding:.75rem 1.25rem;display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">

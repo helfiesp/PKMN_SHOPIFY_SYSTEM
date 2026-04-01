@@ -84,10 +84,13 @@ class SnkrdunkMapping(Base):
     product_shopify_id = Column(String(255), index=True)
     handle = Column(String(255))
     
+    # Booster config
+    packs_per_box = Column(Integer, nullable=True)  # NULL = use auto-detect from title
+
     # Mapping metadata
     disabled = Column(Boolean, default=False)
     notes = Column(Text)
-    
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

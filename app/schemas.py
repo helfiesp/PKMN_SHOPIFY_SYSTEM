@@ -75,6 +75,7 @@ class SnkrdunkMappingBase(BaseModel):
     has_shrink_wrap: bool = True
     product_shopify_id: Optional[str] = None
     handle: Optional[str] = None
+    packs_per_box: Optional[int] = None
     disabled: bool = False
     notes: Optional[str] = None
 
