@@ -25,6 +25,7 @@ SNK_SETTING_KEYS = {
     "snk_margin_pct":         ("20",    "Minimum margin percentage"),
     "snk_pack_markup_pct":    ("10",    "Pack price markup over box per-unit price (%)"),
     "snk_auto_update":        ("false", "Auto-update prices on Shopify after fetch"),
+    "snk_max_pages":          ("20",    "Max pages to fetch from SNKRDUNK (25 products/page)"),
     "snk_last_jpy_nok_rate":  ("0.063", "Last fetched JPY→NOK rate (auto-updated, read-only)"),
 }
 
@@ -34,6 +35,7 @@ class SnkSettingsPayload(BaseModel):
     snk_margin_pct: Optional[str] = None
     snk_pack_markup_pct: Optional[str] = None
     snk_auto_update: Optional[str] = None
+    snk_max_pages: Optional[str] = None
 
 
 class SnkAddPackVariantRequest(BaseModel):
@@ -92,6 +94,44 @@ async def update_mapping_packs(
     mapping.packs_per_box = body.packs_per_box
     db.commit()
     return {"snkrdunk_key": snkrdunk_key, "packs_per_box": mapping.packs_per_box}
+
+
+# ── Hide / unhide products ──────────────────────────────────────────────
+
+@router.post("/hide/{snkrdunk_key}")
+async def hide_product(snkrdunk_key: str, db: Session = Depends(get_db)):
+    """Hide a SNKRDUNK product. Creates a disabled mapping if none exists."""
+    mapping = db.query(SnkrdunkMapping).filter(
+        SnkrdunkMapping.snkrdunk_key == snkrdunk_key
+    ).first()
+    if mapping:
+        mapping.disabled = True
+    else:
+        mapping = SnkrdunkMapping(snkrdunk_key=snkrdunk_key, disabled=True)
+        db.add(mapping)
+    db.commit()
+    return {"snkrdunk_key": snkrdunk_key, "hidden": True}
+
+
+@router.post("/unhide/{snkrdunk_key}")
+async def unhide_product(snkrdunk_key: str, db: Session = Depends(get_db)):
+    """Unhide a SNKRDUNK product."""
+    mapping = db.query(SnkrdunkMapping).filter(
+        SnkrdunkMapping.snkrdunk_key == snkrdunk_key
+    ).first()
+    if mapping:
+        mapping.disabled = False
+        db.commit()
+    return {"snkrdunk_key": snkrdunk_key, "hidden": False}
+
+
+@router.get("/hidden")
+async def get_hidden_products(db: Session = Depends(get_db)):
+    """Get all hidden SNKRDUNK product keys."""
+    hidden = db.query(SnkrdunkMapping.snkrdunk_key).filter(
+        SnkrdunkMapping.disabled == True
+    ).all()
+    return [h[0] for h in hidden]
 
 
 # ── Exchange rate ────────────────────────────────────────────────────────
@@ -585,10 +625,12 @@ async def fetch_snkrdunk_data(
     log_id = None
     
     try:
+        max_pages = int(_get_snk_setting(db, "snk_max_pages") or 20)
         result = await snkrdunk_service.fetch_and_cache_snkrdunk_data(
             db=db,
             pages=request.pages,
-            force_refresh=request.force_refresh
+            force_refresh=request.force_refresh,
+            max_pages=max_pages,
         )
         
         print(f"[SNKRDUNK FETCH] Service returned: total_items={result.get('total_items')}")

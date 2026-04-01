@@ -2601,3 +2601,11 @@ input[type="checkbox"] {
 /* Shopify link icon */
 .snk-shopify-link { display:inline-flex; align-items:center; margin-left:.3rem; color:var(--text-secondary); vertical-align:middle; opacity:.5; transition:opacity .15s; }
 .snk-shopify-link:hover { opacity:1; color:var(--primary,#6366f1); }
+
+/* Hide / unhide */
+.snk-btn-hide, .snk-btn-unhide { font-size:.65rem !important; padding:.1rem .3rem !important; opacity:.5; }
+.snk-btn-hide:hover { opacity:1; }
+.snk-btn-unhide { opacity:.8; border-style:dashed !important; }
+.snk-btn-unhide:hover { opacity:1; border-style:solid !important; }
+.snk-tr-hidden td { opacity:.45; }
+.snk-tr-hidden:hover td { opacity:.7; }

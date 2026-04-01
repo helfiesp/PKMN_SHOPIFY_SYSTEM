@@ -25,26 +25,36 @@ class SnkrdunkService:
         "Referer": "https://snkrdunk.com/",
     }
     
+    PER_PAGE = 25
+    MAX_PAGES = 20  # safety limit
+
     async def fetch_and_cache_snkrdunk_data(
         self,
         db: Session,
         pages: List[int],
-        force_refresh: bool = False
+        force_refresh: bool = False,
+        max_pages: int = 20,
     ) -> dict:
         """
         Fetch SNKRDUNK data and cache in database.
-        
-        When force_refresh=True, ALWAYS fetches fresh data from API and updates cache.
-        When force_refresh=False, uses cache if available and not expired.
+
+        When force_refresh=True and pages=[1], auto-paginates until
+        a page returns fewer than PER_PAGE items or max_pages is reached.
         """
         cache_ttl = timedelta(hours=settings.snkrdunk_cache_ttl_hours)
         now = datetime.now(timezone.utc)
-        
+
+        # Auto-paginate: if force_refresh and default pages, keep going until exhausted
+        auto_paginate = force_refresh and (pages == [1, 2, 3] or pages == [1])
+        if auto_paginate:
+            pages = list(range(1, max(max_pages, 1) + 1))
+
         all_items = []
-        
+        pages_actually_fetched = 0
+
         for page in pages:
             should_fetch = force_refresh
-            
+
             # If not forcing refresh, check if cache is valid
             if not force_refresh:
                 cached = db.query(SnkrdunkCache).filter(
@@ -52,43 +62,47 @@ class SnkrdunkService:
                     SnkrdunkCache.brand_id == "pokemon",
                     SnkrdunkCache.expires_at > now
                 ).first()
-                
+
                 if cached:
                     # Use cached data
                     apparels = cached.response_data.get("apparels", [])
-                    all_items.extend([x for x in apparels if isinstance(x, dict) and "id" in x])
+                    items = [x for x in apparels if isinstance(x, dict) and "id" in x]
+                    all_items.extend(items)
+                    pages_actually_fetched += 1
+                    if auto_paginate and len(items) < self.PER_PAGE:
+                        break  # last page of cached data
                     continue
                 else:
                     # Cache expired or doesn't exist, need to fetch
                     should_fetch = True
-            
+
             # Fetch from API (either forced or cache miss/expired)
             if should_fetch:
                 params = {
                     "page": page,
-                    "perPage": 25,
+                    "perPage": self.PER_PAGE,
                     "order": "popular",
                     "apparelCategoryId": 14,
                     "apparelSubCategoryId": 0,
                     "brandId": "pokemon",
                     "departmentName": "hobby"
                 }
-                
+
                 response = requests.get(
-                    self.SNKRDUNK_API_URL, 
-                    params=params, 
+                    self.SNKRDUNK_API_URL,
+                    params=params,
                     headers=self.SNKRDUNK_HEADERS,
                     timeout=30
                 )
                 response.raise_for_status()
                 data = response.json()
-                
+
                 # Update or create cache entry
                 cache_entry = db.query(SnkrdunkCache).filter(
                     SnkrdunkCache.page == page,
                     SnkrdunkCache.brand_id == "pokemon"
                 ).first()
-                
+
                 if cache_entry:
                     cache_entry.response_data = data
                     cache_entry.created_at = now
@@ -103,11 +117,18 @@ class SnkrdunkService:
                         expires_at=now + cache_ttl
                     )
                     db.add(cache_entry)
-                
+
                 # Extract items from FRESH API response
                 apparels = data.get("apparels", [])
-                all_items.extend([x for x in apparels if isinstance(x, dict) and "id" in x])
-        
+                items = [x for x in apparels if isinstance(x, dict) and "id" in x]
+                all_items.extend(items)
+                pages_actually_fetched += 1
+
+                # Stop if this page had fewer items than perPage (last page)
+                if auto_paginate and len(items) < self.PER_PAGE:
+                    print(f"[SNKRDUNK] Page {page} returned {len(items)} items (< {self.PER_PAGE}), stopping auto-pagination")
+                    break
+
         db.commit()
         
         # Update the updated_at timestamp on all SnkrdunkMapping records to track when SNKRDUNK was last fetched
@@ -129,7 +150,7 @@ class SnkrdunkService:
         
         return {
             "total_items": len(all_items),
-            "pages_fetched": len(pages),
+            "pages_fetched": pages_actually_fetched,
             "cached_at": now.isoformat(),
             "items": all_items
         }

@@ -597,8 +597,10 @@ async function applyBoosterPlan(planId) {
 // SNKRDUNK
 // ─────────────────────────────────────────────────────────────────────────────
 let snkSettings = {};
-let _shopifyFetchedAt = 0; // timestamp of last Shopify product fetch
-let _snkShopDomain = '';   // e.g. "myshop.myshopify.com"
+let _shopifyFetchedAt = 0;
+let _snkShopDomain = '';
+let _snkHiddenKeys = new Set(); // hidden SNKRDUNK product IDs
+let _snkShowHidden = false;
 
 async function loadSnkSettings() {
     try {
@@ -607,6 +609,7 @@ async function loadSnkSettings() {
         if (el('snk-shipping'))    el('snk-shipping').value    = snkSettings.snk_shipping_jpy || '500';
         if (el('snk-margin'))      el('snk-margin').value      = snkSettings.snk_margin_pct  || '20';
         if (el('snk-pack-markup')) el('snk-pack-markup').value  = snkSettings.snk_pack_markup_pct || '10';
+        if (el('snk-max-pages'))   el('snk-max-pages').value    = snkSettings.snk_max_pages || '20';
         if (el('snk-set-auto-update')) el('snk-set-auto-update').checked = snkSettings.snk_auto_update === 'true';
         if (el('snk-auto-status')) el('snk-auto-status').textContent = snkSettings.snk_auto_update === 'true' ? 'On' : 'Off';
         // Set rate from last fetched value (display only)
@@ -648,6 +651,7 @@ async function saveSnkSettings() {
                 snk_shipping_jpy:    el('snk-shipping')?.value || '500',
                 snk_margin_pct:      el('snk-margin')?.value || '20',
                 snk_pack_markup_pct: el('snk-pack-markup')?.value || '10',
+                snk_max_pages:       el('snk-max-pages')?.value || '20',
                 snk_auto_update:     el('snk-set-auto-update')?.checked ? 'true' : 'false',
             }),
         });
@@ -655,6 +659,7 @@ async function saveSnkSettings() {
         snkSettings.snk_shipping_jpy    = el('snk-shipping')?.value || '500';
         snkSettings.snk_margin_pct      = el('snk-margin')?.value || '20';
         snkSettings.snk_pack_markup_pct = el('snk-pack-markup')?.value || '10';
+        snkSettings.snk_max_pages       = el('snk-max-pages')?.value || '20';
         snkSettings.snk_auto_update     = el('snk-set-auto-update')?.checked ? 'true' : 'false';
         toast('Settings saved', 'success');
         renderSnkrdunkTable();
@@ -706,6 +711,8 @@ async function loadSnkrdunk() {
 
         await _ensureShopifyProducts(false);
         await loadSnkSettings();
+        // Load hidden product list
+        try { const h = await api('/snkrdunk/hidden'); _snkHiddenKeys = new Set(h.map(String)); } catch(_) {}
         // Fetch live rate on first load (non-blocking for re-renders)
         snkFetchLiveRate().then(() => renderSnkrdunkTable());
         renderSnkrdunkTable();
@@ -724,7 +731,7 @@ async function fetchSnkrdunk() {
         const res = await api('/snkrdunk/fetch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pages: [1, 2, 3], force_refresh: true }),
+            body: JSON.stringify({ pages: [1], force_refresh: true }),
         });
         toast(`Fetched ${res.total_items || 0} items from SNKRDUNK`, 'success');
         // Fetch live exchange rate before anything else
@@ -860,6 +867,8 @@ function renderSnkrdunkTable() {
     const mismatchOnly    = document.getElementById('snk-mismatch-only')?.checked;
     const underpricedOnly = document.getElementById('snk-underpriced-only')?.checked;
     let filtered = rows;
+    // Hide hidden products unless "Show hidden" is checked
+    if (!_snkShowHidden) filtered = filtered.filter(r => !_snkHiddenKeys.has(String(r.item.id)));
     if (spikeOnly)       filtered = filtered.filter(r => r.spike);
     if (mismatchOnly)    filtered = filtered.filter(r => (r.boxDiff != null && Math.abs(r.boxDiff) > 25) || (r.packDiff != null && Math.abs(r.packDiff) > 10));
     if (underpricedOnly) filtered = filtered.filter(r => (r.boxDiff != null && r.boxDiff < -25) || (r.packDiff != null && r.packDiff < -10));
@@ -924,9 +933,15 @@ function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
         ? `<a href="${shopUrl}" target="_blank" rel="noopener" class="snk-shopify-link" title="Open in Shopify admin"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`
         : '';
 
+    const isHidden = _snkHiddenKeys.has(String(item.id));
+    const hideBtn = isHidden
+        ? `<button class="btn btn-xs snk-btn-unhide" onclick="snkUnhide('${item.id}')" title="Unhide this product">Show</button>`
+        : `<button class="btn btn-xs snk-btn-hide" onclick="snkHide('${item.id}')" title="Hide this product">Hide</button>`;
+    const hiddenCls = isHidden ? ' snk-tr-hidden' : '';
+
     // ── Not mapped ──
     if (!shopProd) {
-        return `<tr class="snk-tr-unmapped" data-snk-id="${item.id}">
+        return `<tr class="snk-tr-unmapped${hiddenCls}" data-snk-id="${item.id}">
             <td class="snk-td-product">
                 <div class="snk-prod-cell">
                     ${imgUrl ? `<img src="${imgUrl}" class="snk-prod-img">` : '<div class="snk-prod-img snk-prod-img-empty"></div>'}
@@ -935,7 +950,10 @@ function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
             </td>
             <td class="mono snk-td-r">¥${fmt(jpy)}</td>
             <td colspan="5" class="muted" style="font-size:.75rem">Not mapped to a Shopify product</td>
-            <td class="snk-td-c"><button class="btn btn-xs" onclick="snkOpenMapping('${item.id}','${name.replace(/'/g,"\\'")}')">Map</button></td>
+            <td class="snk-td-c" style="white-space:nowrap">
+                <button class="btn btn-xs" onclick="snkOpenMapping('${item.id}','${name.replace(/'/g,"\\'")}')">Map</button>
+                ${hideBtn}
+            </td>
         </tr>`;
     }
 
@@ -974,14 +992,14 @@ function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
     const boxCls = boxDiff != null && boxDiff < -25 ? 'snk-tr-under' : boxDiff != null && boxDiff > 25 ? 'snk-tr-over' : '';
 
     // Box row
-    let html = `<tr class="snk-tr-box ${boxCls}" data-snk-id="${item.id}">
+    let html = `<tr class="snk-tr-box ${boxCls}${hiddenCls}" data-snk-id="${item.id}">
         <td class="snk-td-product" rowspan="${rs}">
             <div class="snk-prod-cell">
                 ${imgUrl ? `<img src="${imgUrl}" class="snk-prod-img">` : '<div class="snk-prod-img snk-prod-img-empty"></div>'}
                 <div>
                     <div class="snk-prod-name">${name} ${spikeHtml} ${linkHtml}</div>
                     <div class="snk-prod-sub">${shopTitle}</div>
-                    <div class="snk-prod-meta">¥${fmt(jpy)} &middot; ${packsSelect} packs</div>
+                    <div class="snk-prod-meta">¥${fmt(jpy)} &middot; ${packsSelect} packs &middot; ${hideBtn}</div>
                 </div>
             </div>
         </td>
@@ -1046,6 +1064,22 @@ async function snkAddPackVariant(productShopifyId, packPrice) {
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
     }
+}
+
+async function snkHide(snkrdunkKey) {
+    try {
+        await api(`/snkrdunk/hide/${encodeURIComponent(snkrdunkKey)}`, { method: 'POST' });
+        _snkHiddenKeys.add(String(snkrdunkKey));
+        renderSnkrdunkTable();
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
+}
+
+async function snkUnhide(snkrdunkKey) {
+    try {
+        await api(`/snkrdunk/unhide/${encodeURIComponent(snkrdunkKey)}`, { method: 'POST' });
+        _snkHiddenKeys.delete(String(snkrdunkKey));
+        renderSnkrdunkTable();
+    } catch (e) { toast(`Failed: ${e.message}`, 'error'); }
 }
 
 async function snkUpdateStock(variantDbId, inputEl) {
