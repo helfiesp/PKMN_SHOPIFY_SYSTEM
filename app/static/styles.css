@@ -2577,3 +2577,17 @@ input[type="checkbox"] {
 /* Add pack */
 .snk-btn-addpack { font-size:.7rem !important; padding:.15rem .4rem !important; border-style:dashed !important; }
 .snk-btn-addpack:hover { border-style:solid !important; }
+
+/* Stock input */
+.snk-stock-input {
+    width:48px; font-size:.75rem; padding:.15rem .2rem; text-align:center;
+    border:1px solid var(--border,#e2e8f0); border-radius:4px;
+    background:var(--surface,#fff); font-family:inherit;
+    -moz-appearance:textfield;
+}
+.snk-stock-input::-webkit-inner-spin-button,
+.snk-stock-input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.snk-stock-input:focus { outline:none; border-color:var(--primary,#6366f1); box-shadow:0 0 0 2px rgba(99,102,241,.15); }
+.snk-stock-input.snk-stock-out { color:var(--danger,#ef4444); font-weight:600; background:#fee2e2; border-color:#fca5a5; }
+.snk-stock-input.snk-stock-low { color:#92400e; font-weight:600; background:#fef3c7; border-color:#fcd34d; }
+.snk-stock-input:disabled { opacity:.5; cursor:wait; }
