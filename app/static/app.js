@@ -62,6 +62,11 @@ function fmtDate(iso) {
     return new Date(iso).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function fmtNum(n) {
+    if (n == null) return '0';
+    return Number(n).toLocaleString('nb-NO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
 function deltaBadge(ownPrice, compPrice, sm = false) {
     const cls = sm ? 'badge badge-sm' : 'badge';
     if (!ownPrice || !compPrice) return `<span class="${cls} badge-neutral">—</span>`;
