@@ -3286,7 +3286,7 @@ function mvatCalc(sellingPrice, purchasePrice) {
     const vat = margin * 25 / 125;
     const denom = 5 * sellingPrice - margin;
     const rate = denom > 0 ? (100 * margin / denom) : 25;
-    return { margin, vat, rate, bucket: Math.min(Math.ceil(rate), 25) };
+    return { margin, vat, rate, bucket: Math.min(Math.floor(rate), 25) };
 }
 
 function renderMvatCalcBox(sellingPrice, purchasePrice) {
@@ -3340,64 +3340,71 @@ function renderMvatPurchases(purchases) {
         const date = p.purchase_date ? new Date(p.purchase_date).toLocaleDateString('nb-NO') : '—';
         const total = p.total_nok || p.items.reduce((s, i) => s + i.quantity * i.unit_price_nok, 0);
         const proofCount = p.proof_images?.length || 0;
+        const itemCount = p.items.reduce((s, i) => s + i.quantity, 0);
+        const linkedCount = p.items.filter(i => !!i.variant_shopify_id).length;
 
         const itemRows = p.items.map(it => {
             const linked = !!it.variant_shopify_id;
             const img = it.image_url ? `<img src="${it.image_url}" style="width:28px;height:28px;object-fit:cover;border-radius:3px">` : '';
             const lineTotal = it.quantity * it.unit_price_nok;
-            const linkBtn = linked
-                ? `<span class="badge badge-success badge-sm">${it.product_title || 'Linked'}</span>`
+
+            const linkHtml = linked
+                ? `<span class="badge badge-success badge-sm" title="${it.product_title || ''}">${(it.product_title || 'Linked').substring(0, 20)}</span>`
                 : `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation();mvatOpenItemLink(${it.id})">Link</button>`;
-            const sellingHtml = it.selling_price_nok
-                ? `<span class="mono">kr ${fmtNum(it.selling_price_nok)}</span>`
-                : (linked ? '<span class="muted">—</span>' : `<input type="number" class="input-sm" style="width:80px;font-size:.75rem" placeholder="Set price" onchange="mvatSetSellingPrice(${it.id}, this.value)">`);
+
+            const sellingHtml = `<input type="number" class="input-sm" style="width:90px;font-size:.75rem;text-align:right"
+                value="${it.selling_price_nok || ''}" placeholder="—"
+                onchange="mvatSetSellingPrice(${it.id}, this.value)" onclick="event.stopPropagation()" />`;
+
             const vatHtml = it.effective_rate_pct != null && it.effective_rate_pct > 0
-                ? `<span class="mono">${it.effective_rate_pct.toFixed(1)}%</span> <span class="badge badge-sm badge-info">${it.bucket_rate_pct}%</span>`
+                ? `${it.effective_rate_pct.toFixed(1)}% <span class="badge badge-sm badge-info">${it.bucket_rate_pct}%</span>`
                 : '<span class="muted">—</span>';
-            const needsSync = it.needs_reassignment ? ' <span class="badge badge-warning badge-sm">!</span>' : '';
+            const needsSync = it.needs_reassignment ? '<span class="badge badge-warning badge-sm" title="Needs sync">!</span>' : '';
 
             return `<tr>
                 <td>${img}</td>
-                <td>${it.description}</td>
+                <td style="font-size:.8125rem">${it.description}</td>
                 <td class="mono" style="text-align:center">${it.quantity}</td>
                 <td class="mono" style="text-align:right">kr ${fmtNum(it.unit_price_nok)}</td>
                 <td class="mono" style="text-align:right">kr ${fmtNum(lineTotal)}</td>
-                <td style="text-align:right">${sellingHtml}</td>
-                <td style="text-align:center">${vatHtml}${needsSync}</td>
-                <td>${linkBtn}</td>
+                <td style="text-align:right" onclick="event.stopPropagation()">${sellingHtml}</td>
+                <td class="mono" style="text-align:center;font-size:.75rem">${vatHtml} ${needsSync}</td>
+                <td>${linkHtml}</td>
             </tr>`;
         }).join('');
+
+        const proofHtml = (p.proof_images || []).map(img =>
+            img.content_type === 'application/pdf'
+                ? `<a href="/uploads/${img.file_path}" target="_blank" class="badge badge-sm badge-neutral" style="text-decoration:none">PDF</a>`
+                : `<a href="/uploads/${img.file_path}" target="_blank"><img src="/uploads/${img.file_path}" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid var(--border)"></a>`
+        ).join(' ');
 
         return `
             <div class="mvat-purchase-card">
                 <div class="mvat-purchase-header" onclick="this.parentElement.querySelector('.mvat-purchase-body').classList.toggle('open')">
-                    <div style="display:flex;gap:1rem;align-items:center;flex:1">
-                        <strong>Purchase #${p.id}</strong>
-                        <span class="muted">${p.seller || '—'}</span>
-                        <span class="muted">${date}</span>
-                        <span class="mono" style="margin-left:auto">kr ${fmtNum(total)}</span>
-                        <span class="muted">${p.items.length} item${p.items.length !== 1 ? 's' : ''}</span>
-                        ${proofCount ? `<span class="badge badge-info badge-sm">${proofCount} proof</span>` : ''}
-                    </div>
-                    <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();mvatDeletePurchase(${p.id})" style="margin-left:.5rem">x</button>
+                    <strong style="min-width:90px">Purchase #${p.id}</strong>
+                    <span class="muted">${p.seller || ''}</span>
+                    <span class="muted">${date}</span>
+                    ${proofCount ? `<span class="badge badge-info badge-sm">${proofCount} proof</span>` : ''}
+                    <span style="margin-left:auto"></span>
+                    <span class="muted">${itemCount} unit${itemCount !== 1 ? 's' : ''}</span>
+                    <span class="muted">${linkedCount}/${p.items.length} linked</span>
+                    <strong class="mono">kr ${fmtNum(total)}</strong>
+                    <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();mvatDeletePurchase(${p.id})">x</button>
                 </div>
-                <div class="mvat-purchase-body open">
-                    <table class="data-table compact-table">
+                <div class="mvat-purchase-body">
+                    <table class="data-table compact-table" style="margin:0">
                         <thead><tr>
-                            <th style="width:36px"></th><th>Item</th><th style="text-align:center">Qty</th>
-                            <th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th>
-                            <th style="text-align:right">Selling</th><th style="text-align:center">VAT</th><th>Shopify</th>
+                            <th style="width:32px"></th><th>Item</th><th style="width:50px;text-align:center">Qty</th>
+                            <th style="width:90px;text-align:right">Unit</th><th style="width:90px;text-align:right">Total</th>
+                            <th style="width:100px;text-align:right">Selling</th><th style="width:100px;text-align:center">MVA</th><th style="width:120px">Shopify</th>
                         </tr></thead>
                         <tbody>${itemRows}</tbody>
                     </table>
-                    <div style="padding:.5rem .75rem;display:flex;gap:.5rem;align-items:center;font-size:.8125rem">
-                        <input type="file" id="mvat-proof-upload-${p.id}" accept="image/*,.pdf" class="input-sm" style="font-size:.75rem;max-width:180px" />
+                    <div style="padding:.5rem .75rem;display:flex;gap:.5rem;align-items:center;font-size:.8125rem;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
+                        <input type="file" id="mvat-proof-upload-${p.id}" accept="image/*,.pdf" class="input-sm" style="font-size:.75rem;max-width:160px" />
                         <button class="btn btn-xs" onclick="mvatUploadPurchaseProof(${p.id})">Upload Proof</button>
-                        ${(p.proof_images || []).map(img =>
-                            img.content_type === 'application/pdf'
-                                ? `<a href="/uploads/${img.file_path}" target="_blank" class="badge badge-sm badge-neutral">PDF</a>`
-                                : `<a href="/uploads/${img.file_path}" target="_blank"><img src="/uploads/${img.file_path}" style="width:32px;height:32px;object-fit:cover;border-radius:3px;border:1px solid var(--border)"></a>`
-                        ).join(' ')}
+                        ${proofHtml}
                     </div>
                 </div>
             </div>`;

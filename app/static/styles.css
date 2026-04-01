@@ -2537,21 +2537,24 @@ input[type="checkbox"] {
 .mvat-purchase-card {
     border: 1px solid var(--border);
     border-radius: 8px;
-    margin-bottom: .75rem;
+    margin-bottom: .5rem;
     overflow: hidden;
+    background: var(--surface);
 }
 .mvat-purchase-header {
     display: flex;
     align-items: center;
-    padding: .625rem 1rem;
-    background: var(--surface);
+    padding: .5rem .75rem;
     cursor: pointer;
     font-size: .8125rem;
     gap: .5rem;
+    transition: background .1s;
 }
 .mvat-purchase-header:hover { background: var(--bg-secondary); }
 .mvat-purchase-body { display: none; border-top: 1px solid var(--border); }
 .mvat-purchase-body.open { display: block; }
+.mvat-purchase-card .data-table { font-size: .8125rem; }
+.mvat-purchase-card .data-table th { font-size: .6875rem; text-transform: uppercase; letter-spacing: .03em; }
 
 .mvat-dropdown {
     display: none;

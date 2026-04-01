@@ -40,7 +40,7 @@ class MarginVatService:
         if denominator <= 0:
             return {"margin_nok": round(margin, 2), "vat_amount_nok": vat_amount, "effective_rate_pct": 25.0, "bucket_rate_pct": 25}
         effective_rate = 100 * margin / denominator
-        bucket_rate = min(math.ceil(effective_rate), 25)
+        bucket_rate = min(math.floor(effective_rate), 25)
         return {
             "margin_nok": round(margin, 2),
             "vat_amount_nok": vat_amount,
