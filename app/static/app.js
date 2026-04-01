@@ -820,99 +820,112 @@ function renderSnkrdunkTable() {
     document.getElementById('snk-count').textContent = `${filtered.length} shown`;
 
     document.getElementById('snkrdunk-table-wrap').innerHTML = `
-        <div class="snk-product-list">
-            ${filtered.length === 0
-                ? '<p class="text-center muted" style="padding:2rem">No products match filters.</p>'
-                : filtered.map(r => renderSnkRow(r)).join('')}
-        </div>`;
+        <table class="snk-table">
+            <thead><tr>
+                <th class="snk-th-product">Product</th>
+                <th class="snk-th-r">SNKRDUNK</th>
+                <th class="snk-th-c">Type</th>
+                <th class="snk-th-r">Recommended</th>
+                <th class="snk-th-r">Current</th>
+                <th class="snk-th-r">Diff</th>
+                <th class="snk-th-c snk-th-action">Action</th>
+            </tr></thead>
+            <tbody>
+                ${filtered.length === 0
+                    ? '<tr><td colspan="7" class="text-center muted" style="padding:2rem">No products match filters.</td></tr>'
+                    : filtered.map(r => renderSnkRow(r)).join('')}
+            </tbody>
+        </table>`;
 }
 
 function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
                          boxPrice, boxVariantDbId, packPrice, packVariantDbId,
                          boxDiff, packDiff, packs, hasPack }) {
     const imgUrl = shopProd?.image_url;
-    const img = imgUrl
-        ? `<img src="${imgUrl}" class="snk-row-img">`
-        : '<div class="snk-row-img snk-row-img-placeholder">JPY</div>';
-
+    const name   = item.nameEn || item.name || item.id;
     const spikeHtml = spike
-        ? ` <span class="snk-spike ${Number(spikePct) > 0 ? 'snk-spike-up' : 'snk-spike-down'}">${Number(spikePct) > 0 ? '▲' : '▼'}${Math.abs(spikePct)}%</span>`
+        ? `<span class="snk-spike ${Number(spikePct) > 0 ? 'snk-spike-up' : 'snk-spike-down'}">${Number(spikePct) > 0 ? '▲' : '▼'}${Math.abs(spikePct)}%</span>`
         : '';
 
-    // Not mapped — simple row
+    // ── Not mapped ──
     if (!shopProd) {
-        return `<div class="snk-row snk-row-unmapped" data-snk-id="${item.id}">
-            <div class="snk-row-left">
-                ${img}
-                <div class="snk-row-info">
-                    <div class="snk-row-name">${item.nameEn || item.name || item.id}${spikeHtml}</div>
-                    <div class="snk-row-meta">¥${fmt(jpy)} &rarr; Rec. ${fmtNok(boxRec)}</div>
+        return `<tr class="snk-tr-unmapped" data-snk-id="${item.id}">
+            <td class="snk-td-product">
+                <div class="snk-prod-cell">
+                    ${imgUrl ? `<img src="${imgUrl}" class="snk-prod-img">` : '<div class="snk-prod-img snk-prod-img-empty"></div>'}
+                    <div><div class="snk-prod-name">${name} ${spikeHtml}</div></div>
+                </div>
+            </td>
+            <td class="mono snk-td-r">¥${fmt(jpy)}</td>
+            <td colspan="4" class="muted" style="font-size:.75rem">Not mapped to a Shopify product</td>
+            <td class="snk-td-c"><button class="btn btn-xs" onclick="snkOpenMapping('${item.id}','${name.replace(/'/g,"\\'")}')">Map</button></td>
+        </tr>`;
+    }
+
+    // ── Mapped: emit 2 rows (box + pack) ──
+    const rs = 2; // rowspan
+    const shopTitle = shopProd.title || '';
+    const packsSelect = `<select class="snk-packs-sel" onchange="snkUpdatePacks('${item.id}',this.value)">${[5,10,15,20,25,30].map(n=>`<option value="${n}"${n===packs?' selected':''}>${n}</option>`).join('')}</select>`;
+
+    // helpers
+    const diffCell = (diff, threshold) => {
+        if (diff == null) return '<td class="snk-td-r muted">—</td>';
+        const abs = Math.abs(diff);
+        if (abs <= threshold) return '<td class="snk-td-r"><span class="snk-badge-ok">OK</span></td>';
+        const cls = diff < 0 ? 'snk-clr-under' : 'snk-clr-over';
+        return `<td class="snk-td-r mono ${cls}">${diff > 0 ? '+' : ''}${fmtNum(diff)}</td>`;
+    };
+
+    const actionCell = (varId, rec, diff, threshold) => {
+        if (varId && diff != null && Math.abs(diff) > threshold) {
+            const cls = diff < 0 ? 'btn-primary' : 'btn-warning';
+            return `<td class="snk-td-c"><button class="btn btn-xs ${cls}" onclick="snkUpdatePrice(${varId},${rec},this)">${fmtNok(rec)}</button></td>`;
+        }
+        return '<td class="snk-td-c"><span class="snk-badge-ok">OK</span></td>';
+    };
+
+    // Box row class
+    const boxCls = boxDiff != null && boxDiff < -25 ? 'snk-tr-under' : boxDiff != null && boxDiff > 25 ? 'snk-tr-over' : '';
+
+    // Box row (contains product cell with rowspan)
+    let html = `<tr class="snk-tr-box ${boxCls}" data-snk-id="${item.id}">
+        <td class="snk-td-product" rowspan="${rs}">
+            <div class="snk-prod-cell">
+                ${imgUrl ? `<img src="${imgUrl}" class="snk-prod-img">` : '<div class="snk-prod-img snk-prod-img-empty"></div>'}
+                <div>
+                    <div class="snk-prod-name">${name} ${spikeHtml}</div>
+                    <div class="snk-prod-sub">${shopTitle}</div>
+                    <div class="snk-prod-meta">¥${fmt(jpy)} &middot; ${packsSelect} packs</div>
                 </div>
             </div>
-            <div class="snk-row-right">
-                <span class="badge badge-neutral badge-sm">Not mapped</span>
-                <button class="btn btn-xs" onclick="snkOpenMapping('${item.id}', '${(item.nameEn || item.name || '').replace(/'/g, "\\'")}')">Map</button>
-            </div>
-        </div>`;
-    }
+        </td>
+        <td class="mono snk-td-r" rowspan="${rs}">¥${fmt(jpy)}</td>
+        <td class="snk-td-c"><span class="snk-type-tag snk-type-box">Box</span></td>
+        <td class="mono snk-td-r snk-td-rec">${fmtNok(boxRec)}</td>
+        <td class="mono snk-td-r ${boxDiff != null && boxDiff < -25 ? 'snk-clr-under' : boxDiff != null && boxDiff > 25 ? 'snk-clr-over' : ''}">${boxPrice != null ? fmtNok(boxPrice) : '<span class="muted">—</span>'}</td>
+        ${diffCell(boxDiff, 25)}
+        ${actionCell(boxVariantDbId, boxRec, boxDiff, 25)}
+    </tr>`;
 
-    // Mapped — variant rows
-    const boxOk    = boxDiff == null || Math.abs(boxDiff) <= 25;
-    const packOk   = !hasPack || packDiff == null || Math.abs(packDiff) <= 10;
-    const anyBad   = !boxOk || !packOk;
-    const statusCls = anyBad ? (((boxDiff || 0) < -25 || (packDiff || 0) < -10) ? 'snk-row-under' : 'snk-row-over') : '';
-
-    // Packs dropdown
-    const packsSelect = `<select class="input-sm snk-packs-select" onchange="snkUpdatePacks('${item.id}', this.value)">
-        ${[5, 10, 15, 20, 25, 30].map(n => `<option value="${n}" ${n === packs ? 'selected' : ''}>${n}</option>`).join('')}
-    </select>`;
-
-    // Box variant row
-    const boxAction = boxVariantDbId && boxDiff != null && Math.abs(boxDiff) > 25
-        ? `<button class="btn btn-xs ${boxDiff < 0 ? 'btn-primary' : 'btn-warning'}" onclick="snkUpdatePrice(${boxVariantDbId}, ${boxRec}, this)">Update → ${fmtNok(boxRec)}</button>`
-        : (boxPrice != null ? '<span class="snk-diff-badge ok">OK</span>' : '');
-
-    // Pack variant row
-    let packRowHtml;
+    // Pack row
+    const packCls = packDiff != null && packDiff < -10 ? 'snk-tr-under' : packDiff != null && packDiff > 10 ? 'snk-tr-over' : '';
     if (hasPack) {
-        const packAction = packVariantDbId && packDiff != null && Math.abs(packDiff) > 10
-            ? `<button class="btn btn-xs ${packDiff < 0 ? 'btn-primary' : 'btn-warning'}" onclick="snkUpdatePrice(${packVariantDbId}, ${packRec}, this)">Update → ${fmtNok(packRec)}</button>`
-            : '<span class="snk-diff-badge ok">OK</span>';
-        packRowHtml = `<div class="snk-variant-row">
-            <span class="snk-vtype pack">Pack</span>
-            <span class="snk-vprice mono">${fmtNok(packRec)}</span>
-            <span class="snk-varrow">&rarr;</span>
-            <span class="snk-vprice mono ${packDiff != null && packDiff < -10 ? 'snk-clr-warn' : packDiff != null && packDiff > 10 ? 'snk-clr-danger' : ''}">${fmtNok(packPrice)}</span>
-            <span class="snk-vaction">${packAction}</span>
-        </div>`;
+        html += `<tr class="snk-tr-pack ${packCls}">
+            <td class="snk-td-c"><span class="snk-type-tag snk-type-pack">Pack</span></td>
+            <td class="mono snk-td-r snk-td-rec">${fmtNok(packRec)}</td>
+            <td class="mono snk-td-r ${packDiff != null && packDiff < -10 ? 'snk-clr-under' : packDiff != null && packDiff > 10 ? 'snk-clr-over' : ''}">${fmtNok(packPrice)}</td>
+            ${diffCell(packDiff, 10)}
+            ${actionCell(packVariantDbId, packRec, packDiff, 10)}
+        </tr>`;
     } else {
-        packRowHtml = `<div class="snk-variant-row snk-variant-add">
-            <span class="snk-vtype pack-missing">Pack</span>
-            <span class="muted" style="font-size:.75rem">No pack variant</span>
-            <button class="btn btn-xs snk-btn-add-pack" onclick="snkAddPackVariant('${shopProd.shopify_id}', ${packRec || 0})">+ Add Pack (${fmtNok(packRec || 0)})</button>
-        </div>`;
+        html += `<tr class="snk-tr-pack snk-tr-nopack">
+            <td class="snk-td-c"><span class="snk-type-tag snk-type-pack-none">Pack</span></td>
+            <td colspan="3" class="muted" style="font-size:.75rem">No pack variant on Shopify</td>
+            <td class="snk-td-c"><button class="btn btn-xs snk-btn-addpack" onclick="snkAddPackVariant('${shopProd.shopify_id}',${packRec||0})">+ Add Pack</button></td>
+        </tr>`;
     }
 
-    return `<div class="snk-row ${statusCls}" data-snk-id="${item.id}">
-        <div class="snk-row-left">
-            ${img}
-            <div class="snk-row-info">
-                <div class="snk-row-name">${item.nameEn || item.name || item.id}${spikeHtml}</div>
-                <div class="snk-row-meta">${shopProd.title}</div>
-                <div class="snk-row-jpy">¥${fmt(jpy)} &middot; ${packsSelect} packs/box</div>
-            </div>
-        </div>
-        <div class="snk-row-variants">
-            <div class="snk-variant-row">
-                <span class="snk-vtype box">Box</span>
-                <span class="snk-vprice mono">${fmtNok(boxRec)}</span>
-                <span class="snk-varrow">&rarr;</span>
-                <span class="snk-vprice mono ${boxDiff != null && boxDiff < -25 ? 'snk-clr-warn' : boxDiff != null && boxDiff > 25 ? 'snk-clr-danger' : ''}">${boxPrice != null ? fmtNok(boxPrice) : '<span class="muted">—</span>'}</span>
-                <span class="snk-vaction">${boxAction}</span>
-            </div>
-            ${packRowHtml}
-        </div>
-    </div>`;
+    return html;
 }
 
 async function snkUpdatePacks(snkrdunkKey, value) {
@@ -972,25 +985,23 @@ async function snkUpdatePrice(variantDbId, newPrice, btnEl) {
 let snkMappingTimeout = null;
 
 function snkOpenMapping(snkrdunkKey, snkrdunkName) {
-    // Close any existing mapping row
     document.querySelectorAll('.snk-mapping-row').forEach(el => el.remove());
 
-    // Find the card-row for this item
-    const target = document.querySelector(`#snkrdunk-table-wrap .snk-row[data-snk-id="${snkrdunkKey}"]`);
-
-    const mapRow = document.createElement('div');
+    const target = document.querySelector(`#snkrdunk-table-wrap tr[data-snk-id="${snkrdunkKey}"]`);
+    const mapRow = document.createElement('tr');
     mapRow.className = 'snk-mapping-row';
-    mapRow.style.cssText = 'padding:.6rem .75rem;background:var(--bg-secondary);border-bottom:1px solid var(--border-light,#f1f5f9)';
     mapRow.innerHTML = `
-        <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-            <strong style="font-size:.8125rem">Map "${snkrdunkName}" to:</strong>
-            <div style="position:relative;flex:1;min-width:200px">
-                <input type="text" class="input-sm" id="snk-map-search-${snkrdunkKey}" style="width:100%"
-                    placeholder="Search Shopify product..." oninput="snkMapSearch('${snkrdunkKey}', this.value)" autocomplete="off" />
-                <div id="snk-map-results-${snkrdunkKey}" class="mvat-dropdown"></div>
+        <td colspan="7" style="background:var(--bg-secondary);padding:.5rem .75rem">
+            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                <strong style="font-size:.8rem">Map "${snkrdunkName}":</strong>
+                <div style="position:relative;flex:1;min-width:200px">
+                    <input type="text" class="input-sm" id="snk-map-search-${snkrdunkKey}" style="width:100%"
+                        placeholder="Search Shopify product..." oninput="snkMapSearch('${snkrdunkKey}', this.value)" autocomplete="off" />
+                    <div id="snk-map-results-${snkrdunkKey}" class="mvat-dropdown"></div>
+                </div>
+                <button class="btn btn-xs" onclick="this.closest('tr').remove()">Cancel</button>
             </div>
-            <button class="btn btn-xs" onclick="this.closest('.snk-mapping-row').remove()">Cancel</button>
-        </div>
+        </td>
     `;
 
     if (target && target.nextSibling) {
@@ -998,7 +1009,6 @@ function snkOpenMapping(snkrdunkKey, snkrdunkName) {
     } else if (target) {
         target.parentNode.appendChild(mapRow);
     }
-
     document.getElementById(`snk-map-search-${snkrdunkKey}`)?.focus();
 }
 
