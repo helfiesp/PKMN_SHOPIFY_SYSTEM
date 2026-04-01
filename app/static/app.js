@@ -3362,9 +3362,13 @@ function renderMvatPurchases(purchases) {
             <div style="padding:.75rem 1rem">
                 <table class="data-table compact-table" style="margin-bottom:.5rem">
                     <thead><tr>
-                        <th style="width:32px"></th><th>Item</th><th style="width:50px;text-align:center">Qty</th>
-                        <th style="width:90px;text-align:right">Unit Price</th><th style="width:90px;text-align:right">Total</th>
-                        <th style="width:100px;text-align:right">Selling Price</th><th style="width:90px;text-align:center">MVA</th><th style="width:110px">Shopify</th>
+                        <th style="width:32px"></th><th>Item</th><th style="width:40px;text-align:center">Qty</th>
+                        <th style="width:80px;text-align:right">Purchase</th>
+                        <th style="width:95px;text-align:right">Selling</th>
+                        <th style="width:75px;text-align:right">Margin</th>
+                        <th style="width:65px;text-align:right">MVA kr</th>
+                        <th style="width:75px;text-align:right">Profit</th>
+                        <th style="width:60px;text-align:center">Bucket</th><th style="width:100px">Shopify</th>
                     </tr></thead>
                     <tbody>${p.items.map(it => {
                         const linked = !!it.variant_shopify_id;
@@ -3373,19 +3377,40 @@ function renderMvatPurchases(purchases) {
                         const linkHtml = linked
                             ? `<span class="badge badge-success badge-sm">${(it.product_title || 'Linked').substring(0, 18)}</span>`
                             : `<button class="btn btn-xs btn-primary" onclick="event.stopPropagation();mvatOpenItemLink(${it.id})">Link</button>`;
-                        const vatHtml = it.effective_rate_pct > 0
-                            ? `${it.effective_rate_pct.toFixed(1)}% <span class="badge badge-sm badge-info">${it.bucket_rate_pct}%</span>`
+
+                        // Calculate financials live from current selling price
+                        const sp = it.selling_price_nok || 0;
+                        const pp = it.unit_price_nok;
+                        const c = mvatCalc(sp, pp);
+                        const profitPerUnit = c.margin - c.vat;
+                        const totalVat = c.vat * it.quantity;
+                        const totalProfit = profitPerUnit * it.quantity;
+
+                        const hasCalc = sp > 0 && c.margin > 0;
+                        const vatHtml = hasCalc
+                            ? `<span class="badge badge-sm badge-info">${c.bucket}%</span>`
                             : '<span class="muted">—</span>';
+
                         return `<tr>
                             <td>${img}</td>
-                            <td>${it.description}</td>
+                            <td><strong style="font-size:.8125rem">${it.description}</strong></td>
                             <td class="mono" style="text-align:center">${it.quantity}</td>
-                            <td class="mono" style="text-align:right">kr ${fmtNum(it.unit_price_nok)}</td>
-                            <td class="mono" style="text-align:right">kr ${fmtNum(lineTotal)}</td>
-                            <td style="text-align:right"><input type="number" class="input-sm" style="width:80px;text-align:right;font-size:.8125rem" value="${it.selling_price_nok || ''}" placeholder="—" onchange="mvatSetSellingPrice(${it.id}, this.value)" onclick="event.stopPropagation()" /></td>
-                            <td style="text-align:center;font-size:.75rem">${vatHtml}${it.needs_reassignment ? ' <span class="badge badge-warning badge-sm">!</span>' : ''}</td>
+                            <td class="mono" style="text-align:right">kr ${fmtNum(pp)}</td>
+                            <td style="text-align:right" onclick="event.stopPropagation()">
+                                <input type="number" class="input-sm" style="width:85px;text-align:right;font-size:.8125rem" value="${sp || ''}" placeholder="Set price" onchange="mvatSetSellingPrice(${it.id}, this.value)" />
+                            </td>
+                            <td class="mono" style="text-align:right;${hasCalc ? 'color:var(--success,#22c55e)' : ''}">${hasCalc ? 'kr ' + fmtNum(c.margin) : '<span class="muted">—</span>'}</td>
+                            <td class="mono" style="text-align:right">${hasCalc ? 'kr ' + c.vat.toFixed(0) : '<span class="muted">—</span>'}</td>
+                            <td class="mono" style="text-align:right;font-weight:600;${hasCalc ? (profitPerUnit > 0 ? 'color:var(--success,#22c55e)' : 'color:var(--danger,#ef4444)') : ''}">${hasCalc ? 'kr ' + fmtNum(profitPerUnit) : '<span class="muted">—</span>'}</td>
+                            <td style="text-align:center">${vatHtml}${it.needs_reassignment ? ' <span class="badge badge-warning badge-sm">!</span>' : ''}</td>
                             <td>${linkHtml}</td>
-                        </tr>`;
+                        </tr>
+                        ${hasCalc ? `<tr style="background:var(--bg-secondary)"><td colspan="10" style="padding:.25rem 1rem;font-size:.75rem;color:var(--text-secondary)">
+                            <span style="margin-right:1rem">Rate: ${c.rate.toFixed(2)}%</span>
+                            <span style="margin-right:1rem">Total MVA: <strong>kr ${fmtNum(totalVat)}</strong></span>
+                            <span style="margin-right:1rem">Total profit: <strong style="color:${totalProfit > 0 ? 'var(--success,#22c55e)' : 'var(--danger,#ef4444)'}">kr ${fmtNum(totalProfit)}</strong></span>
+                            <span>Profit margin: ${((profitPerUnit / sp) * 100).toFixed(1)}%</span>
+                        </td></tr>` : ''}`;
                     }).join('')}</tbody>
                 </table>
                 <div style="display:flex;gap:.5rem;align-items:center" onclick="event.stopPropagation()">
