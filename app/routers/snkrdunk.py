@@ -21,6 +21,7 @@ router = APIRouter()
 
 # ── SNKRDUNK Settings keys ──────────────────────────────────────────────
 SNK_SETTING_KEYS = {
+    "snk_jpy_nok_rate":       ("0.063", "JPY to NOK exchange rate"),
     "snk_shipping_jpy":       ("500",   "Shipping cost in JPY"),
     "snk_margin_pct":         ("20",    "Minimum margin percentage"),
     "snk_pack_markup_pct":    ("10",    "Pack price markup over box per-unit price (%)"),
@@ -29,10 +30,16 @@ SNK_SETTING_KEYS = {
 
 
 class SnkSettingsPayload(BaseModel):
+    snk_jpy_nok_rate: Optional[str] = None
     snk_shipping_jpy: Optional[str] = None
     snk_margin_pct: Optional[str] = None
     snk_pack_markup_pct: Optional[str] = None
     snk_auto_update: Optional[str] = None
+
+
+class SnkAddPackVariantRequest(BaseModel):
+    product_shopify_id: str
+    pack_price: float
 
 
 class SnkMappingPacksUpdate(BaseModel):
@@ -166,7 +173,9 @@ async def run_auto_update(db: Session = Depends(get_db)):
     pack_markup_pct = float(_get_snk_setting(db, "snk_pack_markup_pct")) / 100
     VAT = 0.25
 
-    rate = _fetch_jpy_nok_rate()
+    # Use saved rate setting, fall back to live API
+    saved_rate = _get_snk_setting(db, "snk_jpy_nok_rate")
+    rate = float(saved_rate) if saved_rate and float(saved_rate) > 0 else _fetch_jpy_nok_rate()
     print(f"[SNKRDUNK AUTO-UPDATE] rate={rate}, shipping={shipping}, margin={margin}, pack_markup={pack_markup_pct}")
 
     # Get cached SNKRDUNK products
@@ -336,6 +345,209 @@ async def run_auto_update(db: Session = Depends(get_db)):
         "errors": errors,
         "details": results,
     }
+
+
+# ── Add Booster Pack variant to a product ────────────────────────────────
+
+# GraphQL mutations for variant management
+_M_PRODUCT_OPTION_UPDATE = """
+mutation UpdateOption(
+  $productId: ID!,
+  $option: OptionUpdateInput!,
+  $optionValuesToAdd: [OptionValueCreateInput!],
+  $optionValuesToDelete: [ID!],
+  $variantStrategy: ProductOptionUpdateVariantStrategy
+) {
+  productOptionUpdate(
+    productId: $productId, option: $option,
+    optionValuesToAdd: $optionValuesToAdd,
+    optionValuesToDelete: $optionValuesToDelete,
+    variantStrategy: $variantStrategy
+  ) {
+    userErrors { field message }
+    product {
+      id options { id name position values optionValues { id name hasVariants } }
+      variants(first: 50) { nodes { id title price selectedOptions { name value } } }
+    }
+  }
+}
+"""
+
+_M_VARIANTS_BULK_UPDATE = """
+mutation VariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    productVariants { id title price selectedOptions { name value } }
+    userErrors { field message }
+  }
+}
+"""
+
+_M_VARIANTS_BULK_CREATE = """
+mutation VariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkCreate(productId: $productId, variants: $variants) {
+    productVariants { id title price selectedOptions { name value } }
+    userErrors { field message }
+  }
+}
+"""
+
+_Q_PRODUCT = """
+query ProductGet($id: ID!) {
+  product(id: $id) {
+    id title
+    options { id name position values optionValues { id name hasVariants } }
+    variants(first: 50) {
+      nodes { id title price selectedOptions { name value } }
+    }
+  }
+}
+"""
+
+import time
+
+
+def _gql_call(shop: str, token: str, query: str, variables: dict) -> dict:
+    """Execute a Shopify GraphQL call."""
+    url = f"https://{shop}/admin/api/{app_settings.shopify_api_version}/graphql.json"
+    headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
+    r = requests.post(url, json={"query": query, "variables": variables}, headers=headers, timeout=60)
+    r.raise_for_status()
+    payload = r.json()
+    if isinstance(payload.get("errors"), list) and payload["errors"]:
+        raise RuntimeError(f"GraphQL errors: {payload['errors']}")
+    return payload.get("data", {})
+
+
+@router.post("/add-pack-variant")
+async def add_pack_variant(body: SnkAddPackVariantRequest, db: Session = Depends(get_db)):
+    """
+    Add a Booster Pack variant to a product that only has a box variant.
+    Steps: ensure "Type" option → label existing as "Booster Box" → create "Booster Pack".
+    """
+    shop = app_settings.get_shopify_shop()
+    token = app_settings.get_shopify_token()
+    if not shop or not token:
+        raise HTTPException(status_code=500, detail="Shopify credentials not configured")
+
+    product = db.query(Product).filter(Product.shopify_id == body.product_shopify_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found in local DB")
+
+    product_gid = product.shopify_id
+    if not product_gid.startswith("gid://"):
+        product_gid = f"gid://shopify/Product/{product_gid}"
+
+    # Step 1: Fetch current product state from Shopify
+    gql_product = _gql_call(shop, token, _Q_PRODUCT, {"id": product_gid}).get("product")
+    if not gql_product:
+        raise HTTPException(status_code=404, detail="Product not found on Shopify")
+
+    # Find or identify the single option
+    options = gql_product.get("options", [])
+    if not options:
+        raise HTTPException(status_code=400, detail="Product has no options")
+
+    opt = options[0]  # use first (usually only) option
+    opt_id = str(opt["id"])
+
+    # Check if "Booster Pack" value already exists
+    existing_values = [ov["name"] for ov in (opt.get("optionValues") or [])]
+    has_box = any("booster box" in v.lower() for v in existing_values)
+    has_pack = any("booster pack" in v.lower() for v in existing_values)
+
+    if has_pack:
+        return {"message": "Booster Pack variant already exists", "skipped": True}
+
+    # Step 2: Add option values (rename option to "Type", add Booster Box + Booster Pack)
+    to_add = []
+    if not has_box:
+        to_add.append({"name": "Booster Box"})
+    to_add.append({"name": "Booster Pack"})
+
+    data = _gql_call(shop, token, _M_PRODUCT_OPTION_UPDATE, {
+        "productId": product_gid,
+        "option": {"id": opt_id, "name": "Type", "position": int(opt.get("position") or 1)},
+        "optionValuesToAdd": to_add if to_add else None,
+        "optionValuesToDelete": None,
+        "variantStrategy": "LEAVE_AS_IS",
+    })
+    ue = (data.get("productOptionUpdate") or {}).get("userErrors", [])
+    if ue:
+        raise HTTPException(status_code=500, detail=f"Option update failed: {ue}")
+
+    updated_product = (data.get("productOptionUpdate") or {}).get("product") or gql_product
+    time.sleep(0.3)
+
+    # Step 3: Set existing variant to "Booster Box"
+    variants_nodes = (updated_product.get("variants") or {}).get("nodes", [])
+    if variants_nodes:
+        box_gid = variants_nodes[0]["id"]  # first variant is the box
+        # Find the Type option ID from updated product
+        type_opt = None
+        for o in (updated_product.get("options") or []):
+            if o["name"].lower() == "type":
+                type_opt = o
+                break
+        if type_opt:
+            type_opt_id = str(type_opt["id"])
+            data = _gql_call(shop, token, _M_VARIANTS_BULK_UPDATE, {
+                "productId": product_gid,
+                "variants": [{
+                    "id": box_gid,
+                    "optionValues": [{"optionId": type_opt_id, "name": "Booster Box"}],
+                }],
+            })
+            ue = (data.get("productVariantsBulkUpdate") or {}).get("userErrors", [])
+            if ue:
+                raise HTTPException(status_code=500, detail=f"Box variant update failed: {ue}")
+            time.sleep(0.3)
+
+            # Step 4: Create Booster Pack variant
+            data = _gql_call(shop, token, _M_VARIANTS_BULK_CREATE, {
+                "productId": product_gid,
+                "variants": [{
+                    "price": float(body.pack_price),
+                    "compareAtPrice": None,
+                    "optionValues": [{"optionId": type_opt_id, "name": "Booster Pack"}],
+                }],
+            })
+            ue = (data.get("productVariantsBulkCreate") or {}).get("userErrors", [])
+            if ue:
+                raise HTTPException(status_code=500, detail=f"Pack variant create failed: {ue}")
+
+            # Step 5: Clean up "Default Title" option value if present
+            time.sleep(0.3)
+            default_val_id = None
+            for ov in (type_opt.get("optionValues") or []):
+                if ov["name"] == "Default Title":
+                    default_val_id = ov["id"]
+                    break
+            if default_val_id:
+                try:
+                    _gql_call(shop, token, _M_PRODUCT_OPTION_UPDATE, {
+                        "productId": product_gid,
+                        "option": {"id": type_opt_id, "name": "Type", "position": int(type_opt.get("position") or 1)},
+                        "optionValuesToAdd": None,
+                        "optionValuesToDelete": [default_val_id],
+                        "variantStrategy": "LEAVE_AS_IS",
+                    })
+                except Exception:
+                    pass  # non-fatal cleanup
+
+            # Sync new variant to local DB
+            new_variants = (data.get("productVariantsBulkCreate") or {}).get("productVariants", [])
+            for nv in new_variants:
+                local_variant = Variant(
+                    product_id=product.id,
+                    shopify_id=nv["id"],
+                    title=nv.get("title", "Booster Pack"),
+                    option_value="Booster Pack",
+                    price=float(nv.get("price", body.pack_price)),
+                )
+                db.add(local_variant)
+            db.commit()
+
+    return {"message": f"Booster Pack variant added at kr {body.pack_price}", "product": product.title}
 
 
 @router.post("/fetch", response_model=dict)

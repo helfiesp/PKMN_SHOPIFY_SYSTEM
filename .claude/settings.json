@@ -9,7 +9,8 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app/routers/snkrdunk.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app/models.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''app/schemas.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
-      "Bash(python -c \"from app.routers.snkrdunk import router; print\\(''Router OK''\\)\")"
+      "Bash(python -c \"from app.routers.snkrdunk import router; print\\(''Router OK''\\)\")",
+      "Bash(python -c \"from app.routers.snkrdunk import router; print\\(''Import OK''\\)\")"
     ]
   }
 }

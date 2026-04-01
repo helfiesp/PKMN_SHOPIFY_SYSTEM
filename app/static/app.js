@@ -597,94 +597,91 @@ async function applyBoosterPlan(planId) {
 // SNKRDUNK
 // ─────────────────────────────────────────────────────────────────────────────
 let snkSettings = {};
+let _shopifyFetchedAt = 0; // timestamp of last Shopify product fetch
 
 async function loadSnkSettings() {
     try {
         snkSettings = await api('/snkrdunk/settings');
-        const ship = document.getElementById('snk-set-shipping');
-        const marg = document.getElementById('snk-set-margin');
-        const pack = document.getElementById('snk-set-pack-markup');
-        const auto = document.getElementById('snk-set-auto-update');
-        const stat = document.getElementById('snk-auto-update-status');
-        if (ship) ship.value = snkSettings.snk_shipping_jpy || '500';
-        if (marg) marg.value = snkSettings.snk_margin_pct || '20';
-        if (pack) pack.value = snkSettings.snk_pack_markup_pct || '10';
-        if (auto) auto.checked = snkSettings.snk_auto_update === 'true';
-        if (stat) stat.textContent = snkSettings.snk_auto_update === 'true' ? 'Enabled' : 'Disabled';
-        // Sync quick-controls with saved settings
-        const qShip = document.getElementById('snk-shipping');
-        const qMarg = document.getElementById('snk-margin');
-        if (qShip) qShip.value = snkSettings.snk_shipping_jpy || '500';
-        if (qMarg) qMarg.value = snkSettings.snk_margin_pct || '20';
+        const el = (id) => document.getElementById(id);
+        if (el('snk-rate'))        el('snk-rate').value        = snkSettings.snk_jpy_nok_rate || '0.063';
+        if (el('snk-shipping'))    el('snk-shipping').value    = snkSettings.snk_shipping_jpy || '500';
+        if (el('snk-margin'))      el('snk-margin').value      = snkSettings.snk_margin_pct  || '20';
+        if (el('snk-pack-markup')) el('snk-pack-markup').value  = snkSettings.snk_pack_markup_pct || '10';
+        if (el('snk-set-auto-update')) el('snk-set-auto-update').checked = snkSettings.snk_auto_update === 'true';
+        if (el('snk-auto-status')) el('snk-auto-status').textContent = snkSettings.snk_auto_update === 'true' ? 'On' : 'Off';
     } catch (_) {}
 }
 
 async function saveSnkSettings() {
     try {
+        const el = (id) => document.getElementById(id);
         await api('/snkrdunk/settings', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                snk_shipping_jpy: document.getElementById('snk-set-shipping')?.value || '500',
-                snk_margin_pct: document.getElementById('snk-set-margin')?.value || '20',
-                snk_pack_markup_pct: document.getElementById('snk-set-pack-markup')?.value || '10',
-                snk_auto_update: document.getElementById('snk-set-auto-update')?.checked ? 'true' : 'false',
+                snk_jpy_nok_rate:    el('snk-rate')?.value || '0.063',
+                snk_shipping_jpy:    el('snk-shipping')?.value || '500',
+                snk_margin_pct:      el('snk-margin')?.value || '20',
+                snk_pack_markup_pct: el('snk-pack-markup')?.value || '10',
+                snk_auto_update:     el('snk-set-auto-update')?.checked ? 'true' : 'false',
             }),
         });
-        const stat = document.getElementById('snk-auto-update-status');
-        if (stat) stat.textContent = document.getElementById('snk-set-auto-update')?.checked ? 'Enabled' : 'Disabled';
-        // Sync quick-controls
-        const qShip = document.getElementById('snk-shipping');
-        const qMarg = document.getElementById('snk-margin');
-        if (qShip) qShip.value = document.getElementById('snk-set-shipping')?.value || '500';
-        if (qMarg) qMarg.value = document.getElementById('snk-set-margin')?.value || '20';
-        toast('SNKRDUNK settings saved', 'success');
+        if (el('snk-auto-status')) el('snk-auto-status').textContent = el('snk-set-auto-update')?.checked ? 'On' : 'Off';
+        // Update local cache
+        snkSettings.snk_jpy_nok_rate    = el('snk-rate')?.value || '0.063';
+        snkSettings.snk_shipping_jpy    = el('snk-shipping')?.value || '500';
+        snkSettings.snk_margin_pct      = el('snk-margin')?.value || '20';
+        snkSettings.snk_pack_markup_pct = el('snk-pack-markup')?.value || '10';
+        snkSettings.snk_auto_update     = el('snk-set-auto-update')?.checked ? 'true' : 'false';
+        toast('Settings saved', 'success');
         renderSnkrdunkTable();
     } catch (e) {
-        toast(`Failed to save settings: ${e.message}`, 'error');
+        toast(`Save failed: ${e.message}`, 'error');
     }
 }
 
 async function runSnkAutoUpdate() {
     const btn = document.getElementById('btn-snk-auto-update');
-    if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Pushing…'; }
     try {
         const res = await api('/snkrdunk/auto-update', { method: 'POST' });
         const pushed = res.pushed || 0;
         const errs = (res.errors || []).length;
-        toast(`Auto-update done: ${pushed} products updated${errs ? `, ${errs} errors` : ''}`, pushed ? 'success' : 'info');
-        // Reload products to reflect new prices
+        toast(`${pushed} products updated${errs ? `, ${errs} errors` : ''}`, pushed ? 'success' : 'info');
+        _shopifyFetchedAt = 0; // force refresh after price push
         await loadSnkrdunk();
     } catch (e) {
         toast(`Auto-update failed: ${e.message}`, 'error');
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Run Auto-Update Now'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Push All Prices'; }
     }
+}
+
+const SNK_SHOPIFY_CACHE_MS = 5 * 60 * 1000; // 5 minutes
+
+async function _ensureShopifyProducts(force) {
+    const age = Date.now() - _shopifyFetchedAt;
+    if (!force && _shopifyFetchedAt && age < SNK_SHOPIFY_CACHE_MS && shopifyProducts.length) return;
+    try {
+        const res = await api('/shopify/products?limit=2000');
+        shopifyProducts = res.products || res || shopifyProducts;
+        _shopifyFetchedAt = Date.now();
+    } catch (_) {}
 }
 
 async function loadSnkrdunk() {
     showTabLoading('snkrdunk-table-wrap');
     try {
-        // First: refresh live prices from Shopify for mapped products
-        api('/shopify/refresh-mapped-prices', { method: 'POST' }).catch(() => {});
-
-        const [snkRes, logsRes, prodRes, mapRes] = await Promise.allSettled([
+        const [snkRes, logsRes, mapRes] = await Promise.allSettled([
             api('/snkrdunk/products'),
             api('/snkrdunk/scan-logs?limit=10'),
-            api('/shopify/products?limit=2000'),
             api('/mappings/snkrdunk?limit=500'),
         ]);
         snkrdunkItems    = snkRes.status  === 'fulfilled' ? (snkRes.value.items || []) : [];
         const logs       = logsRes.status === 'fulfilled' ? logsRes.value : [];
-        shopifyProducts  = prodRes.status === 'fulfilled' ? (prodRes.value.products || prodRes.value || shopifyProducts) : shopifyProducts;
         snkrdunkMappings = mapRes.status  === 'fulfilled' ? mapRes.value : snkrdunkMappings;
 
-        // Re-fetch products after price refresh completes (may have updated by now)
-        try {
-            const freshProds = await api('/shopify/products?limit=2000');
-            shopifyProducts = freshProds.products || freshProds || shopifyProducts;
-        } catch (_) {}
-
+        await _ensureShopifyProducts(false);
         await loadSnkSettings();
         renderSnkrdunkTable();
         renderSnkrdunkLogs(logs);
@@ -706,10 +703,8 @@ async function fetchSnkrdunk() {
         });
         toast(`Fetched ${res.total_items || 0} items from SNKRDUNK`, 'success');
         await loadSnkrdunk();
-
-        // Auto-update prices if enabled
         if (snkSettings.snk_auto_update === 'true') {
-            toast('Auto-update enabled — pushing prices to Shopify…', 'info');
+            toast('Auto-update enabled — pushing prices…', 'info');
             await runSnkAutoUpdate();
         }
     } catch (e) {
@@ -719,7 +714,7 @@ async function fetchSnkrdunk() {
     }
 }
 
-// ── Pack-count helpers (mirrors backend SPECIAL_PACK_COUNTS) ────────────
+// ── Pack-count helpers (mirrors backend) ────────────────────────────────
 const SNK_SPECIAL_PACKS = [
     ['terastal festival', 10], ['mega dream', 10], ['vstar universe', 10],
     ['shiny treasure ex', 10], ['shiny treasure', 10], ['pokemon 151', 20],
@@ -742,13 +737,12 @@ function renderSnkrdunkTable() {
     const rate     = parseFloat(document.getElementById('snk-rate')?.value || '0.063');
     const shipping = parseFloat(document.getElementById('snk-shipping')?.value || '500');
     const margin   = parseFloat(document.getElementById('snk-margin')?.value || '20') / 100;
-    const packMarkup = parseFloat(snkSettings.snk_pack_markup_pct || '10') / 100;
+    const packMarkup = parseFloat(document.getElementById('snk-pack-markup')?.value || '10') / 100;
     const VAT      = 0.25;
 
     const prevMap = {};
     for (const p of snkrdunkPrevItems) prevMap[p.id] = p.minPrice || p.minPriceJpy;
 
-    // Build mapping lookup: snkrdunk_key → mapping object
     const snkToShopify = {};
     const snkToMapping = {};
     for (const m of snkrdunkMappings) {
@@ -774,7 +768,7 @@ function renderSnkrdunkTable() {
 
         let boxPrice = null, boxVariantDbId = null;
         let packPrice = null, packVariantDbId = null;
-        let packs = null;
+        let packs = null, hasPack = false;
 
         if (shopProd) {
             const variants = shopProd.variants || [];
@@ -784,68 +778,63 @@ function renderSnkrdunkTable() {
             if (boxV)  { boxPrice = boxV.price; boxVariantDbId = boxV.id; }
             else if (variants.length === 1) { boxPrice = variants[0].price; boxVariantDbId = variants[0].id; }
 
-            if (packV) { packPrice = packV.price; packVariantDbId = packV.id; }
+            if (packV) { packPrice = packV.price; packVariantDbId = packV.id; hasPack = true; }
 
-            // Determine packs per box
             packs = (mapping && mapping.packs_per_box) || snkDetectPacks(shopProd.title);
         }
 
-        // Pack recommended price
         const packRec = packs ? snkRoundPackPsych((boxRec / packs) * (1 + packMarkup)) : null;
-
         const boxDiff  = boxPrice != null ? boxPrice - boxRec : null;
         const packDiff = packPrice != null && packRec != null ? packPrice - packRec : null;
 
         return {
             item, jpy, boxRec, packRec, spike, spikePct, shopProd, mapping,
             boxPrice, boxVariantDbId, packPrice, packVariantDbId,
-            boxDiff, packDiff, packs,
+            boxDiff, packDiff, packs, hasPack,
         };
     });
 
     // Filters
-    const spikeOnly      = document.getElementById('snk-spikes-only')?.checked;
-    const mismatchOnly   = document.getElementById('snk-mismatch-only')?.checked;
+    const spikeOnly       = document.getElementById('snk-spikes-only')?.checked;
+    const mismatchOnly    = document.getElementById('snk-mismatch-only')?.checked;
     const underpricedOnly = document.getElementById('snk-underpriced-only')?.checked;
     let filtered = rows;
     if (spikeOnly)       filtered = filtered.filter(r => r.spike);
     if (mismatchOnly)    filtered = filtered.filter(r => (r.boxDiff != null && Math.abs(r.boxDiff) > 25) || (r.packDiff != null && Math.abs(r.packDiff) > 10));
     if (underpricedOnly) filtered = filtered.filter(r => (r.boxDiff != null && r.boxDiff < -25) || (r.packDiff != null && r.packDiff < -10));
 
-    // Summary stats
+    // Summary
     const mapped = rows.filter(r => r.boxPrice != null);
-    const underpriced = mapped.filter(r => r.boxDiff < -25);
-    const overpriced = mapped.filter(r => r.boxDiff > 25);
-    const ok = mapped.filter(r => Math.abs(r.boxDiff || 0) <= 25);
+    const under  = mapped.filter(r => r.boxDiff < -25);
+    const over   = mapped.filter(r => r.boxDiff > 25);
+    const ok     = mapped.filter(r => Math.abs(r.boxDiff || 0) <= 25);
     const summaryEl = document.getElementById('snk-summary');
     if (summaryEl) {
-        summaryEl.innerHTML = `
-            <div class="snk-stat-card"><div class="snk-stat-num">${rows.length}</div><div class="snk-stat-label">SNKRDUNK Products</div></div>
-            <div class="snk-stat-card"><div class="snk-stat-num">${mapped.length}</div><div class="snk-stat-label">Mapped</div></div>
-            <div class="snk-stat-card snk-stat-ok"><div class="snk-stat-num">${ok.length}</div><div class="snk-stat-label">Correctly Priced</div></div>
-            <div class="snk-stat-card snk-stat-warn"><div class="snk-stat-num">${underpriced.length}</div><div class="snk-stat-label">Underpriced</div></div>
-            <div class="snk-stat-card snk-stat-danger"><div class="snk-stat-num">${overpriced.length}</div><div class="snk-stat-label">Overpriced</div></div>
-        `;
+        summaryEl.innerHTML =
+            `<div class="snk-stat-card"><div class="snk-stat-num">${rows.length}</div><div class="snk-stat-label">Products</div></div>` +
+            `<div class="snk-stat-card"><div class="snk-stat-num">${mapped.length}</div><div class="snk-stat-label">Mapped</div></div>` +
+            `<div class="snk-stat-card snk-stat-ok"><div class="snk-stat-num">${ok.length}</div><div class="snk-stat-label">OK</div></div>` +
+            `<div class="snk-stat-card snk-stat-warn"><div class="snk-stat-num">${under.length}</div><div class="snk-stat-label">Under</div></div>` +
+            `<div class="snk-stat-card snk-stat-danger"><div class="snk-stat-num">${over.length}</div><div class="snk-stat-label">Over</div></div>`;
     }
     document.getElementById('snk-count').textContent = `${filtered.length} shown`;
 
     document.getElementById('snkrdunk-table-wrap').innerHTML = `
         <table class="data-table compact-table">
             <thead><tr>
-                <th></th>
+                <th style="width:40px"></th>
                 <th>Product</th>
-                <th style="text-align:right">SNKRDUNK</th>
-                <th style="text-align:right">Box Rec.</th>
-                <th style="text-align:right">Box Price</th>
-                <th style="text-align:right">Pack Rec.</th>
-                <th style="text-align:right">Pack Price</th>
-                <th style="text-align:center">Packs/Box</th>
-                <th style="text-align:center">Status</th>
-                <th style="text-align:center;width:160px">Action</th>
+                <th style="text-align:right">JPY</th>
+                <th style="text-align:center">Packs</th>
+                <th style="text-align:right">Rec. Box</th>
+                <th style="text-align:right">Your Box</th>
+                <th style="text-align:right">Rec. Pack</th>
+                <th style="text-align:right">Your Pack</th>
+                <th style="text-align:center;width:130px">Action</th>
             </tr></thead>
             <tbody>
                 ${filtered.length === 0
-                    ? '<tr><td colspan="10" class="text-center muted" style="padding:2rem">No products match filters.</td></tr>'
+                    ? '<tr><td colspan="9" class="text-center muted" style="padding:2rem">No products match filters.</td></tr>'
                     : filtered.map(r => renderSnkRow(r)).join('')}
             </tbody>
         </table>`;
@@ -853,86 +842,81 @@ function renderSnkrdunkTable() {
 
 function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd, mapping,
                          boxPrice, boxVariantDbId, packPrice, packVariantDbId,
-                         boxDiff, packDiff, packs }) {
+                         boxDiff, packDiff, packs, hasPack }) {
     const boxOver  = boxDiff != null && boxDiff > 25;
     const boxUnder = boxDiff != null && boxDiff < -25;
+    const packOver = packDiff != null && packDiff > 10;
+    const packUnder = packDiff != null && packDiff < -10;
+
     const imgUrl = shopProd?.image_url;
     const img = imgUrl
-        ? `<img src="${imgUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:4px">`
-        : '<div style="width:36px;height:36px;background:var(--bg-secondary);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--text-secondary)">JPY</div>';
+        ? `<img src="${imgUrl}" style="width:32px;height:32px;object-fit:cover;border-radius:4px">`
+        : '<div style="width:32px;height:32px;background:var(--bg-secondary);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:var(--text-secondary)">JPY</div>';
 
     const rowClass = boxOver ? 'snk-row-over' : boxUnder ? 'snk-row-under' : '';
 
-    // Status badge (based on box price)
-    let statusHtml;
-    if (boxPrice == null) {
-        statusHtml = '<span class="badge badge-neutral badge-sm">Not mapped</span>';
-    } else if (boxOver) {
-        const pct = boxRec ? ((boxDiff / boxRec) * 100).toFixed(1) : '?';
-        statusHtml = `<span class="badge badge-danger badge-sm">+${pct}%</span>`;
-    } else if (boxUnder) {
-        const pct = boxRec ? ((boxDiff / boxRec) * 100).toFixed(1) : '?';
-        statusHtml = `<span class="badge badge-warning badge-sm">${pct}%</span>`;
-    } else {
-        statusHtml = '<span class="badge badge-success badge-sm">OK</span>';
-    }
-
-    // Spike indicator
+    // Spike
     const spikeHtml = spike
-        ? `<span class="snk-spike ${Number(spikePct) > 0 ? 'snk-spike-up' : 'snk-spike-down'}">${Number(spikePct) > 0 ? '▲' : '▼'}${Math.abs(spikePct)}%</span>`
+        ? ` <span class="snk-spike ${Number(spikePct) > 0 ? 'snk-spike-up' : 'snk-spike-down'}">${Number(spikePct) > 0 ? '▲' : '▼'}${Math.abs(spikePct)}%</span>`
         : '';
 
-    // Action buttons — update both box and pack
-    let actionHtml = '';
-    if (boxPrice == null && !shopProd) {
-        actionHtml = `<button class="btn btn-xs btn-sm" onclick="event.stopPropagation();snkOpenMapping('${item.id}', '${(item.nameEn || item.name || '').replace(/'/g, "\\'")}')">Map</button>`;
-    } else {
-        const btns = [];
-        if (boxVariantDbId && boxDiff != null && Math.abs(boxDiff) > 25) {
-            btns.push(`<button class="btn btn-xs ${boxUnder ? 'btn-primary' : 'btn-warning'}"
-                onclick="event.stopPropagation();snkUpdatePrice(${boxVariantDbId}, ${boxRec}, this)"
-                style="font-size:.7rem;padding:.2rem .4rem">Box → ${fmtNum(boxRec)}</button>`);
-        }
-        if (packVariantDbId && packDiff != null && Math.abs(packDiff) > 10 && packRec) {
-            btns.push(`<button class="btn btn-xs ${packDiff < -10 ? 'btn-primary' : 'btn-warning'}"
-                onclick="event.stopPropagation();snkUpdatePrice(${packVariantDbId}, ${packRec}, this)"
-                style="font-size:.7rem;padding:.2rem .4rem">Pack → ${fmtNum(packRec)}</button>`);
-        }
-        actionHtml = btns.length ? btns.join(' ') : '<span class="muted" style="font-size:.75rem">—</span>';
-    }
-
-    // Packs/Box cell — editable for mapped products
+    // Packs dropdown
     let packsHtml = '<span class="muted">—</span>';
     if (shopProd && mapping) {
-        const snkKey = item.id;
-        packsHtml = `<select class="input-sm snk-packs-select" style="width:55px;font-size:.75rem;padding:.15rem .25rem"
-            onchange="snkUpdatePacks('${snkKey}', this.value)"
-            data-snk-packs="${snkKey}">
+        packsHtml = `<select class="input-sm snk-packs-select"
+            onchange="snkUpdatePacks('${item.id}', this.value)">
             ${[5, 10, 15, 20, 25, 30].map(n =>
                 `<option value="${n}" ${n === packs ? 'selected' : ''}>${n}</option>`
             ).join('')}
         </select>`;
     }
 
-    // Pack price cells
-    const packRecHtml = packRec != null ? fmtNok(packRec) : '<span class="muted">—</span>';
-    const packPriceHtml = packPrice != null ? fmtNok(packPrice) : '<span class="muted">—</span>';
-    const packDiffStyle = packDiff != null && packDiff < -10 ? 'color:var(--warning,#f59e0b)' : packDiff != null && packDiff > 10 ? 'color:var(--danger,#ef4444)' : '';
+    // Box price cell
+    const boxColor = boxOver ? 'color:var(--danger,#ef4444)' : boxUnder ? 'color:var(--warning,#f59e0b)' : '';
+    const boxHtml = boxPrice != null ? `<span style="${boxColor}">${fmtNok(boxPrice)}</span>` : '<span class="muted">—</span>';
+
+    // Pack price cell
+    const packColor = packOver ? 'color:var(--danger,#ef4444)' : packUnder ? 'color:var(--warning,#f59e0b)' : '';
+    let packHtml;
+    if (hasPack) {
+        packHtml = `<span style="${packColor}">${fmtNok(packPrice)}</span>`;
+    } else if (shopProd) {
+        packHtml = `<span class="snk-variant-tag add-pack" onclick="event.stopPropagation();snkAddPackVariant('${shopProd.shopify_id}', ${packRec || 0})" title="Add Booster Pack variant">+ Add</span>`;
+    } else {
+        packHtml = '<span class="muted">—</span>';
+    }
+
+    // Action buttons
+    let actionHtml = '';
+    if (!shopProd) {
+        actionHtml = `<button class="btn btn-xs" onclick="event.stopPropagation();snkOpenMapping('${item.id}', '${(item.nameEn || item.name || '').replace(/'/g, "\\'")}')">Map</button>`;
+    } else {
+        const btns = [];
+        if (boxVariantDbId && boxDiff != null && Math.abs(boxDiff) > 25) {
+            btns.push(`<button class="btn btn-xs ${boxUnder ? 'btn-primary' : 'btn-warning'}"
+                onclick="event.stopPropagation();snkUpdatePrice(${boxVariantDbId}, ${boxRec}, this)"
+                style="font-size:.7rem;padding:.15rem .35rem">Box→${fmtNum(boxRec)}</button>`);
+        }
+        if (packVariantDbId && packDiff != null && Math.abs(packDiff) > 10 && packRec) {
+            btns.push(`<button class="btn btn-xs ${packUnder ? 'btn-primary' : 'btn-warning'}"
+                onclick="event.stopPropagation();snkUpdatePrice(${packVariantDbId}, ${packRec}, this)"
+                style="font-size:.7rem;padding:.15rem .35rem">Pk→${fmtNum(packRec)}</button>`);
+        }
+        actionHtml = btns.length ? btns.join(' ') : '<span class="muted" style="font-size:.7rem">OK</span>';
+    }
 
     return `<tr class="${rowClass}" data-snk-id="${item.id}">
         <td>${img}</td>
         <td>
-            <strong style="font-size:.8125rem">${item.nameEn || item.name || item.id}</strong>
-            ${spikeHtml}
-            ${shopProd ? `<br><span class="muted" style="font-size:.7rem">${shopProd.title}</span>` : ''}
+            <strong style="font-size:.8rem">${item.nameEn || item.name || item.id}</strong>${spikeHtml}
+            ${shopProd ? `<div class="snk-sub">${shopProd.title}</div>` : ''}
         </td>
         <td class="mono" style="text-align:right">¥${fmt(jpy)}</td>
-        <td class="mono" style="text-align:right;font-weight:600">${fmtNok(boxRec)}</td>
-        <td class="mono" style="text-align:right;${boxOver ? 'color:var(--danger,#ef4444)' : boxUnder ? 'color:var(--warning,#f59e0b)' : ''}">${boxPrice != null ? fmtNok(boxPrice) : '<span class="muted">—</span>'}</td>
-        <td class="mono" style="text-align:right;font-weight:600;${packDiffStyle}">${packRecHtml}</td>
-        <td class="mono" style="text-align:right;${packDiffStyle}">${packPriceHtml}</td>
         <td style="text-align:center">${packsHtml}</td>
-        <td style="text-align:center">${statusHtml}</td>
+        <td class="mono" style="text-align:right;font-weight:600">${fmtNok(boxRec)}</td>
+        <td class="mono" style="text-align:right">${boxHtml}</td>
+        <td class="mono" style="text-align:right;font-weight:600">${packRec != null ? fmtNok(packRec) : '<span class="muted">—</span>'}</td>
+        <td class="mono" style="text-align:right">${packHtml}</td>
         <td style="text-align:center">${actionHtml}</td>
     </tr>`;
 }
@@ -945,11 +929,25 @@ async function snkUpdatePacks(snkrdunkKey, value) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ packs_per_box: packs }),
         });
-        // Update local mapping
         const m = snkrdunkMappings.find(m => String(m.snkrdunk_key) === String(snkrdunkKey));
         if (m) m.packs_per_box = packs;
         renderSnkrdunkTable();
-        toast(`Packs/box updated to ${packs}`, 'success');
+    } catch (e) {
+        toast(`Failed: ${e.message}`, 'error');
+    }
+}
+
+async function snkAddPackVariant(productShopifyId, packPrice) {
+    if (!confirm(`Add a Booster Pack variant (kr ${fmtNum(packPrice)}) to this product?`)) return;
+    try {
+        const res = await api('/snkrdunk/add-pack-variant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ product_shopify_id: productShopifyId, pack_price: packPrice }),
+        });
+        toast(res.message || 'Pack variant added', 'success');
+        _shopifyFetchedAt = 0; // force Shopify refresh
+        await loadSnkrdunk();
     } catch (e) {
         toast(`Failed: ${e.message}`, 'error');
     }
@@ -996,7 +994,7 @@ function snkOpenMapping(snkrdunkKey, snkrdunkName) {
     const mapRow = document.createElement('tr');
     mapRow.className = 'snk-mapping-row';
     mapRow.innerHTML = `
-        <td colspan="8" style="background:var(--bg-secondary);padding:.75rem 1rem">
+        <td colspan="9" style="background:var(--bg-secondary);padding:.75rem 1rem">
             <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
                 <strong style="font-size:.8125rem">Map "${snkrdunkName}" to Shopify product:</strong>
                 <div style="position:relative;flex:1;min-width:200px">
