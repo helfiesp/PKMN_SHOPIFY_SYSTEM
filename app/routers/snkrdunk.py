@@ -194,22 +194,24 @@ def _detect_packs_per_box(title: str) -> int:
     return 30
 
 
-def _round_up_nok(amount: float, step: int = 25) -> int:
-    return int(math.ceil(amount / step) * step)
+def _round_up_nok(amount: float) -> int:
+    """Round up to the next number ending in 9, skip x09 → x19.
+    Exact hundreds (1000, 1100) → previous 99 (999, 1099).
+    """
+    n = int(amount)
+    if amount > n:
+        n += 1
+    if n % 100 == 0:
+        return n - 1
+    result = n + (9 - n % 10)
+    if result % 100 == 9 and (result // 10) % 10 == 0:
+        result += 10
+    return result
 
 
 def _round_pack_price_psych(n: float) -> int:
-    """Round pack price with psychological pricing (ending in 5 or 9)."""
-    x = int(n) if float(n).is_integer() else int(n) + 1
-    if x >= 100 and (x % 100) <= 9:
-        return (x // 100) * 100 - 1
-    if x % 10 in (5, 9):
-        return x
-    for d in range(1, 30):
-        y = x + d
-        if y % 10 in (5, 9):
-            return y
-    return x
+    """Round pack price up to nearest ending in 25, 49, 75, or 99."""
+    return _round_up_nok(n)
 
 
 import math
@@ -270,7 +272,7 @@ async def run_auto_update(db: Session = Depends(get_db)):
 
         # Calculate box price: (jpy + shipping) * rate / (1 - margin) * 1.25 rounded up to 25
         nok_cost = (jpy + shipping) * rate
-        box_price = _round_up_nok((nok_cost / (1 - margin)) * (1 + VAT), 25)
+        box_price = _round_up_nok((nok_cost / (1 - margin)) * (1 + VAT))
 
         # Determine packs per box
         product = db.query(Product).filter(

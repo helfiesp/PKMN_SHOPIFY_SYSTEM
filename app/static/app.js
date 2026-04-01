@@ -793,13 +793,16 @@ function snkDetectPacks(title) {
     for (const [kw, n] of SNK_SPECIAL_PACKS) { if (t.includes(kw)) return n; }
     return 30;
 }
-function snkRoundPackPsych(n) {
-    let x = Number.isInteger(n) ? n : Math.ceil(n);
-    if (x >= 100 && (x % 100) <= 9) return Math.floor(x / 100) * 100 - 1;
-    if (x % 10 === 5 || x % 10 === 9) return x;
-    for (let d = 1; d < 30; d++) { const y = x + d; if (y % 10 === 5 || y % 10 === 9) return y; }
-    return x;
+function snkRoundUpNok(amount) {
+    const n = Math.ceil(amount);
+    // Exact multiples of 100 → drop to previous 99
+    if (n % 100 === 0) return n - 1;
+    let r = n + (9 - n % 10);
+    // If result would be x09, jump to x19 instead
+    if (r % 100 === 9 && Math.floor(r / 10) % 10 === 0) r += 10;
+    return r;
 }
+function snkRoundPackPsych(n) { return snkRoundUpNok(n); }
 
 function renderSnkrdunkTable() {
     const rate     = parseFloat(document.getElementById('snk-rate')?.value || '0.063');
@@ -826,7 +829,7 @@ function renderSnkrdunkTable() {
     const rows = snkrdunkItems.map(item => {
         const jpy      = item.minPrice || item.minPriceJpy;
         const nokCost  = (jpy + shipping) * rate;
-        const boxRec   = Math.ceil((nokCost / (1 - margin)) * (1 + VAT) / 25) * 25;
+        const boxRec   = snkRoundUpNok((nokCost / (1 - margin)) * (1 + VAT));
         const prev     = prevMap[item.id];
         const spike    = prev && Math.abs((jpy - prev) / prev) >= SPIKE;
         const spikePct = prev ? (((jpy - prev) / prev) * 100).toFixed(1) : null;
@@ -1920,7 +1923,7 @@ function snkParams() {
 function calcSnkrdunkRec(jpy) {
     const { rate, shipping, margin } = snkParams();
     const cost = (jpy + shipping) * rate;
-    return Math.ceil((cost / (1 - margin)) * 1.25 / 25) * 25;
+    return snkRoundUpNok((cost / (1 - margin)) * 1.25);
 }
 
 // ── Auto-match helpers ────────────────────────────────────────────────────────
