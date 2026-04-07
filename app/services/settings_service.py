@@ -126,6 +126,10 @@ class SettingsService:
             ("shopify_token", None, "Shopify Admin API access token", True),
             ("google_translate_api_key", None, "Google Cloud Translation API key", True),
             ("shopify_api_version", "2024-01", "Shopify API version", False),
+            ("resend_api_key", None, "Resend API key for sending emails", True),
+            ("notification_email", None, "Recipient email for notifications", False),
+            ("notification_from_email", None, "Sender email address (Resend verified domain)", False),
+            ("email_notifications_enabled", "false", "Enable email notifications after SNKRDUNK updates", False),
         ]
         
         for key, value, description, is_sensitive in defaults:

@@ -1785,6 +1785,8 @@ async function loadSettings() {
     } catch (_) { /* setting may not exist yet */ }
     // Load MVA collection IDs
     loadMvaCollectionSettings();
+    // Load email notification settings
+    loadEmailSettings();
 }
 
 function saveCompetitorMinPrice() {
@@ -1852,6 +1854,61 @@ async function toggleAutoShopifyUpdate(enabled) {
         // Revert toggle
         const toggle = document.getElementById('toggle-auto-shopify');
         if (toggle) toggle.checked = !enabled;
+    }
+}
+
+// ── Email notification settings ──────────────────────────────────────────
+
+async function loadEmailSettings() {
+    try {
+        const dict = await api('/settings/dict?mask_sensitive=false');
+        const el = (id) => document.getElementById(id);
+        if (el('email-enabled')) el('email-enabled').checked = dict['email_notifications_enabled'] === 'true';
+        if (el('email-api-key')) el('email-api-key').value = dict['resend_api_key'] || '';
+        if (el('email-recipient')) el('email-recipient').value = dict['notification_email'] || '';
+        if (el('email-from')) el('email-from').value = dict['notification_from_email'] || '';
+    } catch (_) { /* settings may not exist yet */ }
+}
+
+async function saveEmailSettings() {
+    const fields = [
+        { key: 'resend_api_key', el: 'email-api-key', desc: 'Resend API key for sending emails', sensitive: true },
+        { key: 'notification_email', el: 'email-recipient', desc: 'Recipient email for notifications', sensitive: false },
+        { key: 'notification_from_email', el: 'email-from', desc: 'Sender email address (Resend verified domain)', sensitive: false },
+        { key: 'email_notifications_enabled', el: null, desc: 'Enable email notifications after SNKRDUNK updates', sensitive: false },
+    ];
+    try {
+        for (const f of fields) {
+            let value;
+            if (f.key === 'email_notifications_enabled') {
+                value = document.getElementById('email-enabled')?.checked ? 'true' : 'false';
+            } else {
+                value = document.getElementById(f.el)?.value?.trim() || '';
+            }
+            await api('/settings/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: f.key, value, description: f.desc, is_sensitive: f.sensitive }),
+            });
+        }
+        toast('Email settings saved', 'success');
+    } catch (e) {
+        toast(`Failed to save email settings: ${e.message}`, 'error');
+    }
+}
+
+async function sendTestEmail() {
+    const btn = document.getElementById('btn-test-email');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+    try {
+        // Save settings first so they take effect
+        await saveEmailSettings();
+        const res = await api('/snkrdunk/test-email', { method: 'POST' });
+        toast(res.message || 'Test email sent!', 'success');
+    } catch (e) {
+        toast(`Test email failed: ${e.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Send Test Email'; }
     }
 }
 

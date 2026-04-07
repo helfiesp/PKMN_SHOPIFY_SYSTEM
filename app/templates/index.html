@@ -703,6 +703,44 @@
                     </p>
                 </div>
 
+                <!-- Email Notifications -->
+                <div class="card" style="margin-bottom:1.5rem">
+                    <div class="card-header">
+                        <h3>Email Notifications</h3>
+                        <button class="btn btn-sm btn-primary" onclick="saveEmailSettings()">Save</button>
+                    </div>
+                    <div style="padding:.75rem 1.25rem;display:flex;flex-direction:column;gap:.75rem">
+                        <div class="setting-toggle-row">
+                            <div class="setting-toggle-info">
+                                <strong>Enable email reports</strong>
+                                <span class="muted">Send an email after every SNKRDUNK auto-update with a summary of price changes.</span>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="email-enabled">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+                            <div>
+                                <label class="form-label" style="font-size:.8125rem">Resend API Key</label>
+                                <input type="password" id="email-api-key" class="input-sm" placeholder="re_xxxxxxxx" style="width:100%;font-family:monospace" />
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size:.8125rem">Recipient Email</label>
+                                <input type="email" id="email-recipient" class="input-sm" placeholder="you@example.com" style="width:100%" />
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size:.8125rem">From Email</label>
+                                <input type="text" id="email-from" class="input-sm" placeholder="onboarding@resend.dev" style="width:100%" />
+                                <span class="muted" style="font-size:.7rem">Leave blank to use onboarding@resend.dev</span>
+                            </div>
+                            <div style="display:flex;align-items:flex-end">
+                                <button class="btn btn-sm" onclick="sendTestEmail()" id="btn-test-email">Send Test Email</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Purchase Orders settings -->
                 <div class="card" style="margin-bottom:1.5rem">
                     <div class="card-header"><h3>Purchase Orders</h3></div>

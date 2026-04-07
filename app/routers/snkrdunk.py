@@ -15,6 +15,7 @@ from app.models import (
     Setting, Product, Variant, PriceChangeLog,
 )
 from app.config import settings as app_settings
+from app.services.email_service import send_price_update_email, send_test_email
 
 router = APIRouter()
 
@@ -395,6 +396,19 @@ async def run_auto_update(db: Session = Depends(get_db)):
 
     db.commit()
 
+    # Send email notification (non-blocking, never raises)
+    send_price_update_email(
+        db,
+        results=results,
+        settings_summary={
+            "rate": rate,
+            "shipping_jpy": shipping,
+            "margin_pct": margin * 100,
+            "pack_markup_pct": pack_markup_pct * 100,
+        },
+        errors=errors,
+    )
+
     return {
         "rate": rate,
         "shipping_jpy": shipping,
@@ -406,6 +420,17 @@ async def run_auto_update(db: Session = Depends(get_db)):
         "errors": errors,
         "details": results,
     }
+
+
+# ── Test email endpoint ────────────────────────────────────────────────
+
+@router.post("/test-email")
+async def test_email_endpoint(db: Session = Depends(get_db)):
+    """Send a test email to verify Resend configuration."""
+    result = send_test_email(db)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
 
 
 # ── Add Booster Pack variant to a product ────────────────────────────────

@@ -26,6 +26,9 @@ python-dotenv==1.0.0
 python-jose[cryptography]==3.3.0  # For JWT if needed later
 passlib[bcrypt]==1.7.4  # For password hashing if needed later
 
+# Email
+resend==2.5.0
+
 # Optional: async support
 httpx==0.26.0
 aiofiles==23.2.1
