@@ -734,13 +734,18 @@ async function fetchSnkrdunk() {
             body: JSON.stringify({ pages: [1], force_refresh: true }),
         });
         toast(`Fetched ${res.total_items || 0} items from SNKRDUNK`, 'success');
+        // Server handles auto-update if enabled — report result
+        if (res.auto_update) {
+            const au = res.auto_update;
+            if (au.error) {
+                toast(`Auto-update failed: ${au.error}`, 'error');
+            } else {
+                toast(`Auto-update: ${au.pushed} prices pushed`, au.pushed ? 'success' : 'info');
+            }
+        }
         // Fetch live exchange rate before anything else
         const liveRate = await snkFetchLiveRate();
         await loadSnkrdunk();
-        if (snkSettings.snk_auto_update === 'true') {
-            toast(`Auto-update enabled (rate: ${liveRate || '?'}) — pushing prices…`, 'info');
-            await runSnkAutoUpdate();
-        }
     } catch (e) {
         toast(`Fetch failed: ${e.message}`, 'error');
     } finally {
