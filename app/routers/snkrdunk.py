@@ -307,6 +307,7 @@ async def run_auto_update(db: Session = Depends(get_db)):
         updates_to_push = []
         item_result = {
             "product": product.title,
+            "product_shopify_id": product.shopify_id,
             "snkrdunk_key": mapping.snkrdunk_key,
             "jpy": jpy,
             "rate": rate,
@@ -700,6 +701,22 @@ async def fetch_snkrdunk_data(
         # Include the log_id in response
         result['log_id'] = log_id
         print(f"[SNKRDUNK] Successfully created SnkrdunkScanLog #{log_id} with {len(fresh_items)} prices")
+
+        # Server-side auto-update: push prices to Shopify if enabled
+        auto_update = _get_snk_setting(db, "snk_auto_update")
+        if auto_update == "true":
+            print("[SNKRDUNK FETCH] Auto-update enabled, triggering price push...")
+            try:
+                update_result = await run_auto_update(db=db)
+                result['auto_update'] = {
+                    "pushed": update_result.get("pushed", 0),
+                    "errors": len(update_result.get("errors", [])),
+                }
+                print(f"[SNKRDUNK FETCH] Auto-update done: {result['auto_update']}")
+            except Exception as au_err:
+                print(f"[SNKRDUNK FETCH] Auto-update failed: {au_err}")
+                result['auto_update'] = {"error": str(au_err)}
+
         return result
     except Exception as e:
         print(f"[SNKRDUNK] Error during fetch: {str(e)}")
