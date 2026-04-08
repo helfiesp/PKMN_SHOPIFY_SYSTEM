@@ -3,7 +3,7 @@ TZ=Europe/Oslo
 
 # SNKRDUNK scan every 6 hours at 0, 6, 12, 18
 # Logs viewable at: http://localhost:8000 → SNKRDUNK section
-0 6,12,18,0 * * * curl -s -X POST "http://localhost:8000/api/v1/snkrdunk/fetch" -H "Content-Type: application/json" -d '{"pages":[1,2,3],"force_refresh":false}' >> ~/logs/snkrdunk_api.log 2>&1
+0 6,12,18,0 * * * curl -s -X POST "http://localhost:8000/api/v1/snkrdunk/fetch" -H "Content-Type: application/json" -d '{"pages":[1],"force_refresh":true}' >> ~/logs/snkrdunk_api.log 2>&1
 
 # Competitor price refresh every 6 hours at :30 (pulls latest prices from MarketIntel)
 30 6,12,18,0 * * * curl -s -X POST "http://localhost:8000/api/v1/competitor-links/refresh-prices" >> ~/logs/competitor_refresh.log 2>&1

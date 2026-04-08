@@ -219,7 +219,12 @@ import math
 
 
 @router.post("/auto-update")
-async def run_auto_update(db: Session = Depends(get_db)):
+async def run_auto_update_endpoint(db: Session = Depends(get_db)):
+    """API endpoint wrapper for auto-update."""
+    return _execute_auto_update(db)
+
+
+def _execute_auto_update(db: Session):
     """
     Calculate recommended prices from cached SNKRDUNK data and push
     both Booster Box and Booster Pack variant prices to Shopify.
@@ -803,7 +808,7 @@ async def fetch_snkrdunk_data(
         if auto_update == "true":
             print("[SNKRDUNK FETCH] Auto-update enabled, triggering price push...")
             try:
-                update_result = await run_auto_update(db=db)
+                update_result = _execute_auto_update(db)
                 result['auto_update'] = {
                     "pushed": update_result.get("pushed", 0),
                     "errors": len(update_result.get("errors", [])),

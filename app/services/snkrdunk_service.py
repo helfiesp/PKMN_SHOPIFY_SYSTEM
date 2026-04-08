@@ -157,16 +157,25 @@ class SnkrdunkService:
             SnkrdunkCache.brand_id == "manual"
         ).all()
         for entry in manual_entries:
-            for item in entry.response_data.get("apparels", []):
+            for item in (entry.response_data or {}).get("apparels", []):
                 if isinstance(item, dict) and "id" in item:
                     all_items.append(item)
 
+        # Deduplicate by product ID (a product could be in both category and manual)
+        seen_ids = set()
+        unique_items = []
+        for item in all_items:
+            item_id = str(item.get("id"))
+            if item_id not in seen_ids:
+                seen_ids.add(item_id)
+                unique_items.append(item)
+
         return {
-            "total_items": len(all_items),
+            "total_items": len(unique_items),
             "pages_fetched": pages_actually_fetched,
             "manual_refreshed": manual_refreshed,
             "cached_at": now.isoformat(),
-            "items": all_items
+            "items": unique_items
         }
 
     def fetch_single_product(self, db: Session, product_id: int) -> dict:
@@ -516,7 +525,7 @@ class SnkrdunkService:
         all_items = []
         for cache in caches:
             is_manual = cache.brand_id == "manual"
-            apparels = cache.response_data.get("apparels", [])
+            apparels = (cache.response_data or {}).get("apparels", [])
             for item in apparels:
                 if isinstance(item, dict) and "id" in item:
                     name_ja = item.get("name", "")
