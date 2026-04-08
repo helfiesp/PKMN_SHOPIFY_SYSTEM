@@ -1218,9 +1218,17 @@ function snkMapSearch(snkrdunkKey, query) {
     const el = document.getElementById(`snk-map-results-${snkrdunkKey}`);
     if (!query || query.length < 2) { el.style.display = 'none'; return; }
     snkMappingTimeout = setTimeout(async () => {
-        // Search from already-loaded shopifyProducts
+        // Search local first, then fall back to API for full catalogue
         const q = query.toLowerCase();
-        const matches = shopifyProducts.filter(p => p.title.toLowerCase().includes(q)).slice(0, 10);
+        let matches = shopifyProducts.filter(p => p.title.toLowerCase().includes(q)).slice(0, 10);
+
+        // If no local matches, search the full Shopify catalogue via API
+        if (!matches.length) {
+            try {
+                matches = await api(`/shopify/products?search=${encodeURIComponent(query)}&limit=10`);
+            } catch (_) { matches = []; }
+        }
+
         if (!matches.length) {
             el.innerHTML = '<div class="mvat-search-item muted">No products found</div>';
             el.style.display = 'block';
