@@ -15,6 +15,7 @@ class SnkrdunkService:
     """Service for SNKRDUNK operations."""
     
     SNKRDUNK_API_URL = "https://snkrdunk.com/v1/apparel/market/category"
+    SNKRDUNK_SINGLE_API_URL = "https://snkrdunk.com/v1/apparels"
     GOOGLE_TRANSLATE_V2_URL = "https://translation.googleapis.com/language/translate/v2"
     
     # Required headers to avoid 403 Forbidden
@@ -147,14 +148,120 @@ class SnkrdunkService:
                 if name:
                     # This will cache translations for later use
                     self.translate_text(db, name)
-        
+
+        # Also refresh manually-added products so they stay current
+        manual_refreshed = self._refresh_manual_products(db)
+
+        # Collect manual items into the return list for price history recording
+        manual_entries = db.query(SnkrdunkCache).filter(
+            SnkrdunkCache.brand_id == "manual"
+        ).all()
+        for entry in manual_entries:
+            for item in entry.response_data.get("apparels", []):
+                if isinstance(item, dict) and "id" in item:
+                    all_items.append(item)
+
         return {
             "total_items": len(all_items),
             "pages_fetched": pages_actually_fetched,
+            "manual_refreshed": manual_refreshed,
             "cached_at": now.isoformat(),
             "items": all_items
         }
-    
+
+    def fetch_single_product(self, db: Session, product_id: int) -> dict:
+        """Fetch a single product from SNKRDUNK by ID and cache it.
+
+        Uses ``brand_id="manual"`` so ``get_cached_products`` can distinguish
+        manually-added items from the category feed.
+        """
+        url = f"{self.SNKRDUNK_SINGLE_API_URL}/{product_id}"
+        response = requests.get(url, headers=self.SNKRDUNK_HEADERS, timeout=15)
+        response.raise_for_status()
+        product_data = response.json()
+
+        if not product_data or not product_data.get("id"):
+            raise ValueError(f"SNKRDUNK returned no data for product {product_id}")
+
+        cache_ttl = timedelta(hours=settings.snkrdunk_cache_ttl_hours)
+        now = datetime.now(timezone.utc)
+
+        # Wrap in same structure as the category endpoint
+        wrapped = {"apparels": [product_data]}
+
+        cache_entry = db.query(SnkrdunkCache).filter(
+            SnkrdunkCache.page == product_id,
+            SnkrdunkCache.brand_id == "manual",
+        ).first()
+
+        if cache_entry:
+            cache_entry.response_data = wrapped
+            cache_entry.created_at = now
+            cache_entry.expires_at = now + cache_ttl
+        else:
+            cache_entry = SnkrdunkCache(
+                page=product_id,
+                category_id=0,
+                brand_id="manual",
+                response_data=wrapped,
+                created_at=now,
+                expires_at=now + cache_ttl,
+            )
+            db.add(cache_entry)
+
+        db.commit()
+
+        # Translate name
+        name_ja = product_data.get("name") or product_data.get("localizedName") or ""
+        if name_ja:
+            self.translate_text(db, name_ja)
+
+        return {
+            "id": product_data["id"],
+            "name": name_ja,
+            "nameEn": product_data.get("name", ""),
+            "minPriceJpy": product_data.get("minPrice"),
+            "regularPrice": product_data.get("regularPrice"),
+            "imageUrl": (product_data.get("primaryMedia") or {}).get("imageUrl"),
+        }
+
+    def _refresh_manual_products(self, db: Session):
+        """Re-fetch all manually-added SNKRDUNK products to refresh prices."""
+        cache_ttl = timedelta(hours=settings.snkrdunk_cache_ttl_hours)
+        now = datetime.now(timezone.utc)
+
+        manual_entries = db.query(SnkrdunkCache).filter(
+            SnkrdunkCache.brand_id == "manual"
+        ).all()
+
+        refreshed = 0
+        for entry in manual_entries:
+            product_id = entry.page
+            try:
+                url = f"{self.SNKRDUNK_SINGLE_API_URL}/{product_id}"
+                resp = requests.get(url, headers=self.SNKRDUNK_HEADERS, timeout=15)
+                resp.raise_for_status()
+                product_data = resp.json()
+
+                if product_data and product_data.get("id"):
+                    entry.response_data = {"apparels": [product_data]}
+                    entry.created_at = now
+                    entry.expires_at = now + cache_ttl
+                    refreshed += 1
+
+                    # Translate name
+                    name_ja = product_data.get("name") or product_data.get("localizedName") or ""
+                    if name_ja:
+                        self.translate_text(db, name_ja)
+            except Exception as e:
+                print(f"[SNKRDUNK] Failed to refresh manual product {product_id}: {e}")
+
+        if refreshed:
+            db.commit()
+            print(f"[SNKRDUNK] Refreshed {refreshed}/{len(manual_entries)} manual products")
+
+        return refreshed
+
     async def match_and_calculate_prices(
         self,
         db: Session,
@@ -408,29 +515,36 @@ class SnkrdunkService:
         
         all_items = []
         for cache in caches:
+            is_manual = cache.brand_id == "manual"
             apparels = cache.response_data.get("apparels", [])
             for item in apparels:
                 if isinstance(item, dict) and "id" in item:
                     name_ja = item.get("name", "")
-                    
-                    # Filter: Only include products that end with "Box" and meet criteria
-                    if not self._should_include_product(name_ja):
-                        continue
-                    
-                    # Extract quoted name for display
-                    extracted_name = self._extract_quoted_name(name_ja)
-                    
-                    # Skip products without quoted names (generic descriptions)
-                    if not extracted_name:
-                        continue
-                    
+
+                    if is_manual:
+                        # Manual products: no name filtering, use full name
+                        # The SNKRDUNK single-product API returns English names in "name"
+                        display_name = name_ja or "Unknown"
+                        # Try to extract a cleaner short name (quoted text) if available
+                        extracted = self._extract_quoted_name(name_ja)
+                        if extracted:
+                            display_name = extracted
+                    else:
+                        # Auto-fetched: apply standard filters
+                        if not self._should_include_product(name_ja):
+                            continue
+                        extracted_name = self._extract_quoted_name(name_ja)
+                        if not extracted_name:
+                            continue
+                        display_name = extracted_name
+
                     product_id = str(item.get("id"))
-                    
+
                     # Normalize field names for frontend compatibility
                     normalized_item = {
                         "id": item.get("id"),
                         "name": name_ja,  # Keep full original name
-                        "nameEn": extracted_name,  # Use extracted name, will be replaced by translation if available
+                        "nameEn": display_name,
                         "minPriceJpy": item.get("minPrice"),
                         "maxPriceJpy": item.get("maxPrice"),
                         "regularPrice": item.get("regularPrice"),
@@ -439,9 +553,10 @@ class SnkrdunkService:
                         "price_change": price_changes.get(product_id, 0),  # Add price change
                         "_cached_at": cache.created_at.isoformat() if cache.created_at else None,
                         "_page": cache.page,
+                        "_manual": is_manual,
                         "_raw": item  # Keep original data
                     }
-                    
+
                     # If scan_log_id is provided, override prices with historical prices from that scan
                     if scan_log_id and current_scan:
                         from app.models import SnkrdunkPriceHistory
@@ -449,22 +564,24 @@ class SnkrdunkService:
                             SnkrdunkPriceHistory.scan_log_id == scan_log_id,
                             SnkrdunkPriceHistory.snkrdunk_key == product_id
                         ).first()
-                        
+
                         if historical_price:
                             normalized_item["minPriceJpy"] = historical_price.price_jpy
                             normalized_item["last_price_updated"] = current_scan.created_at.isoformat() if current_scan.created_at else None
-                    
-                    # Use pre-loaded translation if available, otherwise use extracted name
-                    # (translations happen in background fetch, not on every GET)
+
+                    # Use pre-loaded translation if available
                     if translate and name_ja:
                         translated = existing_translations.get(name_ja, "")
                         if translated:
-                            # If we have a translation, also extract quoted text from it
-                            normalized_item["nameEn"] = self._extract_quoted_name(translated)
-                        # else: keep the extracted_name from original
-                    
+                            extracted_translated = self._extract_quoted_name(translated)
+                            if extracted_translated:
+                                normalized_item["nameEn"] = extracted_translated
+                            elif is_manual:
+                                # For manual items, use the full translation if no quotes
+                                normalized_item["nameEn"] = translated
+
                     all_items.append(normalized_item)
-        
+
         return all_items
     
     def clear_cache(self, db: Session):

@@ -235,8 +235,12 @@
             <div id="tab-snkrdunk" class="tab-panel">
                 <div class="section-header">
                     <h2>SNKRDUNK Price Monitor</h2>
-                    <div style="display:flex;gap:.5rem;align-items:center">
+                    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
                         <span class="muted" id="snk-count"></span>
+                        <div style="display:flex;gap:.35rem;align-items:center">
+                            <input type="text" id="snk-manual-input" class="input-sm" placeholder="SNKRDUNK link or ID…" style="width:220px;font-size:.8125rem" onkeydown="if(event.key==='Enter')addManualSnkrdunk()" />
+                            <button class="btn btn-sm" id="btn-snk-add-manual" onclick="addManualSnkrdunk()">Add Product</button>
+                        </div>
                         <button class="btn btn-sm" id="btn-snk-auto-update" onclick="runSnkAutoUpdate()">Push All Prices</button>
                         <button class="btn btn-primary btn-sm" id="btn-fetch-snkrdunk" onclick="fetchSnkrdunk()">Refresh Prices</button>
                     </div>

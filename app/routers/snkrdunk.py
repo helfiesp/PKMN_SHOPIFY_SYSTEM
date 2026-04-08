@@ -11,7 +11,7 @@ from app.database import get_db
 from app.schemas import SnkrdunkFetchRequest, SnkrdunkMatchingResponse
 from app.services import snkrdunk_service
 from app.models import (
-    SnkrdunkScanLog, SnkrdunkPriceHistory, SnkrdunkMapping,
+    SnkrdunkScanLog, SnkrdunkPriceHistory, SnkrdunkMapping, SnkrdunkCache,
     Setting, Product, Variant, PriceChangeLog,
 )
 from app.config import settings as app_settings
@@ -432,6 +432,102 @@ async def test_email_endpoint(db: Session = Depends(get_db)):
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     return result
+
+
+# ── Manual SNKRDUNK product endpoints ─────────────────────────────────────
+
+class ManualSnkrdunkRequest(BaseModel):
+    url: Optional[str] = None
+    snkrdunk_id: Optional[str] = None
+
+
+@router.post("/add-manual")
+async def add_manual_snkrdunk(request: ManualSnkrdunkRequest, db: Session = Depends(get_db)):
+    """Add a SNKRDUNK product manually by URL or product ID."""
+    import re as _re
+
+    product_id = None
+
+    if request.url:
+        # Parse product ID from URL like https://snkrdunk.com/apparels/550896
+        match = _re.search(r'/apparels/(\d+)', request.url)
+        if match:
+            product_id = int(match.group(1))
+        else:
+            # Maybe they pasted just a number
+            stripped = request.url.strip()
+            if stripped.isdigit():
+                product_id = int(stripped)
+    elif request.snkrdunk_id:
+        stripped = request.snkrdunk_id.strip()
+        if stripped.isdigit():
+            product_id = int(stripped)
+
+    if not product_id:
+        raise HTTPException(status_code=400, detail="Could not parse a SNKRDUNK product ID. Provide a URL like https://snkrdunk.com/apparels/550896 or a numeric ID.")
+
+    # Check if already exists in cache
+    existing = db.query(SnkrdunkCache).filter(
+        SnkrdunkCache.brand_id == "manual",
+        SnkrdunkCache.page == product_id,
+    ).first()
+
+    try:
+        result = snkrdunk_service.fetch_single_product(db, product_id)
+    except requests.exceptions.HTTPError as e:
+        raise HTTPException(status_code=404, detail=f"Product {product_id} not found on SNKRDUNK")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch product: {e}")
+
+    return {
+        "message": f"Product added: {result.get('nameEn', product_id)}",
+        "product": result,
+        "already_existed": existing is not None,
+    }
+
+
+@router.delete("/manual/{snkrdunk_key}")
+async def remove_manual_snkrdunk(snkrdunk_key: int, db: Session = Depends(get_db)):
+    """Remove a manually-added SNKRDUNK product."""
+    cache = db.query(SnkrdunkCache).filter(
+        SnkrdunkCache.brand_id == "manual",
+        SnkrdunkCache.page == snkrdunk_key,
+    ).first()
+
+    if not cache:
+        raise HTTPException(status_code=404, detail=f"Manual product {snkrdunk_key} not found")
+
+    db.delete(cache)
+
+    # Also remove mapping if exists
+    mapping = db.query(SnkrdunkMapping).filter(
+        SnkrdunkMapping.snkrdunk_key == str(snkrdunk_key)
+    ).first()
+    if mapping:
+        db.delete(mapping)
+
+    db.commit()
+    return {"message": f"Removed manual product {snkrdunk_key}"}
+
+
+@router.get("/manual")
+async def list_manual_snkrdunk(db: Session = Depends(get_db)):
+    """List all manually-added SNKRDUNK product IDs."""
+    entries = db.query(SnkrdunkCache).filter(
+        SnkrdunkCache.brand_id == "manual"
+    ).all()
+
+    items = []
+    for entry in entries:
+        apparels = entry.response_data.get("apparels", [])
+        for item in apparels:
+            items.append({
+                "id": item.get("id"),
+                "name": item.get("name", ""),
+                "minPrice": item.get("minPrice"),
+            })
+
+    return {"items": items, "total": len(items)}
 
 
 # ── Add Booster Pack variant to a product ────────────────────────────────

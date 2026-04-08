@@ -753,6 +753,42 @@ async function fetchSnkrdunk() {
     }
 }
 
+// ── Add manual SNKRDUNK product ─────────────────────────────────────────
+
+async function addManualSnkrdunk() {
+    const input = document.getElementById('snk-manual-input');
+    const btn = document.getElementById('btn-snk-add-manual');
+    const value = (input?.value || '').trim();
+    if (!value) { toast('Enter a SNKRDUNK link or product ID', 'error'); return; }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+    try {
+        const res = await api('/snkrdunk/add-manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: value }),
+        });
+        toast(res.message || 'Product added', 'success');
+        if (input) input.value = '';
+        await loadSnkrdunk();
+    } catch (e) {
+        toast(`Failed to add: ${e.message}`, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Add Product'; }
+    }
+}
+
+async function removeManualSnkrdunk(snkrdunkKey) {
+    if (!confirm('Remove this manually-added product?')) return;
+    try {
+        await api(`/snkrdunk/manual/${snkrdunkKey}`, { method: 'DELETE' });
+        toast('Product removed', 'success');
+        await loadSnkrdunk();
+    } catch (e) {
+        toast(`Failed to remove: ${e.message}`, 'error');
+    }
+}
+
 // ── Sort state ──────────────────────────────────────────────────────────
 let snkSortCol = null;   // 'name','jpy','boxRec','boxPrice','boxDiff','boxStock', etc.
 let snkSortAsc = true;
@@ -948,12 +984,16 @@ function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
     const hiddenCls = isHidden ? ' snk-tr-hidden' : '';
 
     // ── Not mapped ──
+    const isManual = item._manual === true;
+    const manualBadge = isManual ? '<span style="font-size:.6rem;background:#eef2ff;color:#4f46e5;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:600;vertical-align:middle">MANUAL</span>' : '';
+    const removeBtn = isManual ? `<button class="btn btn-xs btn-danger" onclick="removeManualSnkrdunk('${item.id}')" title="Remove manual product">Remove</button>` : '';
+
     if (!shopProd) {
         return `<tr class="snk-tr-unmapped${hiddenCls}" data-snk-id="${item.id}">
             <td class="snk-td-product">
                 <div class="snk-prod-cell">
                     ${imgUrl ? `<img src="${imgUrl}" class="snk-prod-img">` : '<div class="snk-prod-img snk-prod-img-empty"></div>'}
-                    <div><div class="snk-prod-name">${name} ${spikeHtml}</div></div>
+                    <div><div class="snk-prod-name">${name} ${manualBadge} ${spikeHtml}</div></div>
                 </div>
             </td>
             <td class="mono snk-td-r">¥${fmt(jpy)}</td>
@@ -961,6 +1001,7 @@ function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
             <td class="snk-td-c" style="white-space:nowrap">
                 <button class="btn btn-xs" onclick="snkOpenMapping('${item.id}','${name.replace(/'/g,"\\'")}')">Map</button>
                 ${hideBtn}
+                ${removeBtn}
             </td>
         </tr>`;
     }
@@ -1005,9 +1046,9 @@ function renderSnkRow({ item, jpy, boxRec, packRec, spike, spikePct, shopProd,
             <div class="snk-prod-cell">
                 ${imgUrl ? `<img src="${imgUrl}" class="snk-prod-img">` : '<div class="snk-prod-img snk-prod-img-empty"></div>'}
                 <div>
-                    <div class="snk-prod-name">${name} ${spikeHtml} ${linkHtml}</div>
+                    <div class="snk-prod-name">${name} ${manualBadge} ${spikeHtml} ${linkHtml}</div>
                     <div class="snk-prod-sub">${shopTitle}</div>
-                    <div class="snk-prod-meta">¥${fmt(jpy)} &middot; ${packsSelect} packs &middot; ${hideBtn}</div>
+                    <div class="snk-prod-meta">¥${fmt(jpy)} &middot; ${packsSelect} packs &middot; ${hideBtn}${isManual ? ` &middot; <a href="#" onclick="removeManualSnkrdunk('${item.id}');return false" style="color:#dc2626;font-size:.7rem">Remove</a>` : ''}</div>
                 </div>
             </div>
         </td>
