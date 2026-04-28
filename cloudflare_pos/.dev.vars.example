@@ -1,0 +1,5 @@
+# Local secrets for `wrangler dev`. Copy to `.dev.vars` (gitignored) and fill in.
+SHOPIFY_TOKEN=shpat_xxxxxxxxxxxxxxxxxxxxxxxx
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
+GOOGLE_TRANSLATE_API_KEY=
+POS_PIN=1234

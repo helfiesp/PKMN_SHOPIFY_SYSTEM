@@ -1,0 +1,70 @@
+# Pokelageret POS — Cloudflare Workers config
+#
+# Before first deploy:
+#   1. wrangler d1 create pos_db          → paste the database_id below
+#   2. wrangler kv namespace create CACHE → paste the id below
+#   3. wrangler r2 bucket create pokelageret-pos
+#   4. wrangler secret put SHOPIFY_TOKEN
+#   5. wrangler secret put RESEND_API_KEY
+#   6. wrangler secret put GOOGLE_TRANSLATE_API_KEY  (optional)
+#   7. npm run db:migrate:remote
+#   8. wrangler deploy
+
+name = "cloudflare-pos"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Pages-style static asset serving from /public.
+# Workers will serve assets/* directly; everything else hits the Worker.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Cron Triggers — Snkrdunk price update every 6 hours.
+[triggers]
+crons = ["0 */6 * * *"]
+
+# D1 database (SQLite at the edge).
+[[d1_databases]]
+binding = "DB"
+database_name = "pos_db"
+database_id = "REPLACE_WITH_D1_ID"
+migrations_dir = "migrations"
+
+# KV — cache for Snkrdunk responses, FX rates, translations.
+[[kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_KV_ID"
+
+# R2 — receipt PDFs, margin VAT proof images.
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "pokelageret-pos"
+
+# Non-secret config. Secrets (SHOPIFY_TOKEN, RESEND_API_KEY, GOOGLE_TRANSLATE_API_KEY)
+# are set via `wrangler secret put`.
+[vars]
+SHOPIFY_SHOP = "pokelageret.myshopify.com"
+SHOPIFY_API_VERSION = "2026-01"
+SHOPIFY_LOCATION_ID = ""
+SHOPIFY_DEFAULT_COLLECTION_ID = "444175384827"
+SHOPIFY_BOOSTER_COLLECTION_ID = "444116140283"
+SNKRDUNK_CATEGORY_ID = "14"
+SNKRDUNK_CACHE_TTL_HOURS = "6"
+SNKRDUNK_MAX_PAGES = "20"
+SNKRDUNK_SHIPPING_JPY = "500"
+SNKRDUNK_MARGIN_PCT = "20"
+SNKRDUNK_PACK_MARKUP_PCT = "10"
+SNKRDUNK_BOX_MARKUP_PCT = "20"
+SNKRDUNK_AUTO_UPDATE = "false"
+EMAIL_FROM = "POS <noreply@pokelageret.no>"
+EMAIL_TO = "christian@pokelageret.no"
+COMPANY_NAME = "Pokelageret"
+COMPANY_ORG_NR = ""
+VAT_RATE_PCT = "25"
+
+[observability]
+enabled = true

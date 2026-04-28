@@ -1,0 +1,29 @@
+{
+  "name": "cloudflare-pos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pokelageret POS — Cloudflare Workers + Pages: Shopify sync, barcode scanning, purchase orders, kvitteringer, margin VAT, Snkrdunk price updater",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build:client": "esbuild public/assets/app.ts --bundle --minify --target=es2022 --format=esm --outfile=public/assets/app.js",
+    "watch:client": "esbuild public/assets/app.ts --bundle --target=es2022 --format=esm --outfile=public/assets/app.js --watch",
+    "db:migrate:local": "wrangler d1 migrations apply pos_db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply pos_db --remote",
+    "db:console:local": "wrangler d1 execute pos_db --local --command",
+    "db:console:remote": "wrangler d1 execute pos_db --remote --command",
+    "tail": "wrangler tail",
+    "typecheck": "tsc --noEmit",
+    "cron:test": "wrangler dev --test-scheduled"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^3.95.0"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  }
+}

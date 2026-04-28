@@ -9,7 +9,9 @@
       "Bash(curl -s \"http://192.168.0.100/api/v1/competitor-products?limit=5\" -H \"Authorization: Bearer mw_1dab7febe614d9189824c93fd614d532ce2f0a47083a07f7\")",
       "Bash(curl -s \"http://192.168.0.100/api/v1/competitor-products?search=mega+dream&limit=10\" -H \"Authorization: Bearer mw_1dab7febe614d9189824c93fd614d532ce2f0a47083a07f7\")",
       "Bash(python -c \"from app.services.receipt_service import receipt_service; print\\(''OK''\\)\")",
-      "WebFetch(domain:snkrdunk.com)"
+      "WebFetch(domain:snkrdunk.com)",
+      "Bash(find /Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM/app/models.py -type f -exec wc -l {} \\\\;)",
+      "Bash(find /Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM/competition -name \"*.py\" -type f -exec wc -l {} \\\\;)"
     ]
   }
 }
