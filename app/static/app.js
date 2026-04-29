@@ -1890,6 +1890,41 @@ async function saveSetting(key) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Data export — downloads JSON snapshots for migration to the Cloudflare POS app
+// ─────────────────────────────────────────────────────────────────────────────
+async function exportPurchaseOrders() {
+    try {
+        toast('Building purchase-order export…', 'info');
+        const data = await api('/purchase-orders/export/json');
+        downloadJson(data, `purchase-orders-${new Date().toISOString().slice(0, 10)}.json`);
+        toast(`Exported ${data.count} purchase order(s)`, 'success');
+    } catch (e) {
+        toast(`Export failed: ${e.message}`, 'error');
+    }
+}
+
+async function exportMarginVat(includeProofs) {
+    try {
+        toast(includeProofs ? 'Building margin-VAT export with proofs (may be large)…' : 'Building margin-VAT export…', 'info');
+        const data = await api(`/margin-vat/export/json?include_proofs=${includeProofs ? 'true' : 'false'}`);
+        const suffix = includeProofs ? 'with-proofs' : 'data-only';
+        downloadJson(data, `margin-vat-${suffix}-${new Date().toISOString().slice(0, 10)}.json`);
+        toast(`Exported ${data.count} margin-VAT purchase(s)`, 'success');
+    } catch (e) {
+        toast(`Export failed: ${e.message}`, 'error');
+    }
+}
+
+function downloadJson(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+}
+
 async function toggleAutoShopifyUpdate(enabled) {
     try {
         await api('/settings/', {

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppContext } from "../lib/env.js";
 import { Shopify } from "../lib/shopify.js";
 import { syncCollection } from "../services/shopify-sync.js";
+import { getConfig } from "../lib/config.js";
 
 export const shopify = new Hono<AppContext>();
 
@@ -12,7 +13,9 @@ shopify.post("/sync/:collectionId", async (c) => {
 });
 
 shopify.post("/sync/default", async (c) => {
-  const result = await syncCollection(c.env, c.env.SHOPIFY_DEFAULT_COLLECTION_ID);
+  const collectionId = await getConfig(c.env, "SHOPIFY_DEFAULT_COLLECTION_ID");
+  if (!collectionId) return c.json({ error: "SHOPIFY_DEFAULT_COLLECTION_ID not configured" }, 400);
+  const result = await syncCollection(c.env, collectionId);
   return c.json({ ok: true, ...result });
 });
 
@@ -69,8 +72,9 @@ shopify.post("/variant/:gid{.+}/price", async (c) => {
 shopify.post("/variant/:gid{.+}/inventory", async (c) => {
   const gid = c.req.param("gid");
   const body = await c.req.json<{ quantity: number; mode?: "set" | "adjust" }>();
-  if (!c.env.SHOPIFY_LOCATION_ID) return c.json({ error: "SHOPIFY_LOCATION_ID not configured" }, 400);
-  const locationGid = `gid://shopify/Location/${c.env.SHOPIFY_LOCATION_ID.replace(/^gid:\/\/.*\//, "")}`;
+  const locationId = await getConfig(c.env, "SHOPIFY_LOCATION_ID");
+  if (!locationId) return c.json({ error: "SHOPIFY_LOCATION_ID not configured" }, 400);
+  const locationGid = `gid://shopify/Location/${locationId.replace(/^gid:\/\/.*\//, "")}`;
   const v = await c.env.DB.prepare("SELECT inventory_item_id FROM variants WHERE shopify_id = ?")
     .bind(gid)
     .first<{ inventory_item_id: string | null }>();

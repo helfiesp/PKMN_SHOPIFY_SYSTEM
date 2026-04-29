@@ -7,6 +7,7 @@ import { Shopify } from "../lib/shopify.js";
 import { audit, makeReference, nextSequence } from "../lib/db.js";
 import { getJpyToNokRate } from "./fx.js";
 import { round2 } from "../lib/utils.js";
+import { getConfig } from "../lib/config.js";
 
 export interface PurchaseOrderInput {
   supplier?: string;
@@ -131,8 +132,9 @@ export async function receivePurchaseOrder(
   }>;
 
   const shopify = new Shopify(env);
-  const locationGid = env.SHOPIFY_LOCATION_ID
-    ? `gid://shopify/Location/${env.SHOPIFY_LOCATION_ID.replace(/^gid:\/\/.*\//, "")}`
+  const locationId = await getConfig(env, "SHOPIFY_LOCATION_ID");
+  const locationGid = locationId
+    ? `gid://shopify/Location/${locationId.replace(/^gid:\/\/.*\//, "")}`
     : null;
 
   let updated = 0;

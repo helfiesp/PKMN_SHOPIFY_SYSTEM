@@ -11,7 +11,12 @@
       "Bash(python -c \"from app.services.receipt_service import receipt_service; print\\(''OK''\\)\")",
       "WebFetch(domain:snkrdunk.com)",
       "Bash(find /Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM/app/models.py -type f -exec wc -l {} \\\\;)",
-      "Bash(find /Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM/competition -name \"*.py\" -type f -exec wc -l {} \\\\;)"
+      "Bash(find /Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM/competition -name \"*.py\" -type f -exec wc -l {} \\\\;)",
+      "Read(//Users/christian/Documents/GitHub/POKELAGERET POS/**)",
+      "Read(//Users/christian/Documents/GitHub/POKELAGERET POS/src/**)",
+      "Bash(rsync -a --delete --exclude=node_modules/ --exclude=.wrangler/ --exclude=.git/ --exclude=package-lock.json --exclude=wrangler.toml --exclude=public/assets/app.js /Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM/cloudflare_pos/ '/Users/christian/Documents/GitHub/POKELAGERET POS/')",
+      "Bash(find \"/Users/christian/Documents/GitHub\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.js\" \\\\\\) -exec grep -l \"syncAllProducts\" {} \\\\;)",
+      "Bash(git -C \"/Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM\" log --all --oneline --grep=\"sync.*all\\\\|all.*product\")"
     ]
   }
 }

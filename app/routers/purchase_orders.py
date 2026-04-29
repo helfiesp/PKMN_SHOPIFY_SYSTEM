@@ -132,3 +132,63 @@ async def cancel_purchase_order(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/export/json")
+async def export_purchase_orders(db: Session = Depends(get_db)):
+    """
+    Full JSON dump of every purchase order + items, intended for migration
+    to the Cloudflare POS app's POST /api/v1/purchase-orders/import endpoint.
+
+    Format is intentionally flat — uses Shopify GIDs (not local DB ids) for
+    variant references so the new app can resolve them against its own cache.
+    """
+    from datetime import datetime, timezone
+    from app.models import PurchaseOrder, Variant
+
+    orders = (
+        db.query(PurchaseOrder)
+          .order_by(PurchaseOrder.order_date.asc(), PurchaseOrder.id.asc())
+          .all()
+    )
+
+    out = []
+    for po in orders:
+        items = []
+        for it in po.items:
+            # Translate the local variant_id FK into the Shopify variant GID
+            # so the import side can resolve via its own product cache.
+            variant_gid = None
+            v = db.query(Variant).filter(Variant.id == it.variant_id).first()
+            if v:
+                variant_gid = v.shopify_id
+            items.append({
+                "variant_shopify_id": variant_gid,
+                "product_shopify_id": it.product_shopify_id,
+                "product_title": it.product_title,
+                "variant_title": it.variant_title,
+                "sku": it.sku,
+                "quantity": it.quantity,
+                "unit_price_jpy": it.price_jpy,
+                "weight_grams": it.weight_grams,
+            })
+        out.append({
+            "source_id": po.id,
+            "reference": f"PO-{po.order_date.year}-{po.id:04d}" if po.order_date else f"PO-{po.id:04d}",
+            "order_date": po.order_date.isoformat() if po.order_date else None,
+            "shipping_cost_jpy": po.shipping_cost_jpy or 0,
+            "total_nok": po.total_nok,
+            "fx_rate_snapshot": po.fx_rate_snapshot,
+            "status": po.status or "completed",
+            "notes": po.notes,
+            "created_at": po.created_at.isoformat() if po.created_at else None,
+            "items": items,
+        })
+
+    return {
+        "version": 1,
+        "kind": "purchase_orders",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "count": len(out),
+        "purchase_orders": out,
+    }

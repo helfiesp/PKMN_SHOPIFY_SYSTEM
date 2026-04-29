@@ -14,6 +14,7 @@ import type { AppContext } from "./lib/env.js";
 import { requireAuth } from "./lib/auth.js";
 
 import { auth } from "./routes/auth.js";
+import { config } from "./routes/config.js";
 import { shopify } from "./routes/shopify.js";
 import { snkrdunk } from "./routes/snkrdunk.js";
 import { barcodes } from "./routes/barcodes.js";
@@ -25,14 +26,15 @@ import { settings } from "./routes/settings.js";
 
 import { runSnkrdunkCronCycle } from "./services/snkrdunk.js";
 import { clearExpiredStockDates } from "./services/stock-dates.js";
+import { getConfig } from "./lib/config.js";
 
 const app = new Hono<AppContext>();
 
 app.use("*", logger());
 app.use("/api/*", cors({ origin: "*", credentials: true, maxAge: 86400 }));
 
-app.get("/api/v1/health", (c) =>
-  c.json({ ok: true, ts: Date.now(), shop: c.env.SHOPIFY_SHOP }),
+app.get("/api/v1/health", async (c) =>
+  c.json({ ok: true, ts: Date.now(), shop: await getConfig(c.env, "SHOPIFY_SHOP") }),
 );
 
 // Public auth endpoint (login).
@@ -41,6 +43,7 @@ app.route("/api/v1/auth", auth);
 // Everything else is gated by the POS PIN session cookie.
 const api = new Hono<AppContext>();
 api.use("*", requireAuth);
+api.route("/config", config);
 api.route("/shopify", shopify);
 api.route("/snkrdunk", snkrdunk);
 api.route("/barcodes", barcodes);
@@ -58,7 +61,7 @@ export default {
   fetch: app.fetch,
 
   /**
-   * Cron handler. Configured in wrangler.toml as `0 */6 * * *`.
+   * Cron handler. Configured in wrangler.toml to run every 6 hours.
    *
    * Runs the Snkrdunk price update + email digest every 6 hours.
    * Once a day (at 00:xx), also clears expired stock dates.

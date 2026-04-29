@@ -145,3 +145,98 @@ async def update_shopify_product(data: dict, db: Session = Depends(get_db)):
         return margin_vat_service.update_shopify_product(db, pid, data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/export/json")
+async def export_margin_vat(include_proofs: bool = True, db: Session = Depends(get_db)):
+    """
+    Full JSON dump of every margin-VAT purchase + items + (optionally) proof
+    images base64-encoded inline. Intended for migration to the Cloudflare
+    POS app's POST /api/v1/margin-vat/import endpoint.
+
+    Pass ?include_proofs=false for a smaller file when migrating just the
+    structured data.
+    """
+    import base64
+    import os
+    from pathlib import Path
+    from datetime import datetime, timezone
+    from app.models import MarginVatPurchase
+
+    purchases = (
+        db.query(MarginVatPurchase)
+          .order_by(MarginVatPurchase.created_at.asc(), MarginVatPurchase.id.asc())
+          .all()
+    )
+
+    # Resolve the proof-image upload root (mirrors main.py StaticFiles mount).
+    upload_root = Path(__file__).resolve().parent.parent.parent / "uploads"
+
+    out = []
+    for p in purchases:
+        items = []
+        for it in p.items:
+            items.append({
+                "description": it.description,
+                "quantity": it.quantity,
+                "unit_purchase_price_nok": it.unit_price_nok,
+                "product_shopify_id": it.product_shopify_id,
+                "variant_shopify_id": it.variant_shopify_id,
+                "product_title": it.product_title,
+                "variant_title": it.variant_title,
+                "sku": it.sku,
+                "image_url": it.image_url,
+                "selling_price_nok": it.selling_price_nok,
+                "margin_nok": it.margin_nok,
+                "vat_amount_nok": it.vat_amount_nok,
+                "effective_rate_pct": it.effective_rate_pct,
+                "bucket_rate_pct": it.bucket_rate_pct,
+                "tax_collection_id": it.tax_collection_id,
+                "tax_collection_name": it.tax_collection_name,
+                "needs_reassignment": bool(it.needs_reassignment),
+                "status": it.status or "active",
+            })
+
+        proofs = []
+        for img in p.proof_images:
+            proof = {
+                "filename": img.filename,
+                "stored_filename": img.stored_filename,
+                "content_type": img.content_type,
+                "file_size_bytes": img.file_size_bytes,
+                "description": img.description,
+            }
+            if include_proofs:
+                # Resolve disk path: img.file_path is relative to uploads/
+                disk = upload_root / img.file_path
+                if disk.exists() and disk.is_file():
+                    try:
+                        with open(disk, "rb") as f:
+                            proof["data_base64"] = base64.b64encode(f.read()).decode("ascii")
+                    except Exception as e:
+                        proof["read_error"] = str(e)
+                else:
+                    proof["read_error"] = "file not found on disk"
+            proofs.append(proof)
+
+        out.append({
+            "source_id": p.id,
+            "reference": f"MV-{p.purchase_date.year if p.purchase_date else 2024}-{p.id:04d}",
+            "seller": p.seller,
+            "purchase_date": p.purchase_date.isoformat() if p.purchase_date else None,
+            "notes": p.notes,
+            "status": p.status or "active",
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "total_purchase_nok": sum((it.unit_price_nok or 0) * (it.quantity or 0) for it in p.items),
+            "items": items,
+            "proof_images": proofs,
+        })
+
+    return {
+        "version": 1,
+        "kind": "margin_vat",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "count": len(out),
+        "include_proofs": include_proofs,
+        "purchases": out,
+    }

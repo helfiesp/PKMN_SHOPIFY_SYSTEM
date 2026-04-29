@@ -1443,12 +1443,76 @@ async function renderReceipts(main: HTMLElement): Promise<void> {
 }
 
 // ============================================================================
-// Settings (general — Snkrdunk has its own panel inline)
+// Settings — Configuration panel (DB-backed, env fallback) + raw kv view
 // ============================================================================
+interface ConfigItem {
+  key: string;
+  group: string;
+  label: string;
+  placeholder: string;
+  value: string;
+}
+
 async function renderSettings(main: HTMLElement): Promise<void> {
+  // ---- Friendly Configuration panel ----
+  const cfg = await api<{ items: ConfigItem[] }>("GET", "/config");
+
+  const groups: Record<string, { title: string; items: ConfigItem[] }> = {
+    shopify: { title: "Shopify", items: [] },
+    email:   { title: "Email",   items: [] },
+    company: { title: "Company / Receipts", items: [] },
+  };
+  for (const it of cfg.items) {
+    (groups[it.group] ?? (groups[it.group] = { title: it.group, items: [] })).items.push(it);
+  }
+
+  const cfgPanel = el("div", { class: "panel" });
+  cfgPanel.appendChild(el("h2", {}, ["Configuration"]));
+  cfgPanel.appendChild(el("p", { class: "muted", style: "font-size:13px;" }, [
+    "These overrides live in the database — saved values win over wrangler.toml [vars]. Leave a field blank to fall back to the deployed default.",
+  ]));
+
+  const editedValues: Record<string, string> = {};
+  for (const groupKey of ["shopify", "email", "company"]) {
+    const g = groups[groupKey];
+    if (!g) continue;
+    const section = el("div", { style: "margin-top:18px;" });
+    section.appendChild(el("h3", { style: "font-size:13px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;" }, [g.title]));
+    const grid = el("div", { class: "grid cols-2", style: "gap:10px 16px;" });
+    for (const item of g.items) {
+      editedValues[item.key] = item.value;
+      const id = `cfg-${item.key}`;
+      const input = el("input", {
+        type: "text", id, value: item.value, placeholder: item.placeholder,
+        style: "width:100%;",
+        oninput: (e) => { editedValues[item.key] = (e.target as HTMLInputElement).value; },
+      });
+      grid.appendChild(el("label", { for: id, style: "display:flex;flex-direction:column;gap:4px;font-size:13px;" }, [
+        el("span", { style: "color:#666;" }, [item.label, " ", el("span", { class: "mono", style: "font-size:10px;color:#aaa;" }, [item.key])]),
+        input,
+      ]));
+    }
+    section.appendChild(grid);
+    cfgPanel.appendChild(section);
+  }
+
+  const saveBtn = el("button", { style: "margin-top:18px;" }, ["Save configuration"]);
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.setAttribute("disabled", "true");
+    try {
+      const r = await api<{ updated: string[] }>("PUT", "/config", editedValues);
+      toast(`Saved ${r.updated.length} key${r.updated.length === 1 ? "" : "s"}`);
+    } catch (err) { toast((err as Error).message, true); }
+    saveBtn.removeAttribute("disabled");
+  });
+  cfgPanel.appendChild(saveBtn);
+  main.appendChild(cfgPanel);
+
+  // ---- Raw settings table (Snkrdunk + email knobs + everything else) ----
   const settings = await api<{ items: Array<{ key: string; value: string; description: string | null }> }>("GET", "/settings");
+  const filtered = settings.items.filter((s) => !s.key.startsWith("config."));
   const tbody = el("tbody");
-  for (const s of settings.items) {
+  for (const s of filtered) {
     const input = el("input", {
       type: "text", value: s.value ?? "", style: "width:240px;",
       onchange: async (e) => {
@@ -1465,7 +1529,8 @@ async function renderSettings(main: HTMLElement): Promise<void> {
     ]));
   }
   main.appendChild(el("div", { class: "panel" }, [
-    el("h2", {}, ["Settings"]),
+    el("h2", {}, ["Other settings (Snkrdunk + email + counters)"]),
+    el("p", { class: "muted", style: "font-size:13px;" }, ["Direct DB key/value editing. Use the Snkrdunk page for the named pricing settings instead."]),
     el("table", {}, [
       el("thead", {}, [el("tr", {}, [el("th", {}, ["Key"]), el("th", {}, ["Value"]), el("th", {}, ["Description"])])]),
       tbody,

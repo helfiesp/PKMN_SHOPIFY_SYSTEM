@@ -2,6 +2,7 @@
  * Resend email client.
  */
 import type { Env } from "../lib/env.js";
+import { getConfig } from "../lib/config.js";
 
 export interface EmailPayload {
   to?: string | string[];
@@ -12,7 +13,9 @@ export interface EmailPayload {
 
 export async function sendEmail(env: Env, p: EmailPayload): Promise<{ id?: string; ok: boolean; error?: string }> {
   if (!env.RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY not configured" };
-  const to = p.to ?? env.EMAIL_TO;
+  const to = p.to ?? (await getConfig(env, "EMAIL_TO"));
+  const from = (await getConfig(env, "EMAIL_FROM")) || "POS <onboarding@resend.dev>";
+  if (!to) return { ok: false, error: "EMAIL_TO not configured" };
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -20,7 +23,7 @@ export async function sendEmail(env: Env, p: EmailPayload): Promise<{ id?: strin
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: env.EMAIL_FROM,
+      from,
       to,
       subject: p.subject,
       html: p.html,

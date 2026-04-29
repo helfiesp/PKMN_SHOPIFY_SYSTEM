@@ -11,6 +11,7 @@ import type { Env } from "../lib/env.js";
 import { Shopify } from "../lib/shopify.js";
 import { audit, makeReference, nextSequence } from "../lib/db.js";
 import { round2 } from "../lib/utils.js";
+import { getConfig } from "../lib/config.js";
 
 export interface ReceiptInput {
   customerName?: string;
@@ -46,6 +47,7 @@ export async function createReceipt(env: Env, input: ReceiptInput): Promise<Rece
   let vatTotal = 0;
   let marginVatTotal = 0;
 
+  const defaultVatPct = Number(await getConfig(env, "VAT_RATE_PCT")) || 25;
   const computed = input.items.map((item) => {
     const lineGross = item.quantity * item.unitPriceNok;
     let vatAmount = 0;
@@ -53,7 +55,7 @@ export async function createReceipt(env: Env, input: ReceiptInput): Promise<Rece
       // VAT will be looked up from margin_vat_items.vat_amount_nok at finalize step.
       vatAmount = 0; // placeholder, fixed below
     } else {
-      const vatRate = item.vatRatePct ?? Number(env.VAT_RATE_PCT);
+      const vatRate = item.vatRatePct ?? defaultVatPct;
       vatAmount = lineGross - lineGross / (1 + vatRate / 100);
     }
     return { item, lineGross: round2(lineGross), vatAmount: round2(vatAmount) };
@@ -118,7 +120,7 @@ export async function createReceipt(env: Env, input: ReceiptInput): Promise<Rece
         c.item.description,
         c.item.quantity,
         c.item.unitPriceNok,
-        c.item.vatRatePct ?? Number(env.VAT_RATE_PCT),
+        c.item.vatRatePct ?? defaultVatPct,
         c.item.isMarginVat ? 1 : 0,
         c.item.marginVatPurchaseId ?? null,
         vatAmount,
@@ -166,8 +168,9 @@ async function decrementInventoryForReceipt(
   env: Env,
   items: ReceiptInput["items"],
 ): Promise<void> {
-  if (!env.SHOPIFY_LOCATION_ID) return;
-  const locationGid = `gid://shopify/Location/${env.SHOPIFY_LOCATION_ID.replace(/^gid:\/\/.*\//, "")}`;
+  const locationId = await getConfig(env, "SHOPIFY_LOCATION_ID");
+  if (!locationId) return;
+  const locationGid = `gid://shopify/Location/${locationId.replace(/^gid:\/\/.*\//, "")}`;
   const shopify = new Shopify(env);
   for (const item of items) {
     if (!item.variantShopifyId || item.quantity <= 0) continue;
@@ -240,6 +243,9 @@ export async function renderReceiptHtml(env: Env, id: number): Promise<string> {
   const standardVat = Number(r.vat_total_nok).toFixed(2);
   const marginVat = Number(r.margin_vat_total_nok).toFixed(2);
 
+  const companyName = (await getConfig(env, "COMPANY_NAME")) || "Pokelageret";
+  const companyOrgNr = await getConfig(env, "COMPANY_ORG_NR");
+
   return `<!doctype html>
 <html lang="nb"><head><meta charset="utf-8"><title>Kvittering ${r.receipt_number}</title>
 <style>
@@ -254,8 +260,8 @@ export async function renderReceiptHtml(env: Env, id: number): Promise<string> {
   .small{font-size:11px;color:#666;}
   @media print{body{margin:0;}}
 </style></head><body>
-  <h1>${escapeHtml(env.COMPANY_NAME)}</h1>
-  <div class="meta">${env.COMPANY_ORG_NR ? `Org.nr ${escapeHtml(env.COMPANY_ORG_NR)} · ` : ""}${created}</div>
+  <h1>${escapeHtml(companyName)}</h1>
+  <div class="meta">${companyOrgNr ? `Org.nr ${escapeHtml(companyOrgNr)} · ` : ""}${created}</div>
   <div class="meta">Kvittering <strong>${r.receipt_number}</strong> · ${escapeHtml(String(r.payment_method))}${r.customer_name ? ` · ${escapeHtml(String(r.customer_name))}` : ""}</div>
 
   <table>

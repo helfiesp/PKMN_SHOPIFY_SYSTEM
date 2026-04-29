@@ -811,6 +811,20 @@
                     </div>
                 </div>
 
+                <!-- Data export (for migration to Cloudflare POS) -->
+                <div class="card">
+                    <div class="card-header"><h3>Data export</h3></div>
+                    <div class="card-body">
+                        <p class="muted">Download a JSON snapshot of every purchase order and margin-VAT record. Use these files to import the data into the new Cloudflare POS app (Settings → Bulk import).</p>
+                        <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:10px;">
+                            <button class="btn" onclick="exportPurchaseOrders()">Download purchase orders</button>
+                            <button class="btn" onclick="exportMarginVat(true)">Download margin VAT (with proofs)</button>
+                            <button class="btn btn-secondary" onclick="exportMarginVat(false)">Download margin VAT (no proofs)</button>
+                        </div>
+                        <p class="muted" style="font-size:11px;margin-top:8px;">Margin-VAT proofs are base64-encoded inline in the JSON. Skip them if the file is too large; you can re-upload manually after import.</p>
+                    </div>
+                </div>
+
                 <!-- Settings list -->
                 <div class="card">
                     <div class="card-header"><h3>Configuration</h3></div>

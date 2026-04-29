@@ -9,6 +9,7 @@ import type { Env } from "../lib/env.js";
 import { Shopify } from "../lib/shopify.js";
 import { audit, getSetting, setSetting } from "../lib/db.js";
 import { fetchWithRetry, sleep } from "../lib/utils.js";
+import { getConfig } from "../lib/config.js";
 import { sendEmail } from "./email.js";
 import { translateJaToEn } from "./translation.js";
 
@@ -944,7 +945,7 @@ interface EmailContext {
 
 async function sendPriceUpdateEmail(env: Env, ctx: EmailContext): Promise<void> {
   if ((await getSetting(env, "email_notifications_enabled")) !== "true") return;
-  const recipient = (await getSetting(env, "notification_email")) || env.EMAIL_TO;
+  const recipient = (await getSetting(env, "notification_email")) || (await getConfig(env, "EMAIL_TO"));
   if (!recipient) return;
 
   const pushed = ctx.results.filter((r) => r.pushed);
@@ -1102,7 +1103,7 @@ async function sendPriceUpdateEmail(env: Env, ctx: EmailContext): Promise<void> 
 }
 
 export async function sendTestEmail(env: Env): Promise<{ success: boolean; message: string }> {
-  const recipient = (await getSetting(env, "notification_email")) || env.EMAIL_TO;
+  const recipient = (await getSetting(env, "notification_email")) || (await getConfig(env, "EMAIL_TO"));
   if (!recipient) return { success: false, message: "No notification_email configured" };
   const r = await sendEmail(env, {
     to: recipient,
