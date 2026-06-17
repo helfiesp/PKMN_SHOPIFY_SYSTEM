@@ -16,7 +16,14 @@
       "Read(//Users/christian/Documents/GitHub/POKELAGERET POS/src/**)",
       "Bash(rsync -a --delete --exclude=node_modules/ --exclude=.wrangler/ --exclude=.git/ --exclude=package-lock.json --exclude=wrangler.toml --exclude=public/assets/app.js /Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM/cloudflare_pos/ '/Users/christian/Documents/GitHub/POKELAGERET POS/')",
       "Bash(find \"/Users/christian/Documents/GitHub\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.js\" \\\\\\) -exec grep -l \"syncAllProducts\" {} \\\\;)",
-      "Bash(git -C \"/Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM\" log --all --oneline --grep=\"sync.*all\\\\|all.*product\")"
+      "Bash(git -C \"/Users/christian/Documents/GitHub/PKMN_SHOPIFY_SYSTEM\" log --all --oneline --grep=\"sync.*all\\\\|all.*product\")",
+      "Read(//Users/christian/Downloads/**)",
+      "Bash(node scripts/import-legacy.mjs \"/Users/christian/Downloads/purchase-orders-2026-04-29.json\" \"/Users/christian/Downloads/margin-vat-with-proofs-2026-04-29.json\")",
+      "Bash(npx wrangler *)",
+      "Bash(node scripts/import-legacy.mjs \"\" \"/Users/christian/Downloads/margin-vat-with-proofs-2026-04-29.json\")",
+      "Bash(npx esbuild *)",
+      "Bash(awk -F: '$1 > 3000 && $1 < 3400')",
+      "Bash(grep -n '?? `\\\\|trim\\(\\) ||' \"/Users/christian/Documents/GitHub/POKELAGERET POS/src/services/purchase-orders.ts\")"
     ]
   }
 }
